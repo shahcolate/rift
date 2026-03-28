@@ -1,0 +1,53 @@
+name: summarization
+description: Summarize passages accurately and concisely
+scoring: semantic
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      The European Central Bank held interest rates steady at 4.5% on Thursday, defying market expectations for a cut. President Christine Lagarde said inflation remains "too high" and that the bank needs to see sustained progress toward its 2% target before easing monetary policy. Analysts noted that while headline inflation has fallen from its peak of 10.6% in October 2022, core inflation, which strips out volatile food and energy prices, remains sticky at 3.4%. The decision sent the euro higher against the dollar and pushed European government bond yields up across the board.
+    expected: "The ECB kept interest rates unchanged at 4.5%, citing persistently high inflation despite market expectations for a cut."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      A new study published in Nature Medicine found that a single dose of the experimental drug psilocybin produced rapid and sustained improvements in treatment-resistant depression. Researchers at Johns Hopkins followed 233 patients over 12 weeks and observed that 37% of participants achieved remission, compared to 7% in the placebo group. Side effects were generally mild, including temporary headache and nausea, though two patients experienced brief episodes of anxiety during the treatment session. The findings add to a growing body of evidence supporting psychedelic-assisted therapy, though regulatory approval is likely still years away.
+    expected: "A Johns Hopkins study found that a single psilocybin dose led to depression remission in 37% of treatment-resistant patients over 12 weeks, far exceeding placebo."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      Tesla reported third-quarter revenue of $23.4 billion, missing Wall Street expectations of $24.1 billion, as price cuts across its vehicle lineup pressured margins. Automotive gross margins fell to 15.7%, down from 26.2% a year earlier, marking the steepest decline in the company's history. CEO Elon Musk acknowledged the challenging environment but pointed to strong demand for the Cybertruck, which began deliveries in November, and the upcoming launch of a more affordable model expected in late 2025. Shares fell 4% in after-hours trading.
+    expected: "Tesla missed Q3 revenue expectations at $23.4B as aggressive price cuts drove automotive margins down sharply to 15.7%, though Musk highlighted Cybertruck demand and a cheaper model coming in 2025."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      The U.S. Department of Justice filed an antitrust lawsuit against Apple on Thursday, alleging the company illegally monopolizes the smartphone market by locking consumers and developers into its ecosystem. The complaint, joined by 16 state attorneys general, targets Apple's restrictions on third-party app stores, its messaging system that degrades texts with Android users, and its tight control over NFC technology used for contactless payments. Apple called the suit "wrong on the facts and the law" and vowed to fight it in court. The case could take years to resolve and may reshape how Apple operates its App Store and hardware ecosystem.
+    expected: "The DOJ and 16 states sued Apple for allegedly monopolizing the smartphone market through App Store restrictions, messaging lock-in, and NFC control, in a case that could reshape Apple's ecosystem."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      Researchers at MIT have developed a new battery technology using aluminum and sulfur that could dramatically reduce the cost of grid-scale energy storage. The prototype cells cost roughly one-sixth the price of comparable lithium-ion batteries and can be manufactured using abundant, domestically available materials. In lab tests, the batteries maintained 95% capacity after 400 charge cycles. However, they operate at elevated temperatures around 110 degrees Celsius, requiring thermal management systems that add complexity. The team published their findings in Nature and is now working with a startup to begin pilot production by 2026.
+    expected: "MIT researchers created aluminum-sulfur batteries costing one-sixth of lithium-ion equivalents with strong cycle life, though they require high operating temperatures, with pilot production planned for 2026."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      India's space agency ISRO successfully launched its Chandrayaan-4 mission, a lunar sample return mission designed to collect up to 3 kilograms of regolith from the Moon's south polar region and bring it back to Earth. The spacecraft launched aboard the LVM3 rocket from the Satish Dhawan Space Centre and is expected to reach lunar orbit within 40 days. If successful, India would become only the fourth country to return lunar samples, after the United States, the Soviet Union, and China. The mission budget of approximately $350 million makes it one of the most cost-effective sample return attempts ever undertaken.
+    expected: "ISRO launched Chandrayaan-4 to collect and return up to 3kg of lunar south pole samples, which if successful would make India the fourth country to achieve this at a relatively low cost of $350M."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      A massive data breach at United Healthcare exposed the personal health information of approximately 42 million Americans, including diagnoses, prescription histories, and Social Security numbers. The breach, discovered in February, exploited a vulnerability in a third-party claims processing system that had not been patched despite a critical security advisory issued three months earlier. United Healthcare said it is offering two years of free credit monitoring to affected individuals. Multiple class-action lawsuits have already been filed, and the Department of Health and Human Services has opened an investigation into whether the company violated HIPAA notification requirements.
+    expected: "A data breach at United Healthcare exposed health records and SSNs of 42 million Americans through an unpatched third-party vulnerability, triggering lawsuits and a federal investigation."
+
+  - input: |
+      Summarize the following passage in exactly one sentence.
+
+      OpenAI announced a partnership with the Los Alamos National Laboratory to explore using large language models for scientific research, including protein folding prediction, materials science simulations, and analysis of nuclear safety data. The collaboration will give Los Alamos researchers access to unreleased models and the ability to fine-tune them on classified datasets within secure computing environments. Critics have raised concerns about the potential military applications of such a partnership, noting that Los Alamos is best known for its role in nuclear weapons development. OpenAI said the work falls within its mission of ensuring AI benefits humanity and that all projects will undergo safety review.
+    expected: "OpenAI partnered with Los Alamos National Laboratory to apply LLMs to scientific research including protein folding and materials science, drawing criticism over potential military implications."

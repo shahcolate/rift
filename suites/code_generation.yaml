@@ -1,0 +1,41 @@
+name: code_generation
+description: Generate correct Python functions from specifications
+scoring: exact_match
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      Write a Python function called `fizzbuzz` that takes an integer n and returns a list of strings from 1 to n where multiples of 3 are "Fizz", multiples of 5 are "Buzz", multiples of both are "FizzBuzz", and all others are the number as a string.
+
+      Return ONLY the function, no explanation or markdown.
+    expected: "function"
+    tags: ["basic", "loops"]
+
+  - input: |
+      Write a Python function called `is_palindrome` that takes a string and returns True if it reads the same forwards and backwards (case-insensitive, ignoring non-alphanumeric characters).
+
+      Return ONLY the function, no explanation or markdown.
+    expected: "function"
+    tags: ["basic", "strings"]
+
+  - input: |
+      Write a Python function called `flatten` that takes an arbitrarily nested list and returns a flat list of all elements.
+      Example: flatten([1, [2, [3, 4], 5], 6]) should return [1, 2, 3, 4, 5, 6].
+
+      Return ONLY the function, no explanation or markdown.
+    expected: "function"
+    tags: ["recursion"]
+
+  - input: |
+      Write a Python function called `two_sum` that takes a list of integers and a target integer, and returns the indices of the two numbers that add up to the target. Assume exactly one solution exists.
+
+      Return ONLY the function, no explanation or markdown.
+    expected: "function"
+    tags: ["algorithms", "hash_map"]
+
+  - input: |
+      Write a Python function called `merge_sorted` that takes two sorted lists of integers and returns a single sorted list containing all elements.
+
+      Return ONLY the function, no explanation or markdown.
+    expected: "function"
+    tags: ["algorithms", "sorting"]

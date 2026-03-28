@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Rift cache and results
+.rift/
+results/
+
+# Environment
+.env
+.venv/
+env/
+venv/
+
+# Claude Code local settings (may contain API keys)
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

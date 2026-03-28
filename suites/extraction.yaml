@@ -1,0 +1,115 @@
+name: structured_extraction
+description: Extract structured data from messy real-world text inputs
+scoring: exact_match
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      Invoice #4521, issued January 15, 2025, total amount $1,240.00 payable to Acme Corp.
+    expected:
+      invoice_number: "4521"
+      date: "2025-01-15"
+      total: 1240.00
+      recipient: "Acme Corp"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      INV-2024-0087 | Date: 03/22/2024 | Amount Due: EUR 5,300.50 | Billed To: Globex International Ltd.
+    expected:
+      invoice_number: "INV-2024-0087"
+      date: "2024-03-22"
+      total: 5300.50
+      recipient: "Globex International Ltd."
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      Reference: 99102
+      To: Martinez & Sons LLC
+      Inv. Date: Dec 1 2023
+      Balance: $420
+    expected:
+      invoice_number: "99102"
+      date: "2023-12-01"
+      total: 420
+      recipient: "Martinez & Sons LLC"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      INVOICE
+      Number: A-10244
+      Client: Northwind Traders Inc
+      Issue Date: 2024-07-30
+      Grand Total (incl. tax): USD 12,750.00
+    expected:
+      invoice_number: "A-10244"
+      date: "2024-07-30"
+      total: 12750.00
+      recipient: "Northwind Traders Inc"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      inv no 33219, billed 8/15/24 to Riverside Medical Group for $890.25
+    expected:
+      invoice_number: "33219"
+      date: "2024-08-15"
+      total: 890.25
+      recipient: "Riverside Medical Group"
+
+  - input: |
+      Extract the following fields as JSON: name, email, phone, company.
+
+      Hi, I'm Jordan Lee from Pinnacle Systems. You can reach me at jordan.lee@pinnaclesys.com or (415) 555-0198.
+    expected:
+      name: "Jordan Lee"
+      email: "jordan.lee@pinnaclesys.com"
+      phone: "(415) 555-0198"
+      company: "Pinnacle Systems"
+
+  - input: |
+      Extract the following fields as JSON: name, email, phone, company.
+
+      Contact: Dr. Priya Sharma, PhD
+      Organization: BioVenture Labs
+      Email: p.sharma@bioventlabs.org
+      Tel: +44 20 7946 0958
+    expected:
+      name: "Dr. Priya Sharma"
+      email: "p.sharma@bioventlabs.org"
+      phone: "+44 20 7946 0958"
+      company: "BioVenture Labs"
+
+  - input: |
+      Extract the following fields as JSON: product, quantity, unit_price, currency.
+
+      Order line: 500 units of Widget Pro X at $12.99 each
+    expected:
+      product: "Widget Pro X"
+      quantity: 500
+      unit_price: 12.99
+      currency: "USD"
+
+  - input: |
+      Extract the following fields as JSON: product, quantity, unit_price, currency.
+
+      Item: Enterprise License (Annual), Qty: 25 seats, Price per seat: EUR 199.00
+    expected:
+      product: "Enterprise License (Annual)"
+      quantity: 25
+      unit_price: 199.00
+      currency: "EUR"
+
+  - input: |
+      Extract the following fields as JSON: event, date (ISO format), location, organizer.
+
+      You're invited to the 2024 Global AI Summit hosted by TechForward Foundation, taking place November 14-16, 2024 at the Moscone Center, San Francisco.
+    expected:
+      event: "2024 Global AI Summit"
+      date: "2024-11-14"
+      location: "Moscone Center, San Francisco"
+      organizer: "TechForward Foundation"
