@@ -49,9 +49,9 @@ from .scoring import get_scorer
 # Tunables. These are module-level (not arguments) because they are
 # operational knobs, not suite-level parameters — changing them never
 # changes what the eval measures, only how robustly it runs.
-MAX_RETRIES = 4
-BACKOFF_BASE_S = 1.0
-BACKOFF_CAP_S = 30.0
+MAX_RETRIES = 8
+BACKOFF_BASE_S = 2.0
+BACKOFF_CAP_S = 90.0
 PER_CASE_TIMEOUT_S = 180.0
 
 
@@ -172,6 +172,41 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
+def _retry_after_s(exc: BaseException) -> float | None:
+    """Extract a retry-after hint from a 429/5xx HTTP error, if present.
+
+    Honors both the ``Retry-After`` header (seconds or HTTP-date) and
+    Anthropic's ``anthropic-ratelimit-*-reset`` timestamps. Returns
+    ``None`` when no authoritative hint is available so the caller
+    falls back to exponential backoff.
+    """
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return None
+    h = exc.response.headers
+    ra = h.get("retry-after")
+    if ra:
+        try:
+            return max(0.0, float(ra))
+        except ValueError:
+            # HTTP-date form — fall through; jitter-backoff is fine.
+            pass
+    # Anthropic: anthropic-ratelimit-tokens-reset is an ISO timestamp.
+    import datetime as _dt
+    for key in ("anthropic-ratelimit-input-tokens-reset",
+                "anthropic-ratelimit-tokens-reset",
+                "anthropic-ratelimit-requests-reset"):
+        v = h.get(key)
+        if not v:
+            continue
+        try:
+            reset = _dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+            now = _dt.datetime.now(_dt.timezone.utc)
+            return max(0.0, (reset - now).total_seconds())
+        except ValueError:
+            continue
+    return None
+
+
 async def _complete_with_retry(
     provider: BaseProvider,
     prompt: str,
@@ -179,10 +214,17 @@ async def _complete_with_retry(
 ) -> tuple[Completion, int]:
     """Call the provider with exponential backoff on transient failures.
 
-    Returns the completion and the number of attempts used. Raises the
-    last exception if all retries are exhausted or an error is judged
-    non-transient.
+    When the server sends a ``Retry-After`` (or Anthropic's
+    per-window reset timestamps), we wait exactly that long rather
+    than use backoff — guessing under-estimates rate-limit windows
+    and wastes the retry budget.
+
+    Returns the completion and the number of attempts used. Raises
+    the last exception if all retries are exhausted or an error is
+    judged non-transient.
     """
+    import random as _r
+
     last_exc: BaseException | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -191,14 +233,19 @@ async def _complete_with_retry(
                 timeout=PER_CASE_TIMEOUT_S,
             )
             return completion, attempt
-        except BaseException as exc:  # noqa: BLE001 — classifier below
+        except BaseException as exc:
             last_exc = exc
             if not _is_transient(exc) or attempt == MAX_RETRIES:
                 raise
-            # Exponential backoff with cap and ±20% jitter.
-            import random as _r
-            delay = min(BACKOFF_BASE_S * (2 ** (attempt - 1)), BACKOFF_CAP_S)
-            delay *= 0.8 + 0.4 * _r.random()
+            server_hint = _retry_after_s(exc)
+            if server_hint is not None:
+                # Cap server hints so a misconfigured header can't
+                # stall the whole run; add small jitter to avoid
+                # thundering-herd on concurrent retries.
+                delay = min(server_hint, BACKOFF_CAP_S) + _r.random()
+            else:
+                delay = min(BACKOFF_BASE_S * (2 ** (attempt - 1)), BACKOFF_CAP_S)
+                delay *= 0.8 + 0.4 * _r.random()
             await asyncio.sleep(delay)
     # Unreachable: loop either returns or raises.
     assert last_exc is not None
