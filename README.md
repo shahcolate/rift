@@ -11,17 +11,22 @@ No vibes. No "it feels dumber." Just p-values and confidence intervals.
 ```bash
 pip install rift-eval
 
-# Compare two models
-rift compare \
-  --baseline claude-3-5-sonnet-20241022 \
-  --challenger claude-sonnet-4-20250514 \
-  --suite summarization
+# Compare two models (with short aliases — opus-4-7, sonnet-4-6, etc.)
+rift compare --baseline opus-4-6 --challenger opus-4-7 --suite reasoning
 
-# Run against a built-in suite
-rift run --model gpt-4o --suite extraction
+# Stress-test reasoning under distractor context (0k/2k/8k/32k)
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+    --suite context_rot_reasoning --context-rot --subgroup distractor:
+
+# Compare 3+ models at once — prints an NxN drift matrix
+rift matrix --models opus-4-7,sonnet-4-6,gpt-4o --suite reasoning
 
 # Diff two saved runs
 rift diff results/before.json results/after.json
+
+# Enterprise contract pricing: apply your negotiated multiplier
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+    --suite reasoning --enterprise-multiplier 0.65
 ```
 
 ## What You Get
@@ -93,12 +98,44 @@ Every model update is a silent deployment to your production system. Providers d
 
 Rift gives you the audit trail.
 
+## Cost as a first-class signal
+
+Every drift report carries token counts, USD spend, and `$/correct`
+(USD per fully-correct case) for both sides. Token-based Enterprise
+pricing means quality and price have to be compared together — Rift
+reports both so you don't have to reconcile spreadsheets after the
+run. See `src/rift/pricing.py` for the catalog; pass
+`--enterprise-multiplier` to apply your contracted rate.
+
+## Context-rot benchmark
+
+The `context_rot_reasoning` suite expands each reasoning case into
+four distractor regimes (0k/2k/8k/32k tokens) with seeded corporate-
+filler distractors, needle-position randomized per case but fixed
+across models. Use `--subgroup distractor:` to get a per-regime
+breakdown of where a model starts to fail. See
+[`benchmarks/context_rot_opus47_analysis.md`](benchmarks/context_rot_opus47_analysis.md)
+for a worked example.
+
+## Statistical tests
+
+Rift picks the test that matches the score distribution:
+
+- **Binary scores (exact-match):** McNemar's exact test on paired
+  discordant pairs. Valid at small n; no chi-squared approximation.
+- **Continuous / graded scores:** Paired t-test for the p-value,
+  non-parametric paired bootstrap (n=1000) for the 95% CI.
+
+The CI is always reported, and the chosen test is named in every
+report. See `src/rift/comparator.py` for the exact logic.
+
 ## Roadmap
 
-- [x] CLI with compare, run, diff commands
+- [x] CLI with compare, run, diff, matrix commands
 - [x] Anthropic + OpenAI providers
-- [x] Built-in eval suites
-- [x] Statistical significance testing
+- [x] Built-in eval suites + context-rot expansion
+- [x] Statistical significance testing with test selection
+- [x] Cost-per-correct metrics + Enterprise pricing multiplier
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
 - [ ] Observability integrations (Datadog, W&B)
