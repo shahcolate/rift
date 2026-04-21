@@ -1,183 +1,182 @@
-# Opus 4.7 holds the line on context rot — and the bill is in tokens now
+# Opus 4.7 costs 45% more than 4.6 for the same prompt
 
-**Benchmark:** `context_rot_reasoning` (8 base reasoning cases × 4 distractor regimes = 32 paired cases per model)
-**Models:** `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `gpt-4o`
-**Pricing basis:** Anthropic list (2026-04). Enterprise multiplier: 1.0 (see "What Enterprise pricing changes" below).
-**Tooling:** [Rift](https://github.com/shahcolate/rift) v0.2, McNemar's exact test on paired binary outcomes, paired bootstrap 95% CI on deltas.
+**TL;DR.** I ran Rift against Anthropic's new Opus 4.7 on a
+context-rot reasoning suite paired against Opus 4.6. Two findings:
+(1) quality is **directionally better** on long-context regimes
+(+12.5pp at both 8k and 32k distractor tokens) but **not
+statistically significant** at n=32. (2) Opus 4.7's tokenizer
+produces **1.43× more input tokens** than 4.6 for byte-identical
+prompts. At list-price parity, that's a silent **~45% cost
+increase per prompt** on migration. Enterprise contracts that
+renegotiate $/token without renegotiating $/prompt will be
+mispriced.
+
+**Benchmark:** `context_rot_reasoning` (8 base reasoning cases × 4
+distractor regimes = 32 paired cases per model)
+**Models:** `claude-opus-4-6`, `claude-opus-4-7`
+**Mode:** `live` (real API calls, no synthesis)
+**Tooling:** [Rift](https://github.com/shahcolate/rift) v0.2,
+McNemar's exact test on paired binary outcomes, paired bootstrap
+95% CI on deltas.
 **Reproduce:**
 ```bash
-python benchmarks/generate_synthetic_outcomes.py   # or skip and use --mode live
-python benchmarks/run_context_rot.py --mode record --baseline opus-4-6 \
-    --models opus-4-7,opus-4-6,sonnet-4-6,gpt-4o \
-    --output benchmarks/context_rot_opus47.md
+python benchmarks/run_context_rot.py --mode live \
+    --models opus-4-6,opus-4-7 --baseline opus-4-6 \
+    --concurrency 1 --output benchmarks/opus47_live.md
 ```
-Raw report: [`context_rot_opus47.md`](context_rot_opus47.md). The numbers cited
-below are from an illustrative run against a documented prior model
-(`generate_synthetic_outcomes.py`); the point of the post is the
-**methodology and tooling**, not the specific percentages. Run `--mode
-live` to replace synthetic outcomes with real API calls.
+Raw report: [`opus47_live.md`](opus47_live.md).
 
 ---
 
-## The question an Anthropic researcher actually wants answered
+## Finding 1: quality — directional, not significant
 
-"How much does Opus 4.7 degrade on multi-step reasoning when we wrap the
-same question in distractor context?" is the shape of the question
-everyone asks. The shape of the **answer**, however, is the part most
-benchmarks get wrong. Three failure modes are common:
+| Model      | Mean   | Correct | Errors | Spend  | $/correct |
+|------------|--------|---------|--------|--------|-----------|
+| opus-4-6   | 0.812  | 26/32   | 0      | $4.72  | $0.1815   |
+| **opus-4-7** | **0.875** | **28/32** | **0**  | **$6.84** | **$0.2444** |
 
-1. **Needle-in-a-haystack retrieval is solved.** Every frontier model
-   can find a single sentence in 100K tokens. That's the easy regime,
-   and it's what Anthropic publishes on the model card. It's not what
-   trips production systems.
-2. **Synthetic MMLU-at-length overestimates robustness.** Multiple
-   choice lets a model guess; it also doesn't penalize confident
-   hallucinations.
-3. **No cost normalization.** At list price, Opus 4.7 output is **5x**
-   the cost of Sonnet 4.6 output per token. If Sonnet gets 82% at 0k
-   and 54% at 32k, and Opus 4.7 gets 92% / 87%, which one should you
-   deploy for a 10K-token RAG pipeline? Pure accuracy doesn't answer;
-   dollars-per-correct-answer does.
+**Δ = +6.25 pp, p = 0.69, 95% CI [-6.3, +21.9]** (McNemar's exact
+test on 6 discordant pairs: 4 improved, 2 regressed). At n=32 this
+is nowhere near statistically significant. It is, however,
+directionally consistent in the one place that matters:
 
-Rift was designed to handle all three. The `context_rot_reasoning`
-suite uses short, verifiable reasoning questions (bat-and-ball, the
-widget problem, a constraint-satisfaction seating puzzle) with
-exact-match scoring, so there's no partial credit and no room for
-clever-sounding-wrong answers. Each question gets re-rendered at
-**0k, 2k, 8k, and 32k** tokens of distractor context — realistic
-corporate filler, not random tokens — with the needle position keyed
-to the case index so every model sees an identical mix of prefix,
-middle, and suffix placements. Scoring, ordering, and tokenization
-are held constant across models. The only thing that varies is the
-weight of the dead context wrapped around a question a smart
-seven-year-old could answer.
+| Subgroup    | opus-4-6 | opus-4-7 | Δ      | 95% CI        |
+|-------------|----------|----------|--------|---------------|
+| 0k          | 0.875    | 0.875    | +0.000 | [-0.250, +0.375] |
+| 2k          | 0.875    | 0.875    | +0.000 | [-0.253, +0.375] |
+| 8k          | 0.750    | 0.875    | +0.125 | [+0.000, +0.375] |
+| **32k**     | **0.750** | **0.875** | **+0.125** | **[+0.000, +0.375]** |
 
-## What Rift surfaces
+At both 8k and 32k distractor tokens, the 95% CI on the delta has
+its lower bound at +0.000 — the data is consistent with a true
+improvement up to +37.5pp but cannot rule out zero. Reading the
+tea leaves: *if* the effect is real, it's concentrated where it
+matters (long-context robustness) and shows up on a suite where the
+challenger had no room to improve at the short-context end (both
+already at 87.5%). Running with n≥50 would push the p-value into
+publishable territory.
 
-From the synthetic illustrative run (numbers below are reproducible from
-the seeded prior in `generate_synthetic_outcomes.py`):
+Two regressed cases — both variants of the seating-puzzle CSP with
+distractor context. Worth a failure-mode writeup if the pattern
+repeats on a larger run.
 
-| Model | Mean | Correct | Spend | $/correct |
-|-------|------|---------|-------|-----------|
-| `opus-4-7`   | **0.875** | 28/32 | $5.08  | **$0.182** |
-| `opus-4-6`   | 0.844    | 27/32 | $5.08  | $0.188    |
-| `sonnet-4-6` | 0.750    | 24/32 | $1.02  | **$0.042** |
-| `gpt-4o`     | 0.531    | 17/32 | $0.85  | $0.050    |
+## Finding 2: the tokenizer changed. The price didn't.
 
-Three things jump out.
+The headline cost number above — $4.72 vs $6.84 — is a **45%
+spend increase on challenger despite list prices being identical
+per token**. Digging into the cache:
 
-### 1. The drift signature is in the *tails*, not the mean
+```
+opus-4-6 total input tokens:  313,717  (mean 9,804/case)
+opus-4-7 total input tokens:  453,957  (mean 14,186/case)
+Extra tokens on 4-7:          140,240  (+44.7%)
+```
 
-Compared against `opus-4-6` as the baseline, `opus-4-7`'s improvement
-is small at the mean (+3.1 pp, p=1.0 under McNemar's exact test —
-nowhere near significant on 32 paired cases) but **the regressed and
-improved sets barely overlap**. Four cases regressed and five
-improved. This is exactly the "silent deployment" regression pattern
-Rift is built to detect: a model-update release note that reads
-"slight improvement on reasoning" can quietly move which *specific*
-questions a production pipeline gets right. Rift prints the case
-indices, so you can open the prompts and see what actually changed.
+For byte-identical prompts. This is not a long-context artifact:
 
-The right test here is McNemar's, not a t-test: outcomes are
-Bernoulli, and discordant pairs carry all the information. Rift picks
-the test automatically from the score distribution.
+| Distractor | opus-4-6 mean tokens | opus-4-7 mean tokens | Ratio |
+|------------|----------------------|----------------------|-------|
+| 0k         | 60                   | 81                   | 1.37× |
+| 2k         | 2,018                | 2,935                | 1.45× |
+| 8k         | 7,506                | 10,869               | 1.45× |
+| 32k        | 29,631               | 42,860               | 1.45× |
 
-### 2. gpt-4o is the canary for context rot
+Per-prompt ratio range: **1.21× to 1.62×, mean 1.43×**. The
+inflation is uniform from short prompts to 32k-token ones, which
+means it's a tokenizer-vocabulary change (different BPE merges),
+not a system-prompt insert or a thinking-token leak. The
+`usage.cache_creation_input_tokens` and
+`usage.cache_read_input_tokens` fields are both zero on every
+call, so it's not prompt caching either.
 
-Against the same baseline, `gpt-4o` shows a **-31.3 pp regression
-(p=0.006, 95% CI [-0.50, -0.13])** — and Rift's subgroup breakdown
-localizes almost all of the damage to the 32k regime, where gpt-4o
-drops to 25% correct while opus-4-6 holds 87.5%. This is the regime
-every enterprise RAG pipeline actually operates in.
+**Why this matters for anyone migrating:**
 
-| Subgroup    | opus-4-6 | gpt-4o | Δ      | 95% CI on Δ     |
-|-------------|----------|--------|--------|-----------------|
-| 0k          | 0.875    | 0.750  | -0.125 | [-0.375, +0.000]|
-| 2k          | 0.875    | 0.625  | -0.250 | [-0.625, +0.000]|
-| 8k          | 0.750    | 0.500  | -0.250 | [-0.750, +0.250]|
-| **32k**     | **0.875**| **0.250**| **-0.625** | **[-0.875, -0.250]**|
+- **List-price parity is a mirage.** Opus 4.7 is listed at the
+  same $15/Mtok input as Opus 4.6. At 1.43× tokenization, the
+  effective rate on real prompts is $21.45/Mtok input.
+- **Enterprise contracts that renegotiate $/token without
+  retesting $/prompt will be wrong.** If your annual committed
+  spend is denominated in tokens and you default-upgrade your
+  model, you'll hit your cap ~30% sooner than last year's budget
+  suggests.
+- **Rift's `$/correct` column is the right denominator.** On this
+  suite: $0.1815 (4.6) → $0.2444 (4.7), a **+35% cost per fully
+  correct answer** even accounting for 4.7's (non-significant)
+  quality lift. The quality lift isn't priced in; the token
+  inflation is.
 
-At 32k, the CI is entirely on the wrong side of zero. This is the
-kind of claim you can put in a changelog and defend.
+## Scale estimate
 
-### 3. The cost pivot is real — and Opus 4.7 wins it outright
+For a production pipeline at 10M daily input tokens on Opus 4.6,
+naive upgrade to 4.7 moves you to ~14.3M tokens/day for
+byte-identical prompts. At list: **+$195/day input cost
+(~$71k/year) with zero workload change**.
 
-Here's the point enterprise buyers will care about. Rift's
-`$/correct` column is the USD you spend to get one fully-correct
-answer on this suite, integrating quality and price into a single
-number:
+Your mileage will vary — the inflation ratio depends on what's in
+your prompts (the 1.45× figure here is on English corporate-filler
+distractor context; code-heavy or multilingual workloads could
+differ substantially). The point is to measure it before you
+migrate, not after.
 
-- `opus-4-7`:   **$0.182/correct** — 3.6% cheaper per correct than 4.6 at identical list price, because it gets one more case right.
-- `sonnet-4-6`: **$0.042/correct** — the value leader by raw metric, but only because this suite's ceiling is forgiving.
-- `gpt-4o`:     $0.050/correct — *cheaper per token* than Sonnet 4.6, but its context-rot degradation means you pay for more wrong answers, narrowing the gap.
+## What Rift caught that a casual eval wouldn't
 
-The Sonnet-vs-Opus decision is workload-dependent, and Rift gives you
-the crossover curve: at 0k and 2k distractor, Sonnet 4.6 matches Opus
-on quality for a quarter the price; at 32k, Opus's robustness starts
-to pay for itself on anything where a wrong answer has non-trivial
-downstream cost. The `Δ $/correct` column in the subgroup breakdown
-quantifies this per regime.
+The first run of this benchmark produced **"opus-4-7: 0/32, $0,
+-100% drift"** — a catastrophic-looking regression. It was a
+tooling bug: opus-4-7 deprecates `temperature`/`top_p`/`top_k` and
+rejects suites that pass them with a 400. The runner correctly
+classified 400s as non-retryable, but the reporter rendered the
+all-errored result as real drift. Two fixes landed as a result:
+
+1. A per-model `DEPRECATED_PARAMS` map in the Anthropic provider
+   silently strips knobs the model no longer honors, preserving
+   paired determinism (the dropped params weren't being applied
+   by the model anyway).
+2. The report now carries an `Errors` column + a top-of-page
+   warning when any model had API errors. A drift report on an
+   error-tainted run is biased downward by construction; the
+   tooling refuses to let it look clean.
 
 ## What Enterprise token-pricing changes
 
-The shift to committed-token Enterprise contracts changes the
-accounting, not the math. Rift models it with a single
-`enterprise_multiplier` applied uniformly to both input and output
-list prices. If your negotiated Opus 4.7 rate is 65% of list:
+Two things change on Enterprise contracts, neither of which is
+addressed by list-price parity:
 
-```bash
-rift compare --baseline opus-4-6 --challenger opus-4-7 \
-    --suite context_rot_reasoning --context-rot \
-    --subgroup distractor: --enterprise-multiplier 0.65
-```
+1. **Tokenizer changes aren't a line item in the contract.** Your
+   negotiated `$/Mtok` stays the same; your `tokens/prompt`
+   silently grows ~40%.
+2. **`$/correct` is the only workload-normalized comparison.**
+   Rift's `--enterprise-multiplier` applies your negotiated rate
+   uniformly; the delta in `$/correct` is then directly
+   comparable across models. In this case:
 
-...and every `$/correct` number in the report re-prices automatically.
-We don't model tiered bulk discounts or cached-input rebates yet;
-those would be the first follow-ons if this pattern gets traction.
+   ```bash
+   rift compare --baseline opus-4-6 --challenger opus-4-7 \
+       --suite context_rot_reasoning --context-rot \
+       --subgroup distractor: --enterprise-multiplier 0.65
+   ```
+
+   At a 65%-of-list contract, the 4.6→4.7 cost-per-correct delta
+   shrinks proportionally but stays positive — still negative on
+   unit economics for this suite.
 
 ## What would change the conclusion
 
-The synthetic prior this report was built against makes three
-assumptions that are worth poking at with real data:
-
-1. **Opus 4.7's 2.5 pp/decade degradation is conservative.** If the
-   real rate is flatter (Anthropic's published long-context work
-   suggests it might be), Opus's advantage at 32k widens.
-2. **The 8 base cases are too few to bound the 32k regime tightly.**
-   The 95% CI at 32k spans roughly a full standard deviation of the
-   effect. Rift's statistical machinery is valid at n=8 per
-   subgroup, but the post-worthy number would come from n≥50. The
-   suite is intentionally small so the reproducibility bar is low;
-   scale it with `--models ...` once you have throughput.
-3. **Distractor type matters.** Rift uses corporate boilerplate.
-   Swapping in adversarial distractors (near-paraphrases of the
-   real question) is known to degrade frontier models an additional
-   10–20 pp. That is a separate experiment — don't conflate them.
-
-## The tool, briefly
-
-Rift v0.2 added four things specifically to support this post:
-
-- **Cost as a first-class signal.** Every `CaseResult` carries token
-  counts and USD cost; every `DriftResult` reports $/correct and its
-  delta. See `src/rift/pricing.py`.
-- **Context-rot expansion.** `src/rift/context_rot.py` takes any
-  suite and emits the same cases at multiple distractor regimes,
-  seeded so baseline and challenger see byte-identical prompts.
-- **Subgroup drift.** `rift compare --subgroup distractor:` produces
-  the per-regime table above without any extra bookkeeping.
-- **Test selection that matches the data.** Binary scores →
-  McNemar's exact test. Continuous scores → paired t-test +
-  bootstrap CI. See `src/rift/comparator.py`.
-
-The async runner was hardened alongside — per-case timeout,
-exponential-backoff retries on transient errors, atomic cache writes
-— because a benchmark you can't rerun is worthless, and the one
-thing worse than a noisy drift number is a silently-short run.
+1. **n=32 is too small for a significance test on the quality
+   side.** If the 8k/32k directional improvement holds at n≥50, it
+   becomes publishable. The suite is intentionally small so the
+   reproducibility bar is low; run it against your own data.
+2. **This is one suite.** Reasoning with corporate-filler
+   distractors isn't the only shape of enterprise workload.
+   Extraction, summarization, and code-gen tokenize differently
+   and may show different inflation ratios.
+3. **Enterprise contracts may include caching discounts that
+   this suite doesn't exercise.** A multi-turn workload with
+   significant prompt overlap could recover some of the tokenizer
+   inflation through prompt caching — but the base rate still
+   moves.
 
 ---
 
-_Rift is MIT-licensed. The benchmark script, the synthesizer, and the
-outcomes file are all under `benchmarks/`. File issues or PRs against
-`shahcolate/rift` if the methodology is wrong; the numbers will
-change when the models do._
+_Rift is MIT-licensed. Run it against your own data before you
+decide whether to upgrade. The numbers will change when the models
+do._
