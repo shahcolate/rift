@@ -82,7 +82,8 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | Method | Use When |
 |--------|----------|
 | `exact_match` | Output must match expected exactly (structured data, classification) |
-| `semantic` | Fuzzy string similarity (tolerates whitespace, capitalization, minor rewording) |
+| `fuzzy_match` | Lexical similarity via character-sequence ratio (tolerates whitespace, capitalization, minor rewording) |
+| `f1` | Token-overlap F1 — harmonic mean of BLEU-style precision and ROUGE-style recall. Word-order invariant, punctuation-insensitive. Lightweight stand-in for embedding-based semantic scoring. |
 
 ## CI/CD Integration
 
