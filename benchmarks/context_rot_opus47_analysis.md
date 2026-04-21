@@ -7,11 +7,12 @@ Anthropic's new Opus 4.7 on a context-rot reasoning suite,
 paired against Opus 4.6 (same prompts, same scorer, real API
 calls). Two findings:
 
-1. **Quality is directionally better but not statistically
-   significant** at n=32: +6.25 percentage points overall
-   (26/32 → 28/32 correct), with the entire lift concentrated in
-   the long-context regimes (+12.5pp at both 8k and 32k
-   distractor tokens).
+1. **Short workloads are a wash. The lift, if any, is at the
+   long end.** On 0k and 2k distractor tokens, both models
+   complete **87.5% (7/8)** of cases — indistinguishable. At
+   8k and 32k distractors, success rate moves from **75% → 87.5%
+   (+12.5pp)** on each bucket. Directional but not significant at
+   n=8 per bucket; +6.25pp overall (26/32 → 28/32, p=0.69).
 2. **The tokenizer changed.** For byte-identical prompts,
    Opus 4.7 emits **1.43× more input tokens** than 4.6 (range
    1.21×–1.62× across 32 paired prompts, uniform across all
@@ -19,11 +20,27 @@ calls). Two findings:
    **~45% per-prompt cost increase** on migration.
 
 The combined effect on `cost-per-correct-answer`: **+35% on
-Opus 4.7** (`$0.244` vs `$0.181`). The quality lift, even if real,
-does not pay for the tokenizer inflation on this suite.
+Opus 4.7** (`$0.244` vs `$0.181`). *If* the 12.5pp long-end
+success-rate lift holds at larger n, a pure long-workload (all
+8k/32k) would see that cost-per-correct delta shrink from +35%
+to about **+24%** — still a regression on unit economics, but a
+meaningfully smaller one. An 80% long / 20% short mix lands
+around **+28%**. On a workload that is mostly 0k/2k, the lift
+buys nothing and the full +35% lands.
 
 The headline isn't "is Opus 4.7 better." The headline is "your
-token bill goes up 30–45% even if you change nothing else."
+token bill goes up 30–45% even if you change nothing else, and
+whether the long-context success-rate lift pays any of it back
+depends on what fraction of your prompts are actually long."
+
+**Why this benchmark alone can't settle the long-workload
+question:** exact-match scoring collapses success rate to mean
+score, and n=8 per distractor bucket is underpowered to prove the
+12.5pp long-end lift is real. A graded scorer (token-F1 or
+embedding similarity) on a larger suite would let success rate
+diverge from mean and bring the "does 4.7 actually carry long
+workloads better" question into a range where it can be answered,
+not just hinted at.
 
 _Disclosure: I maintain Rift. Numbers below are from my own runs
 against the Anthropic API; run your own paired benchmark before
@@ -83,7 +100,21 @@ will see lower cache hit rates by construction. Budget for a
 2–4 week re-warm period and confirm the cache line items in
 your contract apply to the new tokenizer.
 
-### 4. Run your own paired drift report before signing off
+### 4. Measure what fraction of your prompts are actually long
+
+The +35% blended cost-per-correct delta assumes your workload
+looks like this suite — a uniform mix across distractor regimes.
+Yours probably doesn't. Pull a week of production prompts,
+bucket by input-token length, and weight the cost-per-correct
+deltas by that distribution rather than the uniform one. If
+you're mostly short-prompt traffic (chat, classification, small
+extractions) the quality lift buys nothing and the full
+tokenizer tax applies. If you're mostly long-context (RAG over
+large corpora, long-document reasoning) you're in the regime
+where the lift might offset some of the cost, and a
+bigger-sample follow-up is worth running before ruling 4.7 out.
+
+### 5. Run your own paired drift report before signing off
 
 Don't take this writeup's numbers as authoritative for your
 workload. The 1.43× inflation here is on English corporate
@@ -93,15 +124,18 @@ tokenizes differently and may show 1.1× or 1.7× — measure it.
 ```bash
 pip install rift-eval
 rift compare --baseline opus-4-6 --challenger opus-4-7 \
-    --suite YOUR_PRODUCTION_SUITE
+    --suite YOUR_PRODUCTION_SUITE \
+    --subgroup length: --success-threshold 0.8
 ```
 
-Look at three columns in the report: the accuracy delta, the
-total-spend delta, and the **cost-per-correct delta**. The third
-is the only one that integrates quality and price into a number
-you can defend in a budget review.
+Look at four columns in the report: the accuracy delta, the
+total-spend delta, the **cost-per-correct delta**, and the
+per-subgroup **success-rate delta**. The third is the only one
+that integrates quality and price into a number you can defend
+in a budget review; the fourth is where Opus-tier pricing earns
+its keep, if it earns it at all.
 
-### 5. If you must migrate now, negotiate
+### 6. If you must migrate now, negotiate
 
 You have a real, measurable +30–45% bill increase on the same
 workload. That is leverage. Either negotiate an offsetting
@@ -112,26 +146,39 @@ first to characterize the inflation on your actual prompts.
 
 ---
 
-## Finding 1: quality — directionally better, not significant
+## Finding 1: success rate is flat at the short end, directional at the long end
 
-| Subgroup    | opus-4-6 | opus-4-7 | Δ      | 95% CI            |
-|-------------|----------|----------|--------|-------------------|
-| 0k          | 0.875    | 0.875    | +0.000 | [-0.250, +0.375]  |
-| 2k          | 0.875    | 0.875    | +0.000 | [-0.253, +0.375]  |
-| 8k          | 0.750    | 0.875    | +0.125 | [+0.000, +0.375]  |
-| **32k**     | **0.750** | **0.875** | **+0.125** | **[+0.000, +0.375]** |
+The relevant metric on a reasoning suite is **fraction of cases
+the model actually gets right** — not mean score, which happens
+to equal fraction-correct here only because the scorer is
+binary. Per bucket:
 
-At both 8k and 32k distractor tokens, the 95% CI on the delta
-has its lower bound at +0.000 — the data is consistent with a
-true improvement up to +37.5pp but cannot rule out zero. *If*
-the effect is real, it is concentrated where it matters
-(long-context robustness) on a suite where the challenger had
-no room to improve at the short-context end (both already at
-87.5%). Running with n≥50 would push the p-value into
-publishable territory.
+| Distractor  | opus-4-6 success | opus-4-7 success | Δ      | 95% CI            |
+|-------------|------------------|------------------|--------|-------------------|
+| 0k          | 87.5% (7/8)      | 87.5% (7/8)      | +0.0pp | [-25.0, +37.5]    |
+| 2k          | 87.5% (7/8)      | 87.5% (7/8)      | +0.0pp | [-25.3, +37.5]    |
+| 8k          | 75.0% (6/8)      | 87.5% (7/8)      | +12.5pp | [+0.0, +37.5]    |
+| **32k**     | **75.0% (6/8)**  | **87.5% (7/8)**  | **+12.5pp** | **[+0.0, +37.5]** |
 
-Two regressed cases — both variants of the seating-puzzle CSP
-with distractor context. Worth a failure-mode writeup if the
+At both long-context buckets the 95% CI on the success-rate
+delta has its lower bound at 0 — the data is consistent with a
+true +12.5pp improvement up to +37.5pp but cannot rule out zero.
+At n=8 per bucket that's what "directional, not significant"
+looks like on exact-match scoring; binary outcomes at small n
+are brutal to get p-values from. *If* the long-end lift is real,
+this is exactly the shape Opus-tier pricing is supposed to
+justify: 4.7 completing cases that 4.6 drops on long inputs.
+Running with n≥50 per bucket, or switching to a graded scorer so
+partial-credit signal shows up, would push this into publishable
+territory.
+
+Short-context is flat — both models already at 87.5% and no
+evidence either way on what a 16th case would show. Any cost
+story on short-workload traffic has to stand on the tokenizer
+finding alone; there is no quality-side offset.
+
+Two regressed cases on 4.7 — both variants of the seating-puzzle
+CSP with distractor context. Worth a failure-mode writeup if the
 pattern repeats on a larger run.
 
 ## Finding 2: the tokenizer changed. The price didn't.
