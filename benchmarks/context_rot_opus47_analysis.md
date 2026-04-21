@@ -171,8 +171,8 @@ inferred from the ratio shape, not confirmed.
 **Why this matters for anyone migrating:**
 
 - **List-price parity is a mirage.** Opus 4.7 is listed at
-  $15/Mtok input — the same as Opus 4.6. At 1.43× tokenization,
-  the **effective rate on real prompts is ~$21.45/Mtok input**.
+  $5/Mtok input — the same as Opus 4.6. At 1.43× tokenization,
+  the **effective rate on real prompts is ~$7.15/Mtok input**.
 - **Enterprise contracts that renegotiate price-per-token
   without retesting tokens-per-prompt will be wrong.** If your
   annual committed spend is denominated in tokens and you
@@ -188,10 +188,10 @@ inferred from the ratio shape, not confirmed.
 
 For a production pipeline at 10M daily input tokens on Opus 4.6,
 naive upgrade to 4.7 moves you to ~14.3M tokens/day for
-byte-identical prompts. At list ($15/Mtok input, 4.3M extra
-tokens/day): **+$64.50/day input cost (~$23.5k/year) with zero
+byte-identical prompts. At list ($5/Mtok input, 4.3M extra
+tokens/day): **+$21.50/day input cost (~$7.85k/year) with zero
 workload change**. Larger pipelines scale linearly — a 100M
-tokens/day workload is ~$235k/year on the same assumption.
+tokens/day workload is ~$78.5k/year on the same assumption.
 
 Your mileage will vary — the inflation ratio depends on what is
 in your prompts (the 1.45× figure here is on English
