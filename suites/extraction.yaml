@@ -113,3 +113,211 @@ cases:
       date: "2024-11-14"
       location: "Moscone Center, San Francisco"
       organizer: "TechForward Foundation"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      Bill to Hawthorne Dental - invoice 2024/Q3/0117, issued on the 5th of September 2024, $2,015.75 due net 30.
+    expected:
+      invoice_number: "2024/Q3/0117"
+      date: "2024-09-05"
+      total: 2015.75
+      recipient: "Hawthorne Dental"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      Recipient: Blackwood Architects, LLP
+      Ref #: BW-0471-A
+      Dated: 11 February 2025
+      Payable: £8,940.00
+    expected:
+      invoice_number: "BW-0471-A"
+      date: "2025-02-11"
+      total: 8940.00
+      recipient: "Blackwood Architects, LLP"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      Invoice no: 7781
+      Client: Oak & Sons Landscaping
+      Service date: 2024-06-09
+      Amount: $312.40 (includes 8% tax)
+    expected:
+      invoice_number: "7781"
+      date: "2024-06-09"
+      total: 312.40
+      recipient: "Oak & Sons Landscaping"
+
+  - input: |
+      Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.
+
+      From Harper Design Studio: please remit $480 for inv #H-2024-55, sent 4/1/2024, to Summit Realty Group.
+    expected:
+      invoice_number: "H-2024-55"
+      date: "2024-04-01"
+      total: 480
+      recipient: "Summit Realty Group"
+
+  - input: |
+      Extract the following fields as JSON: name, email, phone, company.
+
+      Please add to your records:
+      Miguel Ortiz-Ramirez | Director of Engineering | Vertex Robotics
+      miguel.o@vertexrobotics.ai · +1-512-555-7734
+    expected:
+      name: "Miguel Ortiz-Ramirez"
+      email: "miguel.o@vertexrobotics.ai"
+      phone: "+1-512-555-7734"
+      company: "Vertex Robotics"
+
+  - input: |
+      Extract the following fields as JSON: name, email, phone, company.
+
+      Hey — this is Anne-Sophie Bernard calling on behalf of Clairmont & Vincent. Best number is 020 7946 1122 and you can email me at as.bernard@clairmontvincent.co.uk.
+    expected:
+      name: "Anne-Sophie Bernard"
+      email: "as.bernard@clairmontvincent.co.uk"
+      phone: "020 7946 1122"
+      company: "Clairmont & Vincent"
+
+  - input: |
+      Extract the following fields as JSON: name, email, phone, company.
+
+      Contact card:
+      --------------
+      Tomoko Yamamoto
+      Head of Research, Midori Biotech K.K.
+      t.yamamoto@midori-bio.jp
+      +81 3-1234-5678
+    expected:
+      name: "Tomoko Yamamoto"
+      email: "t.yamamoto@midori-bio.jp"
+      phone: "+81 3-1234-5678"
+      company: "Midori Biotech K.K."
+
+  - input: |
+      Extract the following fields as JSON: product, quantity, unit_price, currency.
+
+      PO line 3: 12x "Titanium Bolt M8x40" @ GBP 3.75 ea.
+    expected:
+      product: "Titanium Bolt M8x40"
+      quantity: 12
+      unit_price: 3.75
+      currency: "GBP"
+
+  - input: |
+      Extract the following fields as JSON: product, quantity, unit_price, currency.
+
+      Ordered 1,000 bottles of Cold Brew Concentrate (1L) at ¥620 per bottle.
+    expected:
+      product: "Cold Brew Concentrate (1L)"
+      quantity: 1000
+      unit_price: 620
+      currency: "JPY"
+
+  - input: |
+      Extract the following fields as JSON: product, quantity, unit_price, currency.
+
+      Item line: 3 units of "Studio Monitor Pair - 5\"" for CAD 429.00 each.
+    expected:
+      product: "Studio Monitor Pair - 5\""
+      quantity: 3
+      unit_price: 429.00
+      currency: "CAD"
+
+  - input: |
+      Extract the following fields as JSON: event, date (ISO format), location, organizer.
+
+      Save the date: PyData Berlin 2024, organized by NumFOCUS, will run April 22-24, 2024 at bcc Berlin Congress Center.
+    expected:
+      event: "PyData Berlin 2024"
+      date: "2024-04-22"
+      location: "bcc Berlin Congress Center"
+      organizer: "NumFOCUS"
+
+  - input: |
+      Extract the following fields as JSON: event, date (ISO format), location, organizer.
+
+      The North Coast Jazz Festival (presented by the Cleveland Arts Council) returns August 2nd through 4th, 2024 on the shores of Lake Erie at Edgewater Park.
+    expected:
+      event: "North Coast Jazz Festival"
+      date: "2024-08-02"
+      location: "Edgewater Park"
+      organizer: "Cleveland Arts Council"
+
+  - input: |
+      Extract the following fields as JSON: street, city, state, postal_code, country.
+
+      Ship to: 4412 Magnolia Blvd Apt 3B, Nashville, TN 37205, United States
+    expected:
+      street: "4412 Magnolia Blvd Apt 3B"
+      city: "Nashville"
+      state: "TN"
+      postal_code: "37205"
+      country: "United States"
+
+  - input: |
+      Extract the following fields as JSON: street, city, state, postal_code, country.
+
+      Address on file:
+        12 Rue de Rivoli
+        75001 Paris
+        France
+    expected:
+      street: "12 Rue de Rivoli"
+      city: "Paris"
+      state: ""
+      postal_code: "75001"
+      country: "France"
+
+  - input: |
+      Extract the following fields as JSON: patient, medication, dosage, refills (number).
+
+      Rx for J. Patel: Amoxicillin 500mg, one capsule every 8 hours. 2 refills remaining.
+    expected:
+      patient: "J. Patel"
+      medication: "Amoxicillin"
+      dosage: "500mg"
+      refills: 2
+
+  - input: |
+      Extract the following fields as JSON: flight, departure, arrival, date (ISO format).
+
+      Booking confirmed: UA 2287, SFO → ORD, departing Tuesday, March 4 2025.
+    expected:
+      flight: "UA 2287"
+      departure: "SFO"
+      arrival: "ORD"
+      date: "2025-03-04"
+
+  - input: |
+      Extract the following fields as JSON: job_title, company, location, salary_max (number).
+
+      Now hiring: Senior Platform Engineer at Lumen Analytics (remote within EU), up to €95,000 per year.
+    expected:
+      job_title: "Senior Platform Engineer"
+      company: "Lumen Analytics"
+      location: "remote within EU"
+      salary_max: 95000
+
+  - input: |
+      Extract the following fields as JSON: sender, recipient, amount (number), currency.
+
+      Transfer complete: Elena Rossi sent AU$1,450.00 to The Green Pantry Pty Ltd on 10 Oct 2024.
+    expected:
+      sender: "Elena Rossi"
+      recipient: "The Green Pantry Pty Ltd"
+      amount: 1450.00
+      currency: "AUD"
+
+  - input: |
+      Extract the following fields as JSON: title, author, isbn, pages (number).
+
+      "The Long Coastline" by R. Nakamura — ISBN 978-0-19-912345-6, 382 pages, Oxford University Press.
+    expected:
+      title: "The Long Coastline"
+      author: "R. Nakamura"
+      isbn: "978-0-19-912345-6"
+      pages: 382

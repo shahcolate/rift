@@ -54,15 +54,18 @@ def compare_runs(
     delta = challenger_mean - baseline_mean
     delta_pct = (delta / baseline_mean * 100) if baseline_mean != 0 else 0.0
 
-    # Paired t-test
+    # Wilcoxon signed-rank: appropriate for paired discrete/bounded scores
+    # (exact-match field scores are often in {0, 0.25, 0.5, ...}, not normally distributed).
     diffs = c - b
-    if n >= 2 and np.std(diffs) > 1e-10:
-        t_stat, p_value = stats.ttest_rel(c, b)
+    nonzero = diffs[np.abs(diffs) > 1e-10]
+    if len(nonzero) >= 1 and len(np.unique(nonzero)) >= 2:
+        _, p_value = stats.wilcoxon(c, b, zero_method="wilcox", alternative="two-sided")
         p_value = float(p_value)
-    elif abs(float(np.mean(diffs))) > 1e-10:
-        # All diffs identical and non-zero: deterministic change
+    elif len(nonzero) >= 1:
+        # All non-zero diffs identical: deterministic shift, no rank variance
         p_value = 0.0
     else:
+        # All diffs zero
         p_value = 1.0
 
     # Paired bootstrap confidence interval on the difference

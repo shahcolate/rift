@@ -81,9 +81,15 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         raise ValueError(f"Unknown provider: {config.provider}")
 
 
-def _cache_key(model: str, input_text: str) -> str:
-    """Generate a cache key for a completion."""
-    h = hashlib.sha256(f"{model}:{input_text}".encode()).hexdigest()[:16]
+def _cache_key(model: str, input_text: str, params: dict[str, Any]) -> str:
+    """Generate a cache key for a completion.
+
+    Includes sampling params so that changing temperature, max_tokens, etc.
+    in a suite invalidates stale completions instead of silently serving them.
+    """
+    params_blob = json.dumps(params or {}, sort_keys=True, default=str)
+    payload = f"{model}:{input_text}:{params_blob}"
+    h = hashlib.sha256(payload.encode()).hexdigest()[:16]
     return f"{model}_{h}"
 
 
@@ -106,7 +112,7 @@ async def run_suite(
     async def run_case(idx: int, case) -> CaseResult:
         async with semaphore:
             # Check cache
-            ck = _cache_key(model_config.model, case.input)
+            ck = _cache_key(model_config.model, case.input, suite.model_params)
             cached = cache_path / f"{ck}.json"
             if cached.exists():
                 with open(cached) as f:
