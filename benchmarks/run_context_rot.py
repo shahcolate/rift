@@ -151,18 +151,29 @@ def main():
     )
 
     # Per-model headline table.
+    error_models = [m for m in models if runs[m].metadata.get("n_errors", 0) > 0]
+    if error_models:
+        sections.append(
+            "> ⚠️ **Run integrity warning.** One or more models had API "
+            "errors during this run; their scores are biased downward "
+            "because errored cases are counted as 0. Do not interpret "
+            "drift on the affected models without re-running.\n"
+        )
+
     sections.append("## Headline: score and cost by model\n")
     sections.append(
-        "| Model | Mean | Correct | Spend | $/correct |\n"
-        "|-------|------|---------|-------|-----------|"
+        "| Model | Mean | Correct | Errors | Spend | $/correct |\n"
+        "|-------|------|---------|--------|-------|-----------|"
     )
     for m in models:
         r = runs[m]
         n_correct = sum(1 for c in r.cases if c.score >= 0.999)
+        n_err = r.metadata.get("n_errors", 0)
         cpc = r.cost_per_correct()
+        flag = " ⚠️" if n_err else ""
         sections.append(
             f"| `{m}` | {r.mean_score:.3f} | {n_correct}/{len(r.cases)} | "
-            f"${r.total_cost_usd:.4f} | "
+            f"{n_err}{flag} | ${r.total_cost_usd:.4f} | "
             f"{'∞' if cpc == float('inf') else f'${cpc:.4f}'} |"
         )
     sections.append("")
