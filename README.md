@@ -31,7 +31,7 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 
 ## What You Get
 
-Real output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases (live API run, n=32, McNemar's exact test):
+Reformatted output from a real run of `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` (live API, n=32, McNemar's exact test). Numbers are verbatim from the run; the box below condenses the CLI's multi-line `Cost (USD)` block into a two-line spend/$-per-correct summary for readability:
 
 ```
 ╭─────────────────────────────────────────────────╮
@@ -133,7 +133,7 @@ scorer, same prompts, byte-identical inputs.
 
 | Signal | Opus 4.6 | Opus 4.7 | Δ |
 |---|---|---|---|
-| Accuracy | 26/32 (81.2%) | 28/32 (87.5%) | +6.25pp, p=0.69 (**not significant**) |
+| Accuracy | 26/32 (81.25%) | 28/32 (87.50%) | +6.25pp, p=0.69 (**not significant**) |
 | Input tokens (byte-identical prompts) | 313,717 | 453,957 | **+44.7%** |
 | Total spend | $4.72 | $6.84 | +45% |
 | **$/correct** | $0.1815 | $0.2444 | **+35%** |
