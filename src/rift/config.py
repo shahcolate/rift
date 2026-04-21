@@ -66,15 +66,35 @@ def load_suite(path_or_name: str) -> SuiteConfig:
     return SuiteConfig(**data)
 
 
+# Short aliases for convenience on the command line. Kept tiny on
+# purpose — we want `rift compare --baseline opus-4-6 --challenger
+# opus-4-7 ...` to just work without making users memorize dated
+# variants, but we don't want a sprawling nickname registry.
+MODEL_ALIASES: dict[str, str] = {
+    "opus-4-7":   "claude-opus-4-7",
+    "opus-4-6":   "claude-opus-4-6",
+    "opus-4":     "claude-opus-4-20250514",
+    "sonnet-4-6": "claude-sonnet-4-6",
+    "sonnet-4":   "claude-sonnet-4-20250514",
+    "haiku-4-5":  "claude-haiku-4-5-20251001",
+    "sonnet-3-5": "claude-3-5-sonnet-20241022",
+}
+
+
 def resolve_model(model_str: str) -> ModelConfig:
-    """Resolve a model string like 'claude-3-5-sonnet' to a ModelConfig."""
-    # Anthropic models
-    if any(model_str.startswith(p) for p in ["claude", "claude-"]):
+    """Resolve a model string like 'opus-4-7' to a :class:`ModelConfig`.
+
+    Accepts short aliases (see :data:`MODEL_ALIASES`), canonical dated
+    identifiers, or any unrecognized string which is treated as a
+    local/custom endpoint so that self-hosted models work without
+    configuration.
+    """
+    model_str = MODEL_ALIASES.get(model_str, model_str)
+
+    if model_str.startswith("claude"):
         return ModelConfig(provider="anthropic", model=model_str)
 
-    # OpenAI models
-    if any(model_str.startswith(p) for p in ["gpt-", "o1", "o3"]):
+    if model_str.startswith(("gpt-", "o1", "o3", "o4")):
         return ModelConfig(provider="openai", model=model_str)
 
-    # Assume local/custom endpoint
     return ModelConfig(provider="local", model=model_str)

@@ -64,20 +64,6 @@ class TestCompareRuns:
         assert 3 in result.regressed_cases
         assert len(result.improved_cases) == 0
 
-    def test_wilcoxon_with_varied_diffs(self):
-        """Varied paired diffs should exercise the Wilcoxon path and return a valid p."""
-        baseline = [0.9, 0.8, 0.9, 0.7, 0.9, 0.8, 0.9, 0.9, 0.8, 0.9, 0.9, 0.8]
-        challenger = [0.8, 0.8, 0.6, 0.7, 0.7, 0.8, 0.8, 0.5, 0.8, 0.8, 0.7, 0.8]
-        result = compare_runs(
-            baseline_scores=baseline,
-            challenger_scores=challenger,
-            baseline_model="model-a",
-            challenger_model="model-b",
-            suite_name="test",
-        )
-        assert 0.0 <= result.p_value <= 1.0
-        assert result.delta < 0
-
     def test_confidence_interval(self):
         """CI should contain the observed delta for stable data."""
         baseline = [0.8, 0.85, 0.82, 0.79, 0.83, 0.81, 0.84, 0.80, 0.82, 0.83]

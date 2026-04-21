@@ -11,17 +11,22 @@ No vibes. No "it feels dumber." Just p-values and confidence intervals.
 ```bash
 pip install rift-eval
 
-# Compare two models
-rift compare \
-  --baseline claude-3-5-sonnet-20241022 \
-  --challenger claude-sonnet-4-20250514 \
-  --suite summarization
+# Compare two models (with short aliases — opus-4-7, sonnet-4-6, etc.)
+rift compare --baseline opus-4-6 --challenger opus-4-7 --suite reasoning
 
-# Run against a built-in suite
-rift run --model gpt-4o --suite extraction
+# Stress-test reasoning under distractor context (0k/2k/8k/32k)
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+    --suite context_rot_reasoning --context-rot --subgroup distractor:
+
+# Compare 3+ models at once — prints an NxN drift matrix
+rift matrix --models opus-4-7,sonnet-4-6,gpt-4o --suite reasoning
 
 # Diff two saved runs
 rift diff results/before.json results/after.json
+
+# Enterprise contract pricing: apply your negotiated multiplier
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+    --suite reasoning --enterprise-multiplier 0.65
 ```
 
 ## What You Get
@@ -29,20 +34,26 @@ rift diff results/before.json results/after.json
 ```
 ╭─────────────────────────────────────────────────╮
 │  Rift Drift Report                              │
-│  baseline: claude-3-5-sonnet-20241022           │
-│  challenger: claude-sonnet-4-20250514           │
-│  suite: structured_extraction (47 cases)        │
-├─────────────────────────────────────────────────┤
-│  Aggregate Drift Score: 0.12 (p=0.003) ⚠️       │
 │                                                 │
-│  exact_match    0.91 → 0.83  ▼ -8.7%  p=0.01  │
-│  field_recall   0.95 → 0.94  ▼ -1.1%  p=0.34  │
-│  format_valid   1.00 → 0.96  ▼ -4.3%  p=0.08  │
+│    baseline:   claude-3-5-sonnet-20241022       │
+│    challenger: claude-sonnet-4-20250514         │
+│    suite:      structured_extraction (47 cases) │
 │                                                 │
-│  3 / 47 cases regressed significantly           │
-│  See full report: rift_report.md                │
+│    Status: REGRESSION DETECTED                  │
+│                                                 │
+│    Baseline mean:    0.9149                     │
+│    Challenger mean:  0.8298                     │
+│    Delta:            -0.0851 (-9.3%)            │
+│    p-value:          0.003421                   │
+│    95% CI:           [-0.1243, -0.0459]         │
+│                                                 │
+│    Regressed cases:  3                          │
+│    Improved cases:   0                          │
 ╰─────────────────────────────────────────────────╯
 ```
+
+A table of regressed cases (with inputs and per-case score deltas) is printed
+below the summary. Use `rift report` to emit the same data as a markdown file.
 
 ## Define Your Own Eval Suite
 
@@ -71,9 +82,7 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | Method | Use When |
 |--------|----------|
 | `exact_match` | Output must match expected exactly (structured data, classification) |
-| `semantic` | Meaning matters more than wording (summaries, explanations) |
-| `llm_judge` | Complex quality assessment (creative writing, nuanced reasoning) |
-| `custom` | Your own scoring function |
+| `semantic` | Fuzzy string similarity (tolerates whitespace, capitalization, minor rewording) |
 
 ## CI/CD Integration
 
@@ -93,12 +102,48 @@ Every model update is a silent deployment to your production system. Providers d
 
 Rift gives you the audit trail.
 
+## Cost as a first-class signal
+
+Every drift report carries token counts, USD spend, and `$/correct`
+(USD per fully-correct case) for both sides. Token-based Enterprise
+pricing means quality and price have to be compared together — Rift
+reports both so you don't have to reconcile spreadsheets after the
+run. See `src/rift/pricing.py` for the catalog; pass
+`--enterprise-multiplier` to apply your contracted rate.
+
+## Context-rot benchmark
+
+The `context_rot_reasoning` suite expands each reasoning case into
+four distractor regimes (0k/2k/8k/32k tokens) with seeded corporate-
+filler distractors, needle-position randomized per case but fixed
+across models. Use `--subgroup distractor:` to get a per-regime
+breakdown of where a model starts to fail. See
+[`benchmarks/context_rot_opus47_analysis.md`](benchmarks/context_rot_opus47_analysis.md)
+for a worked example.
+
+## Statistical tests
+
+Rift picks the test that matches the score distribution:
+
+- **Binary scores (exact-match):** McNemar's exact test on paired
+  discordant pairs. Valid at small n; no chi-squared approximation.
+- **Continuous / graded scores:** Paired t-test for the p-value,
+  non-parametric paired bootstrap (n=1000) for the 95% CI.
+
+The CI is always reported, and the chosen test is named in every
+report. See `src/rift/comparator.py` for the exact logic.
+
 ## Roadmap
 
-- [x] CLI with compare, run, diff commands
+- [x] CLI with compare, run, diff, matrix commands
 - [x] Anthropic + OpenAI providers
-- [x] Built-in eval suites
-- [x] Statistical significance testing
+- [x] Built-in eval suites + context-rot expansion
+- [x] Statistical significance testing with test selection
+- [x] Cost-per-correct metrics + Enterprise pricing multiplier
+- [ ] Embedding-based semantic scoring
+- [ ] `llm_judge` scorer for open-ended outputs
+- [ ] User-defined `custom` scoring functions
+- [ ] Multi-metric drift breakdown in a single run
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
 - [ ] Observability integrations (Datadog, W&B)

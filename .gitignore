@@ -11,6 +11,9 @@ build/
 .rift/
 results/
 
+# Benchmark stdout tee logs (the .md output is checked in; the log is not)
+benchmarks/*.log
+
 # Environment
 .env
 .venv/

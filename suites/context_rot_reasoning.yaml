@@ -1,0 +1,92 @@
+name: context_rot_reasoning
+description: >
+  Multi-step reasoning cases that are re-rendered at multiple distractor
+  context lengths. Use with `rift compare --context-rot --subgroup
+  distractor:` to see each model's robustness curve as a function of
+  prompt bloat. The base cases are deliberately small, unambiguous, and
+  verifiable by exact-match so the signal isolates context handling,
+  not scoring noise.
+scoring: exact_match
+model_params:
+  temperature: 0
+cases:
+  # (1) Arithmetic with a discount — trips models that skip the
+  # threshold check.
+  - input: |
+      Answer with just the number, no explanation.
+
+      A store sells apples for $1.50 each. If you buy 5 or more, you get
+      a 20% discount on the entire purchase. How much do 7 apples cost?
+    expected: "8.40"
+    tags: ["arithmetic"]
+
+  # (2) Rate + distance with staggered start times.
+  - input: |
+      Answer with the time in the format HH:MM AM/PM, nothing else.
+
+      A train leaves Station A at 9:00 AM traveling at 60 mph. Another
+      train leaves Station B (180 miles away) at 10:00 AM traveling
+      toward Station A at 90 mph. At what time do they meet?
+    expected: "10:48 AM"
+    tags: ["rate_distance"]
+
+  # (3) Invalid syllogism — must reject.
+  - input: |
+      Answer with just "True" or "False", no explanation.
+
+      All roses are flowers. Some flowers fade quickly. Therefore,
+      some roses fade quickly.
+    expected: "False"
+    tags: ["logic"]
+
+  # (4) Affirming the consequent.
+  - input: |
+      Answer with just "True" or "False", no explanation.
+
+      If it rains, the ground gets wet. The ground is wet. Therefore,
+      it rained.
+    expected: "False"
+    tags: ["logic"]
+
+  # (5) Geometric sequence continuation.
+  - input: |
+      Answer with just the letter (A, B, C, or D), no explanation.
+
+      Which comes next in the sequence: 2, 6, 18, 54, ?
+      A) 108
+      B) 162
+      C) 148
+      D) 216
+    expected: "B"
+    tags: ["sequence"]
+
+  # (6) Constraint-satisfaction seating puzzle.
+  - input: |
+      Answer with just the name, no explanation.
+
+      Five people sit in a row: Alice, Bob, Carol, Dave, Eve.
+      - Bob is not at either end.
+      - Carol is immediately to the right of Alice.
+      - Dave is at the left end.
+      - Eve is not next to Bob.
+      Who is at the right end?
+    expected: "Bob"
+    tags: ["constraints"]
+
+  # (7) Classic bat-and-ball.
+  - input: |
+      Answer with just the number, no explanation.
+
+      A bat and a ball cost $1.10 together. The bat costs $1.00 more
+      than the ball. How much does the ball cost in cents?
+    expected: "5"
+    tags: ["arithmetic", "intuition_trap"]
+
+  # (8) Proportional reasoning — classic widget problem.
+  - input: |
+      Answer with just the number, no explanation.
+
+      If it takes 5 machines 5 minutes to make 5 widgets, how many
+      minutes would it take 100 machines to make 100 widgets?
+    expected: "5"
+    tags: ["proportion", "intuition_trap"]

@@ -9,27 +9,33 @@ The pitch: "You upgraded your model. What broke?"
 
 ```
 rift/
-├── src/
-│   ├── cli.py              # CLI entry point (Click-based)
-│   ├── runner.py            # Eval execution engine
-│   ├── comparator.py        # Statistical comparison (paired bootstrap, t-tests)
-│   ├── reporter.py          # Output formatting (terminal, JSON, markdown)
+├── src/rift/
+│   ├── cli.py              # CLI entry: compare, run, diff, matrix
+│   ├── runner.py            # Async eval engine (retries, timeouts, cost tagging)
+│   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
+│   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
+│   ├── pricing.py           # Token price catalog + enterprise multiplier
+│   ├── context_rot.py       # Distractor-injection suite expansion
 │   ├── scoring/
-│   │   ├── exact_match.py   # Exact match scorer
-│   │   ├── semantic.py      # Embedding-based semantic similarity
-│   │   ├── llm_judge.py     # LLM-as-judge scorer
-│   │   └── custom.py        # User-defined scoring functions
+│   │   ├── exact_match.py
+│   │   └── semantic.py
 │   ├── providers/
-│   │   ├── base.py          # Abstract provider interface
-│   │   ├── anthropic.py     # Anthropic API provider
-│   │   ├── openai.py        # OpenAI API provider
-│   │   └── local.py         # Local/custom endpoint provider
-│   └── config.py            # YAML config parsing and validation
-├── suites/                  # Built-in eval suites
+│   │   ├── __init__.py      # Abstract BaseProvider + Completion dataclass
+│   │   ├── anthropic.py
+│   │   └── openai.py
+│   └── config.py            # YAML parsing + model alias resolution
+├── suites/
 │   ├── summarization.yaml
 │   ├── extraction.yaml
 │   ├── reasoning.yaml
-│   └── code_generation.yaml
+│   ├── code_generation.yaml
+│   └── context_rot_reasoning.yaml
+├── benchmarks/
+│   ├── run_context_rot.py              # Reproducible benchmark driver (live|record)
+│   ├── generate_synthetic_outcomes.py  # Seeded prior-model outcomes generator
+│   ├── context_rot_outcomes.yaml       # Recorded outcomes (committed for repro)
+│   ├── context_rot_opus47.md           # Raw Rift drift report
+│   └── context_rot_opus47_analysis.md  # Methodology + findings writeup
 ├── tests/
 ├── pyproject.toml
 ├── README.md
@@ -97,12 +103,29 @@ cases:
 
 ## Key Implementation Notes
 
-- Use async throughout for parallel eval execution
-- Cache individual completions by (model, input_hash) to avoid redundant API calls
-- Store raw responses alongside scores for manual inspection
-- Default to paired bootstrap confidence intervals (n=1000) for significance testing
-- Use rich for terminal output with progress bars during runs
-- Exit code 0 = no significant drift, exit code 1 = significant drift detected (for CI/CD integration)
+- Use async throughout for parallel eval execution. Per-case timeout
+  (180s default) and exponential-backoff retries on transient errors
+  (429, 5xx, timeouts) live in `runner.py`. Non-transient 4xx errors
+  bubble up immediately.
+- Cache completions by `(model, model_params, input_hash)`. Changing
+  temperature invalidates the cache; rewording a prompt invalidates
+  the cache; changing the model obviously invalidates the cache.
+- Provider instantiation is lazy — fully cached runs (including
+  benchmark replays from recorded outcomes) work without API keys.
+- Cache writes are atomic (tmp + rename) so a crashed runner never
+  leaves a half-written JSON.
+- Every `CaseResult` carries `input_tokens`, `output_tokens`, and
+  `cost_usd`. Do not drop any of these — the cost-normalized drift
+  metrics depend on them.
+- Statistical test selection is automatic: binary scores use
+  McNemar's exact test (binomial on discordant pairs); continuous
+  scores use paired t-test + paired bootstrap CI. The chosen test is
+  stored in `DriftResult.test_used`.
+- Exit code 0 = no significant drift; exit code 1 = significant
+  regression detected (for CI/CD integration).
+- Benchmarks live under `benchmarks/`. Any benchmark worth publishing
+  should run reproducibly in `--mode record` against a committed
+  outcomes file.
 
 ## Environment Variables
 

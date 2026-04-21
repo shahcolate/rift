@@ -8,6 +8,17 @@ import httpx
 from . import BaseProvider, Completion
 
 
+# Per-model parameter compatibility. Newer models deprecate knobs the
+# Messages API used to accept (e.g. opus-4-7 fixes the sampler and
+# rejects ``temperature``). Listing them here lets a single suite YAML
+# target several model generations without per-model branches at the
+# call site, while still preserving paired determinism: the dropped
+# param wasn't honored by the model anyway, so the comparison is fair.
+DEPRECATED_PARAMS: dict[str, set[str]] = {
+    "claude-opus-4-7": {"temperature", "top_p", "top_k"},
+}
+
+
 class AnthropicProvider(BaseProvider):
     """Provider for Anthropic's Messages API."""
 
@@ -37,6 +48,8 @@ class AnthropicProvider(BaseProvider):
         }
         # Remove non-API params
         params.pop("max_tokens_override", None)
+        for dropped in DEPRECATED_PARAMS.get(self.model, ()):
+            params.pop(dropped, None)
 
         start = time.perf_counter()
         resp = await self.client.post("/v1/messages", json=params)

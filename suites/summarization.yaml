@@ -1,6 +1,6 @@
 name: summarization
 description: Summarize passages accurately and concisely
-scoring: semantic
+scoring: fuzzy_match
 model_params:
   temperature: 0
 cases:
