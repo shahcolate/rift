@@ -178,6 +178,47 @@ def main():
         )
     sections.append("")
 
+    sections.append("## Tokens: input vs output by model\n")
+    sections.append(
+        "| Model | Input tokens | Output tokens | Input/case | Output/case | In:Out |\n"
+        "|-------|--------------|---------------|------------|-------------|--------|"
+    )
+    for m in models:
+        r = runs[m]
+        n = len(r.cases) or 1
+        ti, to = r.total_input_tokens, r.total_output_tokens
+        ratio = f"{ti/to:.1f}:1" if to else "—"
+        sections.append(
+            f"| `{m}` | {ti:,} | {to:,} | {ti/n:,.0f} | {to/n:,.0f} | {ratio} |"
+        )
+    sections.append("")
+
+    sections.append(f"## Token inflation vs `{baseline}`\n")
+    sections.append(
+        "Does output inflate along with input, or is the inflation "
+        "input-only? A uniform ratio on both axes points at a "
+        "tokenizer-vocabulary change; divergent ratios point at a "
+        "response-length shift.\n"
+    )
+    sections.append(
+        "| Challenger | Input ratio | Output ratio | Total ratio |\n"
+        "|------------|-------------|--------------|-------------|"
+    )
+    base_r = runs[baseline]
+    bi, bo = base_r.total_input_tokens, base_r.total_output_tokens
+    for m in models:
+        if m == baseline:
+            continue
+        r = runs[m]
+        in_ratio = r.total_input_tokens / bi if bi else float("nan")
+        out_ratio = r.total_output_tokens / bo if bo else float("nan")
+        tot_ratio = ((r.total_input_tokens + r.total_output_tokens)
+                     / (bi + bo)) if (bi + bo) else float("nan")
+        sections.append(
+            f"| `{m}` | {in_ratio:.3f}× | {out_ratio:.3f}× | {tot_ratio:.3f}× |"
+        )
+    sections.append("")
+
     # Pairwise drift vs baseline, subgroup-split by distractor level.
     base_run = runs[baseline]
     for m in models:
