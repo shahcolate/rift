@@ -31,29 +31,52 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 
 ## What You Get
 
+Real output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases (live API run, n=32, McNemar's exact test):
+
 ```
 ╭─────────────────────────────────────────────────╮
 │  Rift Drift Report                              │
 │                                                 │
-│    baseline:   claude-3-5-sonnet-20241022       │
-│    challenger: claude-sonnet-4-20250514         │
-│    suite:      structured_extraction (47 cases) │
+│    baseline:   claude-opus-4-6                  │
+│    challenger: claude-opus-4-7                  │
+│    suite:      context_rot_reasoning (32 cases) │
 │                                                 │
-│    Status: REGRESSION DETECTED                  │
+│    Status: NO SIGNIFICANT DRIFT                 │
+│    Test:   mcnemar_exact                        │
 │                                                 │
-│    Baseline mean:    0.9149                     │
-│    Challenger mean:  0.8298                     │
-│    Delta:            -0.0851 (-9.3%)            │
-│    p-value:          0.003421                   │
-│    95% CI:           [-0.1243, -0.0459]         │
+│    Baseline mean:    0.8125                     │
+│    Challenger mean:  0.8750                     │
+│    Delta:            +0.0625 (+7.7%)            │
+│    p-value:          0.687500                   │
+│    95% CI:           [-0.0633, +0.2188]         │
 │                                                 │
-│    Regressed cases:  3                          │
-│    Improved cases:   0                          │
+│    Regressed cases:  2                          │
+│    Improved cases:   4                          │
+│                                                 │
+│    Spend:      $4.72  →  $6.84                  │
+│    $/correct:  $0.1815 →  $0.2444  (+35%)       │
 ╰─────────────────────────────────────────────────╯
 ```
 
-A table of regressed cases (with inputs and per-case score deltas) is printed
-below the summary. Use `rift report` to emit the same data as a markdown file.
+Followed by a per-subgroup breakdown and a table of regressed cases with
+per-case score deltas. Use `-r report.md` to emit the same data as
+markdown (see [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.md)
+for a real example).
+
+### How to read it
+
+Three numbers carry the story:
+
+1. **`Delta` + `95% CI`** — the accuracy change and the range the data is
+   consistent with. If the CI crosses zero, the direction is not
+   established. Don't report a delta without its CI.
+2. **`p-value` + `Test`** — whether the delta is unlikely under the null.
+   Rift picks the test automatically: McNemar's exact for binary
+   (exact-match) scores, paired t-test + bootstrap for continuous ones.
+3. **`$/correct`** — USD per fully-correct case. This is the number a
+   budget owner can defend. Two models with the same accuracy aren't
+   equivalent if one costs 3× more; `$/correct` folds quality and price
+   into one line.
 
 ## Define Your Own Eval Suite
 
@@ -82,7 +105,7 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | Method | Use When |
 |--------|----------|
 | `exact_match` | Output must match expected exactly (structured data, classification) |
-| `semantic` | Fuzzy string similarity (tolerates whitespace, capitalization, minor rewording) |
+| `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). **Not** embedding-based — for that, see the roadmap. |
 
 ## CI/CD Integration
 
@@ -101,6 +124,46 @@ Rift returns exit code 1 when significant drift is detected. Drop it in your dep
 Every model update is a silent deployment to your production system. Providers don't publish granular changelogs. "Improved reasoning" could mean your extraction pipeline now returns different field names. "Better instruction following" could mean your carefully-tuned prompts behave differently.
 
 Rift gives you the audit trail.
+
+## Executive readout: a worked Opus 4.6 → 4.7 study
+
+Live paired run against the Anthropic API. 32 cases (8 reasoning
+prompts × 4 distractor regimes: 0k, 2k, 8k, 32k tokens). Same
+scorer, same prompts, byte-identical inputs.
+
+| Signal | Opus 4.6 | Opus 4.7 | Δ |
+|---|---|---|---|
+| Accuracy | 26/32 (81.2%) | 28/32 (87.5%) | +6.25pp, p=0.69 (**not significant**) |
+| Input tokens (byte-identical prompts) | 313,717 | 453,957 | **+44.7%** |
+| Total spend | $4.72 | $6.84 | +45% |
+| **$/correct** | $0.1815 | $0.2444 | **+35%** |
+
+Three takeaways a leader can act on today:
+
+- **The tokenizer changed; the list price didn't.** Opus 4.7 emits
+  1.21–1.62× more input tokens than 4.6 for byte-identical prompts
+  (mean 1.43×). At $15/Mtok list, the effective rate on real
+  prompts is ~$21.45/Mtok. At 10M daily input tokens, a silent
+  default-upgrade costs ~$23.5k/year with zero workload change.
+- **The quality lift is directional, not established.** +6.25pp
+  overall with the CI `[-0.06, +0.22]` — the data is consistent
+  with anything from a small regression to a 22-point improvement.
+  The lift concentrates at 8k/32k distractor tokens (both +12.5pp)
+  where robustness matters most. Run at n≥50 to move the p-value.
+- **`$/correct` is the number to watch.** +35% per fully-correct
+  answer on this suite. Even if the quality lift is real, it
+  doesn't pay for the tokenizer inflation.
+
+**Action list (cheapest first):** pin model routing to an explicit
+`claude-opus-4-6` until you've run the same comparison on your own
+prompts; re-baseline your token budgets (multiply committed annual
+spend by your observed ratio); renegotiate contracts on
+`tokens/prompt × prompts/day`, not `$/Mtok` alone.
+
+Full writeup with reproduction steps, per-subgroup tables, and the
+tooling bug Rift caught along the way:
+[`benchmarks/context_rot_opus47_analysis.md`](benchmarks/context_rot_opus47_analysis.md).
+Raw report: [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.md).
 
 ## Cost as a first-class signal
 
