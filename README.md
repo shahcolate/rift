@@ -34,20 +34,26 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 ```
 ╭─────────────────────────────────────────────────╮
 │  Rift Drift Report                              │
-│  baseline: claude-3-5-sonnet-20241022           │
-│  challenger: claude-sonnet-4-20250514           │
-│  suite: structured_extraction (47 cases)        │
-├─────────────────────────────────────────────────┤
-│  Aggregate Drift Score: 0.12 (p=0.003) ⚠️       │
 │                                                 │
-│  exact_match    0.91 → 0.83  ▼ -8.7%  p=0.01  │
-│  field_recall   0.95 → 0.94  ▼ -1.1%  p=0.34  │
-│  format_valid   1.00 → 0.96  ▼ -4.3%  p=0.08  │
+│    baseline:   claude-3-5-sonnet-20241022       │
+│    challenger: claude-sonnet-4-20250514         │
+│    suite:      structured_extraction (47 cases) │
 │                                                 │
-│  3 / 47 cases regressed significantly           │
-│  See full report: rift_report.md                │
+│    Status: REGRESSION DETECTED                  │
+│                                                 │
+│    Baseline mean:    0.9149                     │
+│    Challenger mean:  0.8298                     │
+│    Delta:            -0.0851 (-9.3%)            │
+│    p-value:          0.003421                   │
+│    95% CI:           [-0.1243, -0.0459]         │
+│                                                 │
+│    Regressed cases:  3                          │
+│    Improved cases:   0                          │
 ╰─────────────────────────────────────────────────╯
 ```
+
+A table of regressed cases (with inputs and per-case score deltas) is printed
+below the summary. Use `rift report` to emit the same data as a markdown file.
 
 ## Define Your Own Eval Suite
 
@@ -76,9 +82,7 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | Method | Use When |
 |--------|----------|
 | `exact_match` | Output must match expected exactly (structured data, classification) |
-| `semantic` | Meaning matters more than wording (summaries, explanations) |
-| `llm_judge` | Complex quality assessment (creative writing, nuanced reasoning) |
-| `custom` | Your own scoring function |
+| `semantic` | Fuzzy string similarity (tolerates whitespace, capitalization, minor rewording) |
 
 ## CI/CD Integration
 
@@ -136,6 +140,10 @@ report. See `src/rift/comparator.py` for the exact logic.
 - [x] Built-in eval suites + context-rot expansion
 - [x] Statistical significance testing with test selection
 - [x] Cost-per-correct metrics + Enterprise pricing multiplier
+- [ ] Embedding-based semantic scoring
+- [ ] `llm_judge` scorer for open-ended outputs
+- [ ] User-defined `custom` scoring functions
+- [ ] Multi-metric drift breakdown in a single run
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
 - [ ] Observability integrations (Datadog, W&B)

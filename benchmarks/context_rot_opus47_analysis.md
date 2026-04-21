@@ -25,14 +25,18 @@ does not pay for the tokenizer inflation on this suite.
 The headline isn't "is Opus 4.7 better." The headline is "your
 token bill goes up 30–45% even if you change nothing else."
 
+_Disclosure: I maintain Rift. Numbers below are from my own runs
+against the Anthropic API; run your own paired benchmark before
+making procurement decisions._
+
 ---
 
 ## At a glance
 
-| Model      | Mean   | Correct | Errors | Spend  | Cost/correct |
-|------------|--------|---------|--------|--------|--------------|
-| opus-4-6   | 0.812  | 26/32   | 0      | $4.72  | `$0.1815`    |
-| **opus-4-7** | **0.875** | **28/32** | **0** | **$6.84** | **`$0.2444`** |
+| Model      | Mean       | Correct    | Errors | Spend     | Cost/correct      |
+|------------|------------|------------|--------|-----------|-------------------|
+| opus-4-6   | 0.812      | 26/32      | 0      | $4.72     | `$0.1815`         |
+| **opus-4-7** | 0.875 (ns) | 28/32 (ns) | **0**  | **$6.84** | **`$0.2444`**     |
 
 - Drift on accuracy: +6.25pp, p=0.69 (McNemar's exact test on 6
   discordant pairs: 4 improved, 2 regressed). Not significant.
@@ -153,12 +157,16 @@ artifact:
 | 32k        | 29,631               | 42,860               | 1.45× |
 
 Per-prompt ratio range: **1.21× to 1.62×, mean 1.43×**. The
-inflation is uniform from short prompts to 32k-token ones,
-which means it is a tokenizer-vocabulary change (different BPE
-merges), not a system-prompt insert or a thinking-token leak.
+inflation is approximately uniform from short prompts to 32k-token
+ones, which is consistent with a tokenizer-vocabulary change
+(different BPE merges) rather than a fixed system-prompt insert —
+a fixed insertion would produce a much higher ratio on the
+60-token prompts than the 29k-token ones, and we don't see that.
 The `usage.cache_creation_input_tokens` and
 `usage.cache_read_input_tokens` fields are zero on every call,
-so it is not prompt caching either.
+ruling out prompt caching as a confound. Anthropic has not
+published a tokenizer changelog for 4.7; treat the cause as
+inferred from the ratio shape, not confirmed.
 
 **Why this matters for anyone migrating:**
 
@@ -180,8 +188,10 @@ so it is not prompt caching either.
 
 For a production pipeline at 10M daily input tokens on Opus 4.6,
 naive upgrade to 4.7 moves you to ~14.3M tokens/day for
-byte-identical prompts. At list: **+$195/day input cost
-(~$71k/year) with zero workload change**.
+byte-identical prompts. At list ($15/Mtok input, 4.3M extra
+tokens/day): **+$64.50/day input cost (~$23.5k/year) with zero
+workload change**. Larger pipelines scale linearly — a 100M
+tokens/day workload is ~$235k/year on the same assumption.
 
 Your mileage will vary — the inflation ratio depends on what is
 in your prompts (the 1.45× figure here is on English
@@ -216,10 +226,12 @@ addressed by list-price parity:
 1. **Tokenizer changes are not a line item in the contract.**
    Your negotiated rate-per-million-tokens stays the same; your
    tokens-per-prompt silently grows ~40%.
-2. **`Cost-per-correct` is the only workload-normalized
-   comparison.** Rift's `--enterprise-multiplier` applies your
-   negotiated rate uniformly; the delta in cost-per-correct is
-   then directly comparable across models. In this case:
+2. **`Cost-per-correct` folds quality and price into one number
+   you can defend in a budget review** (latency-per-correct and
+   tail-latency matter too, and aren't captured here). Rift's
+   `--enterprise-multiplier` applies your negotiated rate
+   uniformly; the delta in cost-per-correct is then directly
+   comparable across models. In this case:
 
    ```bash
    rift compare --baseline opus-4-6 --challenger opus-4-7 \
