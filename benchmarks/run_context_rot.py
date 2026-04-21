@@ -92,7 +92,7 @@ def _prime_cache_from_recording(
 
 
 async def _run_all(models: list[str], cache_dir: Path, mode: str,
-                   enterprise_multiplier: float):
+                   enterprise_multiplier: float, concurrency: int):
     base = load_suite("context_rot_reasoning")
     suite = expand_suite(base)
 
@@ -108,7 +108,7 @@ async def _run_all(models: list[str], cache_dir: Path, mode: str,
         if mode == "record":
             _prime_cache_from_recording(suite, cfg.model, outcomes, cache_dir)
         runs[m] = await run_suite(
-            suite, cfg, concurrency=8, cache_dir=str(cache_dir),
+            suite, cfg, concurrency=concurrency, cache_dir=str(cache_dir),
             enterprise_multiplier=enterprise_multiplier,
         )
     return suite, runs
@@ -121,14 +121,21 @@ def main():
     ap.add_argument("--baseline", default="opus-4-6",
                     help="Model to treat as baseline in pairwise drift reports.")
     ap.add_argument("--enterprise-multiplier", type=float, default=1.0)
+    ap.add_argument("--concurrency", type=int, default=2,
+                    help="Per-model parallel requests. Lower if you hit 429s.")
     ap.add_argument("--cache-dir", default=str(ROOT / ".rift" / "cache"))
     ap.add_argument("--output", default=str(ROOT / "benchmarks" / "context_rot_opus47.md"))
     args = ap.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
+    # Keep recorded (synthetic) outcomes out of the live cache so a
+    # subsequent live run can never be silently served prior synthesis.
+    cache_dir = Path(args.cache_dir)
+    if args.mode == "record":
+        cache_dir = cache_dir.parent / (cache_dir.name + "_recorded")
     suite, runs = asyncio.run(
-        _run_all(models, Path(args.cache_dir), args.mode,
-                 args.enterprise_multiplier)
+        _run_all(models, cache_dir, args.mode,
+                 args.enterprise_multiplier, args.concurrency)
     )
 
     baseline = args.baseline
