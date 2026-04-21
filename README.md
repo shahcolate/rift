@@ -111,6 +111,28 @@ reports both so you don't have to reconcile spreadsheets after the
 run. See `src/rift/pricing.py` for the catalog; pass
 `--enterprise-multiplier` to apply your contracted rate.
 
+## Output-token decomposition
+
+An output-token ratio between two models conflates two things: the
+**tokenizer effect** (same text, different tokenizer) and the
+**verbosity effect** (the model is actually writing more). They have
+different fixes — a tokenizer change is a pricing-tier conversation;
+verbosity is a prompt-engineering fix — so Rift splits them rather
+than pick one story.
+
+```bash
+python benchmarks/analyze_output_tokens.py \
+    --baseline  runs/opus46_reasoning.json \
+    --challenger runs/opus47_reasoning.json \
+    --output benchmarks/output_token_decomposition.md
+```
+
+The script re-tokenizes each model's outputs through *both* models'
+tokenizers via Anthropic's (free) `count_tokens` endpoint, then
+decomposes the observed delta into tokenizer + verbosity + price
+components that sum exactly to the observed cost delta. See
+`src/rift/output_tokens.py` for the math.
+
 ## Context-rot benchmark
 
 The `context_rot_reasoning` suite expands each reasoning case into
