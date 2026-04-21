@@ -50,8 +50,13 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Apply a contracted-price multiplier to list pricing (e.g. 0.65).")
 @click.option("--subgroup", default=None,
               help="Tag prefix to split cases by in the report (e.g. 'distractor:').")
+@click.option("--success-threshold", default=0.999, type=float,
+              help="Min score to count a case as a success. Defaults to 0.999 "
+                   "(exact-match only). Lower for graded scorers, e.g. 0.8 "
+                   "for token-F1 or fuzzy_match.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
-            cache_dir, context_rot, enterprise_multiplier, subgroup):
+            cache_dir, context_rot, enterprise_multiplier, subgroup,
+            success_threshold):
     """Compare two models on an eval suite."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     baseline_config = resolve_model(baseline)
@@ -83,6 +88,7 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         alpha=alpha,
         baseline_costs=[c.cost_usd for c in baseline_result.cases],
         challenger_costs=[c.cost_usd for c in challenger_result.cases],
+        success_threshold=success_threshold,
     )
 
     if subgroup:
@@ -98,6 +104,7 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             alpha=alpha,
             baseline_costs=[c.cost_usd for c in baseline_result.cases],
             challenger_costs=[c.cost_usd for c in challenger_result.cases],
+            success_threshold=success_threshold,
         )
 
     print_drift_report(drift, baseline_result, challenger_result)
@@ -169,7 +176,10 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
 @click.option("--report", "-r", default=None, help="Save markdown report")
 @click.option("--subgroup", default=None,
               help="Tag prefix to split cases by in the report.")
-def diff(baseline_path, challenger_path, alpha, report, subgroup):
+@click.option("--success-threshold", default=0.999, type=float,
+              help="Min score to count a case as a success.")
+def diff(baseline_path, challenger_path, alpha, report, subgroup,
+         success_threshold):
     """Compare two saved run results."""
     baseline = RunResult.load(baseline_path)
     challenger = RunResult.load(challenger_path)
@@ -183,6 +193,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
         alpha=alpha,
         baseline_costs=[c.cost_usd for c in baseline.cases],
         challenger_costs=[c.cost_usd for c in challenger.cases],
+        success_threshold=success_threshold,
     )
 
     if subgroup:
@@ -197,6 +208,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
             alpha=alpha,
             baseline_costs=[c.cost_usd for c in baseline.cases],
             challenger_costs=[c.cost_usd for c in challenger.cases],
+            success_threshold=success_threshold,
         )
 
     print_drift_report(drift, baseline, challenger)

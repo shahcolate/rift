@@ -27,13 +27,21 @@ need not branch.
 
 Effect size
 -----------
-We report three complementary numbers:
+We report four complementary numbers:
 
 1. ``delta`` — raw difference in means. Directly interpretable
    ("dropped 7 points").
 2. ``delta_pct`` — relative, for models with very different baseline
    levels.
-3. ``cost_normalized_delta`` — change in USD-per-correct-answer. This
+3. ``success_rate`` (per side) and ``success_rate_delta`` — fraction
+   of cases at-or-above ``success_threshold``. For graded scores this
+   surfaces the "does it actually finish the workload" signal that
+   the mean can hide: a model with mean 0.72 may be succeeding on 80%
+   of short cases and 20% of long ones. Paired with subgroup
+   breakdown, this is the metric that tells you whether a more
+   expensive model is earning its keep on the hard end of the
+   distribution.
+4. ``cost_normalized_delta`` — change in USD-per-correct-answer. This
    is the number that matters for production budget decisions: two
    models with the same quality are not the same if one costs 3x
    more.
@@ -49,6 +57,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import stats
+
+
+# Default threshold for counting a case as a "success" and for the
+# n_correct denominator in cost-per-correct. Set high so binary
+# exact-match (scores in {0.0, 1.0}) behaves exactly as it used to:
+# only full-credit cases count. Graded-scorer callers typically
+# override this to something like 0.8.
+DEFAULT_SUCCESS_THRESHOLD = 0.999
 
 
 @dataclass
@@ -76,6 +92,11 @@ class DriftResult:
     baseline_cost_per_correct: float = 0.0
     challenger_cost_per_correct: float = 0.0
     cost_normalized_delta_usd: float = 0.0  # challenger - baseline, per correct
+    # Success-rate metrics (threshold-based fraction correct).
+    success_threshold: float = DEFAULT_SUCCESS_THRESHOLD
+    baseline_success_rate: float = 0.0
+    challenger_success_rate: float = 0.0
+    success_rate_delta: float = 0.0      # challenger - baseline
     # Per-tag subgroup drift (optional).
     subgroups: dict[str, "DriftResult"] = field(default_factory=dict)
 
@@ -134,6 +155,7 @@ def compare_runs(
     bootstrap_n: int = 1000,
     baseline_costs: list[float] | None = None,
     challenger_costs: list[float] | None = None,
+    success_threshold: float = DEFAULT_SUCCESS_THRESHOLD,
 ) -> DriftResult:
     """Compare two paired score vectors.
 
@@ -144,6 +166,12 @@ def compare_runs(
     ``alpha`` controls only the ``significant`` flag; p-value is
     always reported unmodified so callers can apply their own
     threshold.
+
+    ``success_threshold`` governs the fraction-correct / success-rate
+    metric: a case counts as a success when its score is
+    ``>= success_threshold``. The same threshold drives the
+    ``n_correct`` denominator in cost-per-correct, so lowering it for
+    a graded scorer keeps both metrics consistent.
     """
     assert len(baseline_scores) == len(challenger_scores), \
         "Score lists must be same length"
@@ -185,6 +213,14 @@ def compare_runs(
     regressed = [int(i) for i in range(n) if c[i] < b[i]]
     improved = [int(i) for i in range(n) if c[i] > b[i]]
 
+    # --- Success-rate metrics (fraction of cases at-or-above threshold) ---
+    # Computed unconditionally so every report has them; the threshold
+    # used is echoed in DriftResult so readers can reproduce.
+    n_b_correct = int(np.sum(b >= success_threshold))
+    n_c_correct = int(np.sum(c >= success_threshold))
+    b_success_rate = n_b_correct / n if n > 0 else 0.0
+    c_success_rate = n_c_correct / n if n > 0 else 0.0
+
     # --- Cost-normalized metrics ---
     total_baseline_cost = 0.0
     total_challenger_cost = 0.0
@@ -195,8 +231,6 @@ def compare_runs(
         assert len(baseline_costs) == len(challenger_costs) == n
         total_baseline_cost = float(sum(baseline_costs))
         total_challenger_cost = float(sum(challenger_costs))
-        n_b_correct = int(np.sum(b >= 0.999))
-        n_c_correct = int(np.sum(c >= 0.999))
         baseline_cpc = (
             total_baseline_cost / n_b_correct if n_b_correct else float("inf")
         )
@@ -227,6 +261,10 @@ def compare_runs(
         baseline_cost_per_correct=round(baseline_cpc, 6) if baseline_cpc != float("inf") else float("inf"),
         challenger_cost_per_correct=round(challenger_cpc, 6) if challenger_cpc != float("inf") else float("inf"),
         cost_normalized_delta_usd=round(cost_delta, 6),
+        success_threshold=success_threshold,
+        baseline_success_rate=round(b_success_rate, 4),
+        challenger_success_rate=round(c_success_rate, 4),
+        success_rate_delta=round(c_success_rate - b_success_rate, 4),
     )
 
 
@@ -241,12 +279,17 @@ def compare_by_subgroup(
     alpha: float = 0.05,
     baseline_costs: list[float] | None = None,
     challenger_costs: list[float] | None = None,
+    success_threshold: float = DEFAULT_SUCCESS_THRESHOLD,
 ) -> dict[str, DriftResult]:
     """Partition cases by a tag prefix and compare each subgroup.
 
     Example: to split a context-rot run by distractor level, pass
     ``subgroup_prefix="distractor:"``. Only cases tagged with that
     prefix contribute; untagged cases are ignored.
+
+    Each subgroup gets its own success-rate pair, which is where the
+    headline "does model X carry the long end of the distribution"
+    signal lives — use ``success_threshold`` to set the bar.
     """
     buckets: dict[str, list[int]] = {}
     for i, tags in enumerate(tags_per_case):
@@ -266,5 +309,6 @@ def compare_by_subgroup(
             alpha=alpha,
             baseline_costs=[baseline_costs[i] for i in idxs] if baseline_costs else None,
             challenger_costs=[challenger_costs[i] for i in idxs] if challenger_costs else None,
+            success_threshold=success_threshold,
         )
     return out

@@ -111,6 +111,28 @@ reports both so you don't have to reconcile spreadsheets after the
 run. See `src/rift/pricing.py` for the catalog; pass
 `--enterprise-multiplier` to apply your contracted rate.
 
+## Success rate on long workloads
+
+Mean score hides a shape that matters: a model with mean 0.80 may be
+scoring 1.0 on short cases and 0.4 on long ones, while a more
+expensive model with the same mean may be scoring 0.9 on both. The
+practical question — *does the expensive model actually carry the
+long end of the distribution?* — is a success-rate question, not a
+mean question.
+
+Every Rift report now carries **success rate** (fraction of cases at
+or above `--success-threshold`, default `0.999`) alongside mean
+score. In `--subgroup` breakdowns, success rate appears per bucket,
+which is where the "Opus 4.7 completes 92% of 32k-distractor cases
+vs. Opus 4.6's 68%" kind of signal shows up.
+
+```bash
+# Graded scorer: count a case as "done" at 0.8+, not just perfect
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+    --suite context_rot_reasoning --context-rot \
+    --subgroup distractor: --success-threshold 0.8
+```
+
 ## Context-rot benchmark
 
 The `context_rot_reasoning` suite expands each reasoning case into

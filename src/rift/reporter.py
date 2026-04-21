@@ -34,6 +34,10 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
         status = "[bold blue]NO SIGNIFICANT DRIFT[/bold blue]"
         border = "blue"
 
+    sr_arrow = (
+        "▲" if drift.success_rate_delta > 0
+        else ("▼" if drift.success_rate_delta < 0 else "=")
+    )
     lines = [
         f"  baseline:   {drift.baseline_model}",
         f"  challenger: {drift.challenger_model}",
@@ -47,6 +51,11 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
         f"  Delta:            {drift.delta:+.4f} ({drift.delta_pct:+.1f}%)",
         f"  p-value:          {drift.p_value:.6f}",
         f"  95% CI:           [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+        "",
+        f"  Success rate (≥{drift.success_threshold:g}):",
+        f"    baseline:    {drift.baseline_success_rate:.1%}",
+        f"    challenger:  {drift.challenger_success_rate:.1%}",
+        f"    Δ:           {sr_arrow} {drift.success_rate_delta:+.1%}",
         "",
         f"  Regressed cases:  {len(drift.regressed_cases)}",
         f"  Improved cases:   {len(drift.improved_cases)}",
@@ -92,7 +101,13 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
 
 
 def print_subgroup_table(subgroups: dict[str, DriftResult], title: str) -> None:
-    """Render a subgroup comparison table (e.g. by distractor level)."""
+    """Render a subgroup comparison table (e.g. by distractor level).
+
+    Shows both mean-score delta (what aggregate drift looks like) and
+    success-rate delta (what fraction of cases each side completes).
+    For long-workload subgroups the success-rate column is usually
+    the more actionable signal.
+    """
     console = Console()
     table = Table(title=title, show_lines=False)
     table.add_column("Subgroup", style="bold")
@@ -100,6 +115,8 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str) -> None:
     table.add_column("Baseline")
     table.add_column("Challenger")
     table.add_column("Δ")
+    table.add_column("Success (B→C)")
+    table.add_column("Δ success")
     table.add_column("p-value")
     table.add_column("95% CI")
     table.add_column("$/correct Δ")
@@ -111,6 +128,14 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str) -> None:
         color = "red" if d.delta < 0 and d.significant else (
             "green" if d.delta > 0 and d.significant else "white"
         )
+        sr_arrow = (
+            "▲" if d.success_rate_delta > 0
+            else ("▼" if d.success_rate_delta < 0 else "=")
+        )
+        sr_color = (
+            "green" if d.success_rate_delta > 0
+            else ("red" if d.success_rate_delta < 0 else "white")
+        )
         cost_cell = ""
         if d.cost_normalized_delta_usd:
             cost_cell = f"{d.cost_normalized_delta_usd:+.4f}"
@@ -120,6 +145,8 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str) -> None:
             f"{d.baseline_mean:.3f}",
             f"{d.challenger_mean:.3f}",
             f"[{color}]{arrow} {d.delta:+.3f}[/{color}]",
+            f"{d.baseline_success_rate:.0%} → {d.challenger_success_rate:.0%}",
+            f"[{sr_color}]{sr_arrow} {d.success_rate_delta:+.1%}[/{sr_color}]",
             f"{d.p_value:.4f}",
             f"[{d.ci_lower:+.3f}, {d.ci_upper:+.3f}]",
             cost_cell,
@@ -188,6 +215,11 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
         f"| Delta | {drift.delta:+.4f} ({drift.delta_pct:+.1f}%) |",
         f"| p-value | {drift.p_value:.6f} |",
         f"| 95% CI | [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}] |",
+        f"| Baseline success rate (≥{drift.success_threshold:g}) | "
+        f"{drift.baseline_success_rate:.1%} |",
+        f"| Challenger success rate (≥{drift.success_threshold:g}) | "
+        f"{drift.challenger_success_rate:.1%} |",
+        f"| Δ success rate | {drift.success_rate_delta:+.1%} |",
         f"| Regressed cases | {len(drift.regressed_cases)} / {drift.n_cases} |",
         f"| Improved cases | {len(drift.improved_cases)} / {drift.n_cases} |",
     ]
@@ -209,14 +241,19 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
             "",
             "## By Subgroup",
             "",
-            "| Subgroup | n | Baseline | Challenger | Δ | p | 95% CI | Δ $/correct |",
-            "|----------|---|----------|------------|---|---|--------|-------------|",
+            "| Subgroup | n | Baseline | Challenger | Δ | Success (B→C) | "
+            "Δ success | p | 95% CI | Δ $/correct |",
+            "|----------|---|----------|------------|---|---------------|"
+            "-----------|---|--------|-------------|",
         ]
         for tag in sorted(drift.subgroups.keys()):
             d = drift.subgroups[tag]
             lines.append(
                 f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
-                f"{d.challenger_mean:.3f} | {d.delta:+.3f} | {d.p_value:.4f} | "
+                f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "
+                f"{d.baseline_success_rate:.0%} → {d.challenger_success_rate:.0%} | "
+                f"{d.success_rate_delta:+.1%} | "
+                f"{d.p_value:.4f} | "
                 f"[{d.ci_lower:+.3f}, {d.ci_upper:+.3f}] | "
                 f"{d.cost_normalized_delta_usd:+.4f} |"
             )
