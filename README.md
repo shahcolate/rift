@@ -142,9 +142,9 @@ Three takeaways a leader can act on today:
 
 - **The tokenizer changed; the list price didn't.** Opus 4.7 emits
   1.21–1.62× more input tokens than 4.6 for byte-identical prompts
-  (mean 1.43×). At $15/Mtok list, the effective rate on real
-  prompts is ~$21.45/Mtok. At 10M daily input tokens, a silent
-  default-upgrade costs ~$23.5k/year with zero workload change.
+  (mean 1.43×). At $5/Mtok list, the effective rate on real
+  prompts is ~$7.15/Mtok. At 10M daily input tokens, a silent
+  default-upgrade costs ~$7.85k/year with zero workload change.
 - **The quality lift is directional, not established.** +6.25pp
   overall with the CI `[-0.06, +0.22]` — the data is consistent
   with anything from a small regression to a 22-point improvement.
