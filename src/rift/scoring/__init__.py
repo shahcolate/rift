@@ -16,11 +16,11 @@ class Scorer(Protocol):
 def get_scorer(name: str) -> Scorer:
     """Get a scorer by name."""
     from .exact_match import ExactMatchScorer
-    from .semantic import SemanticScorer
+    from .fuzzy_match import FuzzyMatchScorer
 
     scorers: dict[str, Scorer] = {
         "exact_match": ExactMatchScorer(),
-        "semantic": SemanticScorer(),
+        "fuzzy_match": FuzzyMatchScorer(),
     }
     if name not in scorers:
         raise ValueError(f"Unknown scorer: {name}. Available: {list(scorers.keys())}")

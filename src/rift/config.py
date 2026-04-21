@@ -27,7 +27,7 @@ class SuiteConfig(BaseModel):
     @field_validator("scoring")
     @classmethod
     def validate_scoring(cls, v: str) -> str:
-        valid = {"exact_match", "semantic", "llm_judge", "custom"}
+        valid = {"exact_match", "fuzzy_match", "llm_judge", "custom"}
         if v not in valid:
             raise ValueError(f"scoring must be one of {valid}, got '{v}'")
         return v

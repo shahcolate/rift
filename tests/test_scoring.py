@@ -1,7 +1,7 @@
 """Tests for scoring functions."""
 
 from rift.scoring.exact_match import ExactMatchScorer
-from rift.scoring.semantic import SemanticScorer
+from rift.scoring.fuzzy_match import FuzzyMatchScorer
 
 
 class TestExactMatchScorer:
@@ -48,9 +48,9 @@ class TestExactMatchScorer:
         assert self.scorer.score(output, expected) == 0.0
 
 
-class TestSemanticScorer:
+class TestFuzzyMatchScorer:
     def setup_method(self):
-        self.scorer = SemanticScorer()
+        self.scorer = FuzzyMatchScorer()
 
     def test_identical_strings(self):
         assert self.scorer.score("hello world", "hello world") == 1.0
