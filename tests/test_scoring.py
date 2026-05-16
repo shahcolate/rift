@@ -48,6 +48,41 @@ class TestExactMatchScorer:
         assert self.scorer.score(output, expected) == 0.0
 
 
+class TestExactMatchConfidenceTolerance:
+    """The exact-match scorer should ignore a trailing confidence line."""
+
+    def setup_method(self):
+        self.scorer = ExactMatchScorer()
+
+    def test_strips_trailing_confidence_colon(self):
+        assert self.scorer.score("8.40\nConfidence: 0.9", "8.40") == 1.0
+
+    def test_strips_trailing_confidence_percent(self):
+        assert self.scorer.score("True\nConfidence: 85%", "True") == 1.0
+
+    def test_strips_trailing_im_sure_form(self):
+        assert self.scorer.score(
+            "Bob\nI am 90% sure", "Bob"
+        ) == 1.0
+
+    def test_strips_trailing_p_form(self):
+        assert self.scorer.score("5\np: 0.7", "5") == 1.0
+
+    def test_does_not_strip_midline_confidence(self):
+        # A confidence-shaped token inside the answer should NOT be
+        # stripped — only a trailing standalone line is.
+        assert self.scorer.score(
+            "I am 50% confident in this answer is 5", "5"
+        ) == 0.0
+
+    def test_unchanged_when_no_confidence(self):
+        assert self.scorer.score("42", "42") == 1.0
+        assert self.scorer.score("wrong", "42") == 0.0
+
+    def test_wrong_answer_with_confidence_still_zero(self):
+        assert self.scorer.score("9\nConfidence: 0.99", "5") == 0.0
+
+
 class TestFuzzyMatchScorer:
     def setup_method(self):
         self.scorer = FuzzyMatchScorer()

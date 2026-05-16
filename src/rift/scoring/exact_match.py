@@ -1,7 +1,44 @@
 """Exact match scoring for structured outputs."""
 
 import json
+import re
 from typing import Any
+
+
+# A confidence side-channel ("Confidence: 0.85" / "I am 85% sure" / etc.)
+# is stripped from the output before comparison so that suites which
+# additionally elicit a calibration probe (see ``rift.calibration``)
+# remain compatible with exact-match scoring on the answer itself.
+# The pattern is intentionally narrow — it only strips a *trailing*
+# confidence-tag line, never one buried inside the answer.
+_TRAILING_CONFIDENCE_RE = re.compile(
+    r"(?im)^\s*(?:confidence\s*[:=]?\s*\d+(?:\.\d+)?\s*%?"
+    r"|i(?:'m| am)\s+\d+(?:\.\d+)?\s*%?\s*(?:sure|confident|certain)\b[^\n]*"
+    r"|p\s*[:=]\s*\d+(?:\.\d+)?\s*%?)\s*$"
+)
+
+
+def _strip_confidence(text: str) -> str:
+    """Strip a trailing confidence-tag line, if present.
+
+    Operates on the *last* line of the text. We don't run this over the
+    whole body so that an output that legitimately mentions a
+    probability mid-answer ("there's a 50% chance of rain") is not
+    mangled. Returns the text unchanged when no confidence tag is in
+    the trailing position.
+    """
+    if not text:
+        return text
+    stripped = text.rstrip()
+    # Quick reject: only attempt the regex when "confidence" / "sure"
+    # / a leading "p:" appears in the last ~80 chars.
+    tail = stripped[-200:].lower()
+    if "confidence" not in tail and "sure" not in tail \
+            and "confident" not in tail and "certain" not in tail \
+            and not re.search(r"^\s*p\s*[:=]", tail, re.M):
+        return text
+    new = _TRAILING_CONFIDENCE_RE.sub("", stripped).rstrip()
+    return new if new else stripped
 
 
 class ExactMatchScorer:
@@ -9,14 +46,21 @@ class ExactMatchScorer:
 
     For dict expected values, parses JSON from output and compares field-by-field,
     returning the fraction of fields that match.
+
+    A trailing ``Confidence: X`` line is removed from the output before
+    comparison so that a suite which elicits both an answer and a
+    calibration probe still scores cleanly. The full output (including
+    the confidence tag) is preserved on the :class:`CaseResult`, so
+    ``rift.calibration`` can still parse it.
     """
 
     def score(self, output: str, expected: Any) -> float:
         if isinstance(expected, dict):
             return self._score_dict(output, expected)
+        clean = _strip_confidence(output)
         if isinstance(expected, str):
-            return 1.0 if output.strip() == expected.strip() else 0.0
-        return 1.0 if str(output).strip() == str(expected).strip() else 0.0
+            return 1.0 if clean.strip() == expected.strip() else 0.0
+        return 1.0 if str(clean).strip() == str(expected).strip() else 0.0
 
     def _score_dict(self, output: str, expected: dict) -> float:
         """Parse JSON from output and compare fields."""
