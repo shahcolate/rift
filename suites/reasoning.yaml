@@ -1,35 +1,46 @@
 name: reasoning
-description: Test logical reasoning, math, and multi-step problem solving
+description: |
+  Test logical reasoning, math, and multi-step problem solving. Each
+  case asks for the answer followed by a confidence number on its own
+  line ("Confidence: 0-1"), so `rift calibration` can score Brier /
+  ECE / overconfidence drift alongside accuracy. The exact-match
+  scorer strips the trailing confidence line before comparison; see
+  ``src/rift/scoring/exact_match.py``.
 scoring: exact_match
 model_params:
   temperature: 0
 cases:
   - input: |
-      Answer with just the number, no explanation.
+      Answer with just the number on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1 representing how confident you are.
 
       A store sells apples for $1.50 each. If you buy 5 or more, you get a 20% discount on the entire purchase. How much do 7 apples cost?
     expected: "8.40"
 
   - input: |
-      Answer with just the number, no explanation.
+      Answer with just the time (like 10:48 AM) on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
-      A train leaves Station A at 9:00 AM traveling at 60 mph. Another train leaves Station B (180 miles away) at 10:00 AM traveling toward Station A at 90 mph. At what time do they meet? Give the answer as a time like 10:48 AM.
+      A train leaves Station A at 9:00 AM traveling at 60 mph. Another train leaves Station B (180 miles away) at 10:00 AM traveling toward Station A at 90 mph. At what time do they meet?
     expected: "10:48 AM"
 
   - input: |
-      Answer with just "True" or "False", no explanation.
+      Answer with just "True" or "False" on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       All roses are flowers. Some flowers fade quickly. Therefore, some roses fade quickly.
     expected: "False"
 
   - input: |
-      Answer with just "True" or "False", no explanation.
+      Answer with just "True" or "False" on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       If it rains, the ground gets wet. The ground is wet. Therefore, it rained.
     expected: "False"
 
   - input: |
-      Answer with just the letter (A, B, C, or D), no explanation.
+      Answer with just the letter (A, B, C, or D) on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       Which comes next in the sequence: 2, 6, 18, 54, ?
       A) 108
@@ -39,19 +50,22 @@ cases:
     expected: "B"
 
   - input: |
-      Answer with just the number, no explanation.
+      Answer with just the number on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       You have a 3-gallon jug and a 5-gallon jug. How many steps does it take at minimum to measure exactly 4 gallons? Count each fill, empty, or pour as one step.
     expected: "6"
 
   - input: |
-      Answer with just "True" or "False", no explanation.
+      Answer with just "True" or "False" on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       A farmer has 17 sheep. All but 9 die. How many sheep does the farmer have left? Is the answer 9?
     expected: "True"
 
   - input: |
-      Answer with just the name, no explanation.
+      Answer with just the name on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       Five people sit in a row: Alice, Bob, Carol, Dave, Eve.
       - Bob is not at either end.
@@ -62,13 +76,15 @@ cases:
     expected: "Bob"
 
   - input: |
-      Answer with just the number, no explanation.
+      Answer with just the number on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       A bat and a ball cost $1.10 together. The bat costs $1.00 more than the ball. How much does the ball cost in cents?
     expected: "5"
 
   - input: |
-      Answer with just the number, no explanation.
+      Answer with just the number on the first line.
+      On the second line, write `Confidence: X` where X is a number between 0 and 1.
 
       If it takes 5 machines 5 minutes to make 5 widgets, how many minutes would it take 100 machines to make 100 widgets?
     expected: "5"

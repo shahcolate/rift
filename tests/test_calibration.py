@@ -84,6 +84,41 @@ class TestComputeCalibration:
         assert c.n_unparsed == 1
 
 
+class TestEndToEndConfidenceFlow:
+    """Confidence-tagged outputs should score correctly AND have their
+    confidence parsed — the two pieces have to compose."""
+
+    def test_correct_answer_with_confidence_parses_and_scores(self):
+        from rift.scoring.exact_match import ExactMatchScorer
+        scorer = ExactMatchScorer()
+        output = "8.40\nConfidence: 0.85"
+        # Scorer ignores the confidence tag.
+        assert scorer.score(output, "8.40") == 1.0
+        # Calibration parses it.
+        assert parse_confidence(output) == pytest.approx(0.85)
+
+    def test_calibration_drift_on_confidence_tagged_cases(self):
+        # Simulate a small calibration drift: baseline emits 0.9 conf
+        # and is right; challenger emits 0.9 conf but is half-wrong.
+        b_cases = [
+            _FakeCase(i, "answer\nConfidence: 0.9", score=1.0)
+            for i in range(8)
+        ]
+        c_cases = [
+            _FakeCase(i, "answer\nConfidence: 0.9",
+                      score=1.0 if i % 2 == 0 else 0.0)
+            for i in range(8)
+        ]
+        comp = compare_calibration(_FakeRun(b_cases), _FakeRun(c_cases))
+        # Both runs are 100%-parseable.
+        assert comp.baseline.n_parsed == 8
+        assert comp.challenger.n_parsed == 8
+        # Brier should worsen for the challenger (more wrong at high conf).
+        assert comp.delta_brier > 0
+        # Overconfidence increases.
+        assert comp.delta_overconfidence > 0
+
+
 class TestCompareCalibration:
     def test_improvement_negative_delta(self):
         # Baseline overconfident, challenger well-calibrated.
