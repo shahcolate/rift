@@ -215,8 +215,44 @@ Rift picks the test that matches the score distribution:
 - **Continuous / graded scores:** Paired t-test for the p-value,
   non-parametric paired bootstrap (n=1000) for the 95% CI.
 
-The CI is always reported, and the chosen test is named in every
-report. See `src/rift/comparator.py` for the exact logic.
+Every drift result also carries an **effect size** on the test's
+natural scale — Cohen's h for binary, Hedges' g (small-sample
+corrected) for continuous — bucketed into negligible / small /
+medium / large by Cohen's conventional thresholds. Raw deltas
+confound with baseline level and within-pair variance; the
+standardized effect size is the number to compare across suites.
+
+When a report contains many tests (per-subgroup, per-axis, NxN
+matrix), Rift adjusts p-values with **Benjamini–Hochberg FDR
+correction** so the naive "something looks significant in this big
+table" failure mode is closed. Subgroup tables show both raw `p`
+and adjusted `q (BH)`.
+
+Every comparison also gets a **post-hoc power analysis**: observed
+power, minimum detectable effect at 80% power, and (optionally) the
+N needed to detect a target effect — the answer to "we did not see
+drift, but could we have?".
+
+## Beyond accuracy: refusal, sycophancy, calibration
+
+Three behavioral axes that move independently of accuracy and that
+release notes typically hand-wave around:
+
+- **Refusal drift** (`rift refusal a.json b.json`) — classifies each
+  output for refusal language and reports over-refusal cases
+  (challenger refused prompts the baseline answered correctly) and
+  new-compliance cases (baseline refused, challenger answered).
+  Fully offline — no extra API calls.
+- **Calibration drift** (`rift calibration a.json b.json`) — parses
+  stated confidence from outputs (`Confidence: 0.85`, `I am 85%
+  sure`, etc.) and reports Brier score, ECE, and overconfidence
+  deltas. Cases without parseable confidence are surfaced, not
+  silently coerced.
+- **Sycophancy probe** (`rift sycophancy --model X --suite Y`) —
+  runs the suite twice; the second pass pushes back on each of the
+  model's answers and measures the **flip rate** among
+  originally-correct cases. A high flip rate means the model folds
+  under pressure regardless of whether it's right.
 
 ## Roadmap
 
@@ -225,10 +261,17 @@ report. See `src/rift/comparator.py` for the exact logic.
 - [x] Built-in eval suites + context-rot expansion
 - [x] Statistical significance testing with test selection
 - [x] Cost-per-correct metrics + Enterprise pricing multiplier
+- [x] Effect sizes (Cohen's h / Hedges' g) on every drift result
+- [x] Benjamini–Hochberg FDR correction for multi-test reports
+- [x] Post-hoc power analysis + minimum detectable effect
+- [x] Refusal / over-refusal drift detection
+- [x] Calibration drift (Brier / ECE / overconfidence)
+- [x] Sycophancy probe (pushback flip rate)
+- [ ] Auto-adversarial case discovery
+- [ ] Reasoning faithfulness perturbations
 - [ ] Embedding-based semantic scoring
 - [ ] `llm_judge` scorer for open-ended outputs
 - [ ] User-defined `custom` scoring functions
-- [ ] Multi-metric drift breakdown in a single run
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
 - [ ] Observability integrations (Datadog, W&B)
