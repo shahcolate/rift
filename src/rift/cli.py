@@ -10,16 +10,23 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from .comparator import compare_runs, compare_by_subgroup
+from .calibration import compare_calibration
+from .comparator import compare_runs, compare_by_subgroup, power_analysis
 from .config import load_suite, resolve_model
 from .context_rot import expand_suite
+from .refusal import compare_refusal
 from .reporter import (
     generate_markdown_report,
+    print_calibration_report,
     print_drift_report,
     print_matrix,
+    print_power_report,
+    print_refusal_report,
     print_subgroup_table,
+    print_sycophancy_report,
 )
 from .runner import RunResult, run_suite
+from .sycophancy import build_pushback_suite, compute_sycophancy
 
 console = Console()
 
@@ -50,8 +57,15 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Apply a contracted-price multiplier to list pricing (e.g. 0.65).")
 @click.option("--subgroup", default=None,
               help="Tag prefix to split cases by in the report (e.g. 'distractor:').")
+@click.option("--refusal/--no-refusal", default=True,
+              help="Also report refusal / over-refusal drift between the two runs.")
+@click.option("--calibration/--no-calibration", default=False,
+              help="Parse 'Confidence: X' from outputs and report Brier/ECE drift.")
+@click.option("--power/--no-power", default=True,
+              help="Include post-hoc power and minimum-detectable-effect analysis.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
-            cache_dir, context_rot, enterprise_multiplier, subgroup):
+            cache_dir, context_rot, enterprise_multiplier, subgroup,
+            refusal, calibration, power):
     """Compare two models on an eval suite."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     baseline_config = resolve_model(baseline)
@@ -102,7 +116,24 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 
     print_drift_report(drift, baseline_result, challenger_result)
     if drift.subgroups:
-        print_subgroup_table(drift.subgroups, title=f"By {subgroup}")
+        print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
+
+    refusal_analysis = None
+    if refusal:
+        refusal_analysis = compare_refusal(baseline_result, challenger_result)
+        print_refusal_report(refusal_analysis)
+
+    calibration_analysis = None
+    if calibration:
+        calibration_analysis = compare_calibration(baseline_result, challenger_result)
+        print_calibration_report(calibration_analysis)
+
+    power_result = None
+    if power:
+        power_result = power_analysis(
+            baseline_result.scores, challenger_result.scores, alpha=alpha,
+        )
+        print_power_report(power_result, alpha=alpha)
 
     if output:
         import json
@@ -113,6 +144,12 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             "baseline": baseline_result.to_dict(),
             "challenger": challenger_result.to_dict(),
         }
+        if refusal_analysis is not None:
+            results["refusal"] = asdict(refusal_analysis)
+        if calibration_analysis is not None:
+            results["calibration"] = asdict(calibration_analysis)
+        if power_result is not None:
+            results["power"] = power_result
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         with open(output, "w") as f:
             json.dump(results, f, indent=2, default=str)
@@ -201,7 +238,15 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
 
     print_drift_report(drift, baseline, challenger)
     if drift.subgroups:
-        print_subgroup_table(drift.subgroups, title=f"By {subgroup}")
+        print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
+
+    # Refusal + power are cheap and informative; run by default on diff
+    # since the user has already chosen to compare two saved runs.
+    print_refusal_report(compare_refusal(baseline, challenger))
+    print_power_report(
+        power_analysis(baseline.scores, challenger.scores, alpha=alpha),
+        alpha=alpha,
+    )
 
     if report:
         md = generate_markdown_report(drift, baseline, challenger)
@@ -285,6 +330,73 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
             f"${r.cost_per_correct():.4f}" if n_correct else "∞",
         )
     console.print(tbl)
+
+
+@main.command()
+@click.argument("baseline_path")
+@click.argument("challenger_path")
+def refusal(baseline_path, challenger_path):
+    """Refusal / over-refusal drift between two saved runs.
+
+    No new API calls — operates on the already-collected outputs.
+    """
+    baseline = RunResult.load(baseline_path)
+    challenger = RunResult.load(challenger_path)
+    analysis = compare_refusal(baseline, challenger)
+    print_refusal_report(analysis)
+
+
+@main.command()
+@click.argument("baseline_path")
+@click.argument("challenger_path")
+def calibration(baseline_path, challenger_path):
+    """Calibration drift (Brier / ECE / overconfidence).
+
+    Expects models to emit a confidence number (e.g. ``Confidence:
+    0.85`` or ``I am 85% sure``) in their output. Cases without a
+    parseable confidence are reported and excluded from the metrics.
+    """
+    baseline = RunResult.load(baseline_path)
+    challenger = RunResult.load(challenger_path)
+    comp = compare_calibration(baseline, challenger)
+    print_calibration_report(comp)
+
+
+@main.command()
+@click.option("--model", required=True, help="Model identifier")
+@click.option("--suite", required=True, help="Eval suite to probe")
+@click.option("--concurrency", default=5)
+@click.option("--cache-dir", default=None)
+@click.option("--enterprise-multiplier", default=1.0, type=float)
+def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
+    """Probe a model for sycophancy: does it fold under pushback?
+
+    Runs the suite twice — once normally, then a follow-up suite
+    generated from the model's own answers with adversarial
+    pushback. Reports the flip rate among originally-correct cases.
+    """
+    suite_config = load_suite(suite)
+    model_config = resolve_model(model)
+
+    console.print(f"\n[bold]Rift[/bold] sycophancy probe on [cyan]{model}[/cyan]")
+    console.print(
+        f"Suite: [yellow]{suite_config.name}[/yellow] "
+        f"({len(suite_config.cases)} cases)\n"
+    )
+
+    original = asyncio.run(
+        run_suite(suite_config, model_config, concurrency=concurrency,
+                  cache_dir=cache_dir,
+                  enterprise_multiplier=enterprise_multiplier)
+    )
+    pushback_suite = build_pushback_suite(suite_config, original)
+    pushback = asyncio.run(
+        run_suite(pushback_suite, model_config, concurrency=concurrency,
+                  cache_dir=cache_dir,
+                  enterprise_multiplier=enterprise_multiplier)
+    )
+    analysis = compute_sycophancy(original, pushback)
+    print_sycophancy_report(analysis)
 
 
 if __name__ == "__main__":
