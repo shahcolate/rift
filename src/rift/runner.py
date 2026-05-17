@@ -300,11 +300,20 @@ async def run_suite(
             provider_holder["p"] = _get_provider(model_config)
         return provider_holder["p"]
 
-    scorer = get_scorer(suite.scoring)
-    semaphore = asyncio.Semaphore(concurrency)
-
     cache_path = Path(cache_dir) if cache_dir else Path(".rift/cache")
     cache_path.mkdir(parents=True, exist_ok=True)
+
+    # For llm_judge scoring, plumb the judge model + cache dir into
+    # the scorer at construction time. Other scorers ignore kwargs.
+    scorer_kwargs: dict = {}
+    if suite.scoring == "llm_judge":
+        scorer_kwargs = {
+            "judge_model": suite.judge_model,
+            "cache_dir": str(cache_path),
+        }
+    scorer = get_scorer(suite.scoring, **scorer_kwargs)
+    is_async_scorer = hasattr(scorer, "ascore")
+    semaphore = asyncio.Semaphore(concurrency)
 
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -355,7 +364,14 @@ async def run_suite(
                     json.dump(asdict(completion), f, default=str)
                 tmp.replace(cached)
 
-            sc = scorer.score(completion.output_text, case.expected)
+            if is_async_scorer:
+                sc = await scorer.ascore(  # type: ignore[attr-defined]
+                    completion.output_text,
+                    case.expected,
+                    context=case.input,
+                )
+            else:
+                sc = scorer.score(completion.output_text, case.expected)
             cost = cost_of(
                 model_config.model,
                 completion.input_tokens,
@@ -398,6 +414,8 @@ async def run_suite(
     results.sort(key=lambda r: r.case_index)
     if "p" in provider_holder:
         await provider_holder["p"].close()
+    if is_async_scorer and hasattr(scorer, "close"):
+        await scorer.close()  # type: ignore[attr-defined]
 
     completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -407,6 +425,10 @@ async def run_suite(
         "enterprise_multiplier": enterprise_multiplier,
         "n_errors": n_errors,
     }
+    # Stamp the judge model into metadata so a saved RunResult
+    # carries who graded it. Methodology, not decoration.
+    if is_async_scorer and hasattr(scorer, "judge_model"):
+        metadata["judge_model"] = scorer.judge_model  # type: ignore[attr-defined]
 
     return RunResult(
         model=model_config.model,
