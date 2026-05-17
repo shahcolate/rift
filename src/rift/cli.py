@@ -14,6 +14,7 @@ from .calibration import compare_calibration
 from .comparator import compare_runs, compare_by_subgroup, power_analysis
 from .config import load_suite, resolve_model
 from .context_rot import expand_suite
+from .discovery import discover as discover_loop, to_suite_yaml
 from .refusal import compare_refusal
 from .reporter import (
     generate_markdown_report,
@@ -408,6 +409,108 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
     )
     analysis = compute_sycophancy(original, pushback)
     print_sycophancy_report(analysis)
+
+
+@main.command()
+@click.option("--baseline", required=True, help="Baseline model identifier")
+@click.option("--challenger", required=True, help="Challenger model identifier")
+@click.option("--seed-suite", "seed_suite", required=True,
+              help="Seed suite name or path to YAML.")
+@click.option("--proposer-model", required=True,
+              help="Model used to propose candidate cases. Best practice: "
+                   "a strong frontier model in a different family from both "
+                   "the baseline and the challenger.")
+@click.option("--target-power", default=0.9, type=float,
+              help="Target power for the paired test on the discovered suite.")
+@click.option("--target-effect", default=0.05, type=float,
+              help="Target effect size (paired delta) at which to evaluate power.")
+@click.option("--max-cases", default=50, type=int,
+              help="Stop after this many accepted cases (bounds total spend).")
+@click.option("--batch-size", default=16, type=int,
+              help="Candidates per proposer batch.")
+@click.option("--alpha", default=0.05, type=float,
+              help="Significance threshold used in the power calculation.")
+@click.option("--concurrency", default=5, type=int,
+              help="Max concurrent verification API calls.")
+@click.option("--cache-dir", default=None,
+              help="Cache directory for completions (default .rift/cache).")
+@click.option("--output", "-o", required=True,
+              help="Path to write the discovered suite YAML.")
+def discover(baseline, challenger, seed_suite, proposer_model,
+             target_power, target_effect, max_cases, batch_size,
+             alpha, concurrency, cache_dir, output):
+    """Discover cases that maximize the paired test's power for a model pair.
+
+    Uses a proposer model to generate candidate prompts, runs both
+    baseline and challenger on each, and keeps the cases that
+    contribute most to McNemar's test on the discovered suite.
+
+    The output is a Rift-compatible suite YAML — feed it straight
+    into ``rift compare``.
+    """
+    import yaml
+
+    seed = load_suite(seed_suite)
+    base_cfg = resolve_model(baseline)
+    chal_cfg = resolve_model(challenger)
+
+    console.print(
+        f"\n[bold]Rift[/bold] discovering cases targeting "
+        f"[cyan]{baseline}[/cyan] vs [cyan]{challenger}[/cyan]"
+    )
+    console.print(
+        f"Seed: [yellow]{seed.name}[/yellow]  "
+        f"Proposer: [yellow]{proposer_model}[/yellow]  "
+        f"Target: power≥{target_power} at Δ={target_effect}, α={alpha}\n"
+    )
+
+    result = asyncio.run(discover_loop(
+        baseline=base_cfg,
+        challenger=chal_cfg,
+        seed_suite=seed,
+        proposer_model=proposer_model,
+        target_power=target_power,
+        target_effect=target_effect,
+        max_cases=max_cases,
+        batch_size=batch_size,
+        alpha=alpha,
+        concurrency=concurrency,
+        cache_dir=cache_dir,
+    ))
+
+    suite_dict = to_suite_yaml(result)
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+    with open(output, "w") as f:
+        yaml.safe_dump(suite_dict, f, sort_keys=False, width=120)
+
+    console.print(
+        f"\n[bold]Discovered {result.n_kept} cases[/bold] "
+        f"(from {result.n_proposed} proposed, "
+        f"{result.n_after_dedup} after dedup, "
+        f"{result.n_after_validity} after validity)."
+    )
+    console.print(
+        f"  Discordant rate: {result.discordant_rate:.1%}"
+    )
+    console.print(
+        f"  Achieved power:  {result.achieved_power:.2f}   "
+        f"(target {result.target_power} at Δ={result.target_effect})"
+    )
+    console.print(
+        f"  Spend: proposer ${result.proposer_spend_usd:.4f}, "
+        f"verification ${result.verification_spend_usd:.4f}, "
+        f"[bold]total ${result.proposer_spend_usd + result.verification_spend_usd:.4f}[/bold]"
+    )
+    console.print(
+        "\n[dim]Note: cases were selected on divergence; "
+        "achieved_power is the sensitivity of THIS suite, not an "
+        "unbiased population estimate.[/dim]"
+    )
+    console.print(f"\nSuite saved to [green]{output}[/green]")
+    console.print(
+        f"Next step: [bold]rift compare --baseline {baseline} "
+        f"--challenger {challenger} --suite {output}[/bold]"
+    )
 
 
 if __name__ == "__main__":

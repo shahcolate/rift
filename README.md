@@ -252,6 +252,42 @@ power, minimum detectable effect at 80% power, and (optionally) the
 N needed to detect a target effect — the answer to "we did not see
 drift, but could we have?".
 
+## Power-stratified case discovery
+
+Hand-written suites under-sample exactly the prompts on which two
+model versions disagree — which is where the statistical test's
+evidence lives. `rift discover` flips this around: given a
+`(baseline, challenger)` pair and a seed suite, it uses a strong
+proposer model to generate candidate prompts, runs both models on
+each, and keeps the cases that contribute most to the paired test's
+power on the discovered suite.
+
+```bash
+rift discover \
+  --baseline opus-4-6 --challenger opus-4-7 \
+  --seed-suite reasoning \
+  --proposer-model opus-4-7 \
+  --target-power 0.9 --target-effect 0.05 \
+  --max-cases 50 \
+  --output discovered_reasoning_drift.yaml
+
+# Then feed the discovered suite straight into compare:
+rift compare --baseline opus-4-6 --challenger opus-4-7 \
+             --suite discovered_reasoning_drift.yaml
+```
+
+The output YAML carries full provenance in `description`: proposer
+model, target / achieved power, discordant rate, per-stage counts
+(proposed → parsed → dedup → validity → kept), and the explicit
+caveat that **cases were selected on divergence** — the
+achieved-power figure measures the suite's sensitivity, not an
+unbiased population estimate.
+
+The framing — "discover cases such that the paired test is powered
+at ≥0.9 to detect a 5pp drop" — is the methodological hook nobody
+else does. See `src/rift/discovery.py` for the McNemar
+information-contribution math.
+
 ## Beyond accuracy: refusal, sycophancy, calibration
 
 Three behavioral axes that move independently of accuracy and that
@@ -287,7 +323,7 @@ release notes typically hand-wave around:
 - [x] Calibration drift (Brier / ECE / overconfidence)
 - [x] Sycophancy probe (pushback flip rate)
 - [x] `llm_judge` scorer for open-ended outputs (reference + rubric)
-- [ ] Auto-adversarial case discovery
+- [x] Power-stratified auto-adversarial case discovery (`rift discover`)
 - [ ] Reasoning faithfulness perturbations
 - [ ] Embedding-based semantic scoring
 - [ ] User-defined `custom` scoring functions
