@@ -1,0 +1,72 @@
+name: open_ended_qa
+description: |
+  Open-ended question-answering scored by an LLM judge. Each case has
+  a reference answer; the judge rates the model's answer on a 0-1
+  scale, lenient on wording but strict on facts. Use this suite as
+  the canonical example of `scoring: llm_judge`.
+
+  Set RIFT_JUDGE_MODEL (or pass --judge-model on the CLI) to override
+  the judge from outside this file. The judge defaults to a
+  different family from typical compared models to reduce family
+  bias; see `src/rift/scoring/llm_judge.py` for the methodology
+  notes.
+scoring: llm_judge
+# Leaving `judge_model` unset here so the env var / CLI flag can
+# pick it. Pin it in a suite when you publish results for repro.
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      In two sentences, what was the main reason the Apollo 11 mission
+      was significant?
+    expected: |
+      Apollo 11 was the first crewed mission to land humans on the Moon
+      (in July 1969). Its significance is primarily as the first time
+      humans set foot on a body other than Earth.
+    tags: [history]
+
+  - input: |
+      Why does the sky appear blue during the day? Answer in one
+      paragraph at the level of a curious 12-year-old.
+    expected: |
+      Sunlight is made of many colors, and as it passes through the
+      atmosphere, the shorter blue wavelengths get scattered in all
+      directions by air molecules far more than the longer red
+      wavelengths (Rayleigh scattering). So when you look up, blue
+      light is what's coming at your eyes from all over the sky.
+    tags: [science]
+
+  - input: |
+      Summarize the plot of "1984" by George Orwell in three sentences,
+      avoiding spoilers about the ending.
+    expected: |
+      Winston Smith works at the Ministry of Truth in a totalitarian
+      society where the Party, led by Big Brother, surveils and
+      rewrites history to control the population. Disillusioned, he
+      begins a forbidden love affair with Julia and is drawn toward
+      what he believes is an underground resistance. The novel
+      follows his quiet rebellion against the Party's grip on
+      thought, language, and even reality itself.
+    tags: [literature]
+
+  - input: |
+      Briefly explain what a recursive function is and give a simple
+      example in Python.
+    expected:
+      rubric: |
+        The answer should: (1) define a recursive function as one
+        that calls itself, (2) mention that recursion needs a base
+        case to terminate, (3) provide a runnable Python example
+        (factorial, Fibonacci, sum, or similar). Full marks if all
+        three are present; partial marks if missing one element.
+    tags: [code, rubric]
+
+  - input: |
+      Write one sentence explaining the difference between weather
+      and climate.
+    expected: |
+      Weather is the short-term state of the atmosphere at a
+      particular place and time (e.g. today's rain), while climate
+      is the long-term average of weather patterns over years or
+      decades.
+    tags: [science]

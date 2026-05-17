@@ -63,11 +63,17 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Parse 'Confidence: X' from outputs and report Brier/ECE drift.")
 @click.option("--power/--no-power", default=True,
               help="Include post-hoc power and minimum-detectable-effect analysis.")
+@click.option("--judge-model", default=None,
+              help="Judge model for llm_judge scoring. Overrides the suite's "
+                   "`judge_model` field and $RIFT_JUDGE_MODEL.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power):
+            refusal, calibration, power, judge_model):
     """Compare two models on an eval suite."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
+    if judge_model:
+        # CLI override beats suite-level field beats env var.
+        suite_config.judge_model = judge_model
     baseline_config = resolve_model(baseline)
     challenger_config = resolve_model(challenger)
 
@@ -175,10 +181,15 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--context-rot", is_flag=True, default=False,
               help="Expand suite with distractor-context variants per case.")
 @click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--judge-model", default=None,
+              help="Judge model for llm_judge scoring. Overrides the suite's "
+                   "`judge_model` field and $RIFT_JUDGE_MODEL.")
 def run(model, suite, concurrency, output, cache_dir, context_rot,
-        enterprise_multiplier):
+        enterprise_multiplier, judge_model):
     """Run a single model against an eval suite and save results."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
+    if judge_model:
+        suite_config.judge_model = judge_model
     model_config = resolve_model(model)
 
     console.print(f"\n[bold]Rift[/bold] running [cyan]{model}[/cyan]")

@@ -22,6 +22,12 @@ class SuiteConfig(BaseModel):
     description: str = ""
     scoring: str = "exact_match"
     model_params: dict[str, Any] = {}
+    # Optional judge-model override for llm_judge scoring. When set,
+    # this locks the judge to a specific model in the suite file so
+    # the suite is reproducible without env-var coordination. When
+    # unset, the runner falls back to $RIFT_JUDGE_MODEL or the
+    # built-in default. Ignored for non-llm_judge scoring.
+    judge_model: str | None = None
     cases: list[EvalCase]
 
     @field_validator("scoring")

@@ -104,8 +104,27 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 
 | Method | Use When |
 |--------|----------|
-| `exact_match` | Output must match expected exactly (structured data, classification) |
+| `exact_match` | Output must match expected exactly (structured data, classification). Tolerates a trailing `Confidence: X` line so the same suite can drive calibration. |
 | `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). **Not** embedding-based — for that, see the roadmap. |
+| `llm_judge` | Open-ended outputs (summaries, explanations, code) scored on a 0-1 scale by a separate judge model. Supports both **reference-answer** scoring (`expected: "..."`) and **rubric** scoring (`expected: {rubric: "..."}`). The judge model, judge prompt, and a one-sentence judge reasoning per case are all surfaced for auditability. See `suites/open_ended_qa.yaml` for a worked example. |
+
+### `llm_judge` setup
+
+```bash
+# Configure once (or set per-suite via the `judge_model` field):
+export RIFT_JUDGE_MODEL=claude-sonnet-4-6
+
+# Compare two models on an open-ended suite:
+rift compare --baseline gpt-4o --challenger claude-opus-4-7 \
+             --suite open_ended_qa
+```
+
+Judges have known biases (length bias, family bias, self-preference;
+Zheng et al. 2023). Rift mitigates by asking for a 0-1 numeric score
+on a fixed scale (not pairwise A-vs-B), instructing the judge to
+ignore wording differences, and caching every judgment by `(judge,
+prompt)` so re-runs are deterministic. Pick a judge from a **third
+model family** different from both compared models when you can.
 
 ## CI/CD Integration
 
@@ -267,10 +286,10 @@ release notes typically hand-wave around:
 - [x] Refusal / over-refusal drift detection
 - [x] Calibration drift (Brier / ECE / overconfidence)
 - [x] Sycophancy probe (pushback flip rate)
+- [x] `llm_judge` scorer for open-ended outputs (reference + rubric)
 - [ ] Auto-adversarial case discovery
 - [ ] Reasoning faithfulness perturbations
 - [ ] Embedding-based semantic scoring
-- [ ] `llm_judge` scorer for open-ended outputs
 - [ ] User-defined `custom` scoring functions
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
