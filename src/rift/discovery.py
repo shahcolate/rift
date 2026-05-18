@@ -28,18 +28,28 @@ prompts. The CLI report, the YAML metadata, and this docstring all
 state this explicitly so a reader cannot mistake the number for a
 population estimate.
 
-v0 scope (intentional)
-----------------------
-This module ships the minimum-credible version:
+v0.2 scope
+----------
+v0.1 shipped the minimum-credible loop. v0.2 adds:
 
-* Single-batch proposer (no iterative refinement loop)
-* Binary scorers only (continuous Fisher-info ranking is v1)
-* Jaccard 5-gram dedup (embedding dedup is v1)
-* Deterministic validity gate (LLM critic is v1)
-* No adaptive early-stopping on achieved-power
+* **Iterative proposer.** Each batch's prompt now includes the
+  cases accepted in prior batches so the proposer can target
+  *different* failure modes instead of re-sampling near rejections.
+* **Continuous-score info contribution.** Info is now
+  ``|b_score − c_score|`` rather than a binary discordance
+  indicator, so fuzzy-match and llm-judge seed suites work without
+  a special case. A ``min_info`` threshold (default 0.0, binary-
+  friendly) lets continuous-scorer callers reject near-ties.
+* **Early-stop on achieved power.** The loop checks
+  ``power_analysis`` against the accepted set after every batch and
+  stops once ``achieved_power ≥ target_power`` AND at least
+  ``min_cases_before_early_stop`` cases have been accepted.
 
-The descopes are deliberate so the first cut ships as one PR and
-the iterative version follows once this proves out.
+Still queued for future versions
+--------------------------------
+* Embedding-based dedup (v1 still uses Jaccard 5-gram)
+* LLM critic validity gate
+* Multi-axis discovery (refusal / calibration / sycophancy targeting)
 """
 
 from __future__ import annotations
@@ -92,7 +102,7 @@ Scoring method: {scoring}
 
 Sample cases from the seed suite (for format / domain guidance):
 {seed_examples}
-
+{accepted_block}
 Your task: propose {batch_size} new cases in the same domain and \
 format. Aim for cases that are:
 - answerable (a competent reasoner can determine the correct answer)
@@ -115,15 +125,28 @@ Example shape:
 """
 
 
+# How many already-accepted cases to surface to the proposer. Big
+# enough to give it a sense of accepted failure modes; small enough
+# that the prompt does not balloon as discovery progresses.
+_MAX_ACCEPTED_IN_CONTEXT = 8
+
+
 def _build_proposer_prompt(
     suite: SuiteConfig,
     batch_size: int,
+    accepted_so_far: list[EvalCase] | None = None,
 ) -> str:
     """Render the proposer prompt for one batch.
 
     Includes up to 5 seed examples — enough for format learning,
     few enough that the proposer doesn't pattern-match too tightly
     on the specific phrasings.
+
+    When ``accepted_so_far`` is non-empty, also surfaces up to
+    ``_MAX_ACCEPTED_IN_CONTEXT`` already-accepted cases with an
+    instruction to propose *different* failure modes. This is the
+    iterative-proposer mechanism: the loop pushes the proposer
+    away from re-discovering the same kinds of disagreements.
     """
     seed = suite.cases[:5]
     examples_blob = "\n".join(
@@ -132,11 +155,29 @@ def _build_proposer_prompt(
         f"expected: {ex.expected!r}"
         for i, ex in enumerate(seed)
     )
+    accepted_block = ""
+    if accepted_so_far:
+        # Sample tail-end (most recent accepts) so the prompt
+        # reflects what the loop is currently converging on.
+        recent = accepted_so_far[-_MAX_ACCEPTED_IN_CONTEXT:]
+        accepted_blob = "\n".join(
+            f"--- already-accepted {i + 1} ---\n"
+            f"input: {ex.input.strip()[:400]}\n"
+            f"expected: {ex.expected!r}"
+            for i, ex in enumerate(recent)
+        )
+        accepted_block = (
+            "\nThe following cases have ALREADY been accepted into "
+            "the discovered suite. Propose cases that probe "
+            "DIFFERENT failure modes — not rephrasings of these:\n"
+            f"{accepted_blob}\n"
+        )
     return PROPOSER_PROMPT_TEMPLATE.format(
         suite_name=suite.name,
         suite_description=suite.description or "(no description)",
         scoring=suite.scoring,
         seed_examples=examples_blob,
+        accepted_block=accepted_block,
         batch_size=batch_size,
     )
 
@@ -232,7 +273,18 @@ DEDUP_JACCARD_THRESHOLD = 0.8
 
 @dataclass
 class DiscoveryResult:
-    """Output of one ``discover()`` run."""
+    """Output of one ``discover()`` run.
+
+    Counters track the per-stage attrition through the loop:
+    ``n_proposed`` (candidates returned by the proposer and parsed)
+    → ``n_after_dedup`` (survived the Jaccard dedup against the
+    seen set) → cases verified through the runner → ``n_both_zero``
+    (dropped: neither model could answer) → ``n_kept`` (accepted
+    discordant cases). ``discordant_rate`` is the post-dedup
+    fraction the two models actually disagreed on — the meaningful
+    number for "how often do these two models differ on the kind
+    of prompts the proposer generates?"
+    """
 
     cases: list[EvalCase]
     achieved_power: float
@@ -244,17 +296,34 @@ class DiscoveryResult:
     challenger_model: str
     seed_suite_name: str
     n_proposed: int
-    n_parsed: int
     n_after_dedup: int
-    n_after_validity: int
+    n_both_zero: int
     n_kept: int
     discordant_rate: float
     proposer_spend_usd: float
     verification_spend_usd: float
-    # Per-case info contribution; same order as ``cases``.
+    early_stopped: bool = False
+    # Per-case info contribution (|b_score − c_score|), same order
+    # as ``cases``. For binary scorers this is always 1.0; for
+    # continuous scorers it's the absolute paired difference.
     case_info: list[float] = field(default_factory=list)
     # One-line rationale per kept case, sourced from the proposer.
     rationales: list[str] = field(default_factory=list)
+
+    # Back-compat shim — ``n_parsed`` was a separate field in v0.1
+    # but always equalled ``n_proposed``. Kept as a property so
+    # external readers / saved JSON loaders don't break.
+    @property
+    def n_parsed(self) -> int:
+        return self.n_proposed
+
+    # Back-compat: v0.1 exposed ``n_after_validity`` meaning "cases
+    # that passed both the both-zero gate and the info gate" —
+    # i.e. the same as ``n_kept`` in v0.2. Keep the field name
+    # alive so existing callers continue to work.
+    @property
+    def n_after_validity(self) -> int:
+        return self.n_kept
 
 
 # ---------------------------------------------------------------------------
@@ -302,13 +371,29 @@ async def discover(
     cache_dir: str | None = None,
     provider_factory: ProviderFactory | None = None,
     proposer_params: dict | None = None,
+    min_info: float = 0.0,
+    min_cases_before_early_stop: int = 20,
 ) -> DiscoveryResult:
     """Run one discovery pass and return discovered cases + metadata.
 
-    The loop runs until either ``max_cases`` accepted cases is
-    reached or the proposer runs out of usable proposals. v0 does
-    not early-stop on ``achieved_power``; that knob is reserved for
-    v1 when adaptive ranking lands.
+    The loop terminates when *any* of these happens:
+
+    * ``max_cases`` accepted cases have been accumulated (the spend cap).
+    * Achieved power on the accepted set reaches ``target_power`` AND
+      at least ``min_cases_before_early_stop`` cases are in. The
+      minimum-N guard avoids stopping at n=3 with a variance-flattered
+      power estimate.
+    * ``_MAX_CONSECUTIVE_STALE_BATCHES`` batches in a row produce no
+      new accepts (proposer exhausted its useful candidates).
+    * The proposer returns text that doesn't parse to a candidate
+      array (one warning; we bail rather than spend on more junk).
+
+    ``min_info`` is the threshold the per-case info contribution
+    (``|b_score − c_score|``) must exceed for the case to be
+    accepted. For binary scorers leave this at 0.0 (any discordance
+    contributes 1.0). For continuous scorers (fuzzy_match,
+    llm_judge) raise it to 0.2-0.3 so near-ties don't pollute the
+    discovered suite.
     """
     proposer_params = {"temperature": 0.7, **(proposer_params or {})}
     factory = provider_factory or _default_provider_factory
@@ -323,11 +408,11 @@ async def discover(
     challenger_scores: list[float] = []
 
     n_proposed = 0
-    n_parsed_total = 0
     n_after_dedup_total = 0
-    n_after_validity_total = 0
+    n_both_zero_total = 0
     proposer_spend = 0.0
     verification_spend = 0.0
+    early_stopped = False
 
     # Pool of all texts we've ever seen so dedup is global, not just
     # within a batch. Starts with the seed suite's inputs so the
@@ -341,8 +426,11 @@ async def discover(
 
     try:
         while len(accepted_cases) < max_cases:
-            # ---- 1. Propose ----
-            prompt = _build_proposer_prompt(seed_suite, batch_size)
+            # ---- 1. Propose (with iterative context after batch 1) ----
+            prompt = _build_proposer_prompt(
+                seed_suite, batch_size,
+                accepted_so_far=accepted_cases,
+            )
             completion = await proposer_provider.complete(
                 prompt, **proposer_params
             )
@@ -351,10 +439,11 @@ async def discover(
                 completion.input_tokens,
                 completion.output_tokens,
             )
-            n_proposed += batch_size
 
             candidates = parse_proposer_response(completion.output_text)
-            n_parsed_total += len(candidates)
+            # Bug fix: was ``+= batch_size`` (the request count) —
+            # count parsed candidates actually received.
+            n_proposed += len(candidates)
             if not candidates:
                 # Proposer returned junk — bail to avoid an infinite loop.
                 break
@@ -397,7 +486,7 @@ async def discover(
             )
             verification_spend += b_run.total_cost_usd + c_run.total_cost_usd
 
-            # ---- 4. Validity gate + ranking ----
+            # ---- 4. Validity gate + info ranking ----
             batch_accepted = 0
             for i, cand in enumerate(fresh):
                 b_score = b_run.cases[i].score
@@ -406,20 +495,18 @@ async def discover(
                 # under-specified or the proposer's ``expected`` is
                 # wrong. Drop it — we can't tell which side is right.
                 if b_score == 0.0 and c_score == 0.0:
+                    n_both_zero_total += 1
                     continue
                 # Info contribution. For binary scorers this is
-                # equivalent to a discordance indicator; for
-                # continuous scorers we use the absolute paired
-                # difference (v1 will switch to centered squared
-                # difference once continuous ranking is enabled).
-                info = (
-                    1.0 if (b_score != c_score) else 0.0
-                )
-                if info <= 0.0:
-                    # Concordant pair — zero McNemar information.
+                # equivalent to a discordance indicator (0 or 1);
+                # for continuous scorers it's the absolute paired
+                # difference. ``min_info`` gates near-ties out for
+                # continuous-scorer seed suites.
+                info = abs(b_score - c_score)
+                if info <= min_info:
+                    # Concordant or near-tied — no useful info.
                     continue
 
-                n_after_validity_total += 1
                 accepted_cases.append(EvalCase(
                     input=cand["input"],
                     expected=cand["expected"],
@@ -441,10 +528,26 @@ async def discover(
                     break
             else:
                 stale_batches = 0
+
+            # ---- 5. Early-stop on achieved power ----
+            # Recompute after every batch that accepted something.
+            # Guard with min_cases_before_early_stop so we don't
+            # stop on a tiny sample whose power estimate is
+            # variance-flattered.
+            if (batch_accepted > 0
+                    and len(accepted_cases) >= min_cases_before_early_stop):
+                power = power_analysis(
+                    baseline_scores, challenger_scores,
+                    alpha=alpha, power=target_power,
+                    target_effect=target_effect,
+                )
+                if power["observed_power"] >= target_power:
+                    early_stopped = True
+                    break
     finally:
         await proposer_provider.close()
 
-    # ---- 5. Achieved power on accepted set ----
+    # ---- 6. Final achieved power on accepted set ----
     if len(accepted_cases) >= 2:
         power = power_analysis(
             baseline_scores, challenger_scores,
@@ -455,8 +558,12 @@ async def discover(
     else:
         achieved = 0.0
 
+    # Bug fix: was ``sum(accepted_info > 0) / n_after_validity_total``
+    # which is always 1.0 by construction. Real meaning: of the
+    # candidates we verified, what fraction were discordant?
     discordant_rate = (
-        sum(1 for s in accepted_info if s > 0) / max(1, n_after_validity_total)
+        len(accepted_cases) / n_after_dedup_total
+        if n_after_dedup_total else 0.0
     )
 
     return DiscoveryResult(
@@ -470,13 +577,13 @@ async def discover(
         challenger_model=challenger.model,
         seed_suite_name=seed_suite.name,
         n_proposed=n_proposed,
-        n_parsed=n_parsed_total,
         n_after_dedup=n_after_dedup_total,
-        n_after_validity=n_after_validity_total,
+        n_both_zero=n_both_zero_total,
         n_kept=len(accepted_cases),
         discordant_rate=round(discordant_rate, 4),
         proposer_spend_usd=round(proposer_spend, 6),
         verification_spend_usd=round(verification_spend, 6),
+        early_stopped=early_stopped,
         case_info=accepted_info,
         rationales=accepted_rationales,
     )
@@ -510,12 +617,12 @@ def to_suite_yaml(result: DiscoveryResult) -> dict:
         f"Proposer: {result.proposer_model}.",
         f"Target power: {result.target_power} at "
         f"Δ={result.target_effect}, α={result.alpha}.",
-        f"Achieved power: {result.achieved_power}.",
-        f"Discordant rate: {result.discordant_rate}.",
+        f"Achieved power: {result.achieved_power} "
+        f"({'early-stopped' if result.early_stopped else 'reached max_cases'}).",
+        f"Discordant rate (of verified): {result.discordant_rate}.",
         f"n_proposed={result.n_proposed}, "
-        f"n_parsed={result.n_parsed}, "
         f"n_after_dedup={result.n_after_dedup}, "
-        f"n_after_validity={result.n_after_validity}, "
+        f"n_both_zero={result.n_both_zero}, "
         f"n_kept={result.n_kept}.",
         f"Spend: proposer ${result.proposer_spend_usd:.4f}, "
         f"verification ${result.verification_spend_usd:.4f}.",
