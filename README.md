@@ -278,10 +278,18 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 
 The output YAML carries full provenance in `description`: proposer
 model, target / achieved power, discordant rate, per-stage counts
-(proposed → parsed → dedup → validity → kept), and the explicit
-caveat that **cases were selected on divergence** — the
+(proposed → dedup → both-zero rejects → kept), whether the loop
+**early-stopped on achieved-power** or ran to `max_cases`, and the
+explicit caveat that **cases were selected on divergence** — the
 achieved-power figure measures the suite's sensitivity, not an
 unbiased population estimate.
+
+The loop is **iterative**: after the first batch, every subsequent
+proposer call surfaces the accepted-so-far cases and asks for
+*different* failure modes. This drives diversity without manual
+prompting. For continuous-score seed suites (`fuzzy_match`,
+`llm_judge`), pass `--min-info 0.2` to filter out near-tie cases
+that would dilute the discovered suite's power.
 
 The framing — "discover cases such that the paired test is powered
 at ≥0.9 to detect a 5pp drop" — is the methodological hook nobody

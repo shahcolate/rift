@@ -434,11 +434,21 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
               help="Max concurrent verification API calls.")
 @click.option("--cache-dir", default=None,
               help="Cache directory for completions (default .rift/cache).")
+@click.option("--min-info", default=0.0, type=float,
+              help="Minimum per-case info contribution "
+                   "(|baseline_score − challenger_score|) for acceptance. "
+                   "Leave at 0.0 for binary scorers; set 0.2-0.3 for "
+                   "fuzzy_match / llm_judge seed suites to filter near-ties.")
+@click.option("--min-cases-early-stop", default=20, type=int,
+              help="Minimum accepted cases before early-stop on achieved-power "
+                   "may fire. Guards against stopping at a tiny sample whose "
+                   "power estimate is variance-flattered.")
 @click.option("--output", "-o", required=True,
               help="Path to write the discovered suite YAML.")
 def discover(baseline, challenger, seed_suite, proposer_model,
              target_power, target_effect, max_cases, batch_size,
-             alpha, concurrency, cache_dir, output):
+             alpha, concurrency, cache_dir, min_info,
+             min_cases_early_stop, output):
     """Discover cases that maximize the paired test's power for a model pair.
 
     Uses a proposer model to generate candidate prompts, runs both
@@ -476,6 +486,8 @@ def discover(baseline, challenger, seed_suite, proposer_model,
         alpha=alpha,
         concurrency=concurrency,
         cache_dir=cache_dir,
+        min_info=min_info,
+        min_cases_before_early_stop=min_cases_early_stop,
     ))
 
     suite_dict = to_suite_yaml(result)
@@ -483,18 +495,23 @@ def discover(baseline, challenger, seed_suite, proposer_model,
     with open(output, "w") as f:
         yaml.safe_dump(suite_dict, f, sort_keys=False, width=120)
 
+    stop_reason = (
+        "early-stopped on achieved-power"
+        if result.early_stopped else "reached max_cases / proposer exhausted"
+    )
     console.print(
         f"\n[bold]Discovered {result.n_kept} cases[/bold] "
         f"(from {result.n_proposed} proposed, "
         f"{result.n_after_dedup} after dedup, "
-        f"{result.n_after_validity} after validity)."
+        f"{result.n_both_zero} both-zero rejects)."
     )
     console.print(
-        f"  Discordant rate: {result.discordant_rate:.1%}"
+        f"  Discordant rate (of verified): {result.discordant_rate:.1%}"
     )
     console.print(
         f"  Achieved power:  {result.achieved_power:.2f}   "
-        f"(target {result.target_power} at Δ={result.target_effect})"
+        f"(target {result.target_power} at Δ={result.target_effect}, "
+        f"{stop_reason})"
     )
     console.print(
         f"  Spend: proposer ${result.proposer_spend_usd:.4f}, "

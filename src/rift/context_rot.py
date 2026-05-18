@@ -35,8 +35,6 @@ from __future__ import annotations
 import hashlib
 import random
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
 
 from .config import EvalCase, SuiteConfig
 
@@ -206,7 +204,7 @@ def expand_suite(
         name=f"{base.name}__context_rot",
         description=(
             f"{base.description} — expanded with distractor context at "
-            f"levels: {', '.join(l.name for l in levels)}."
+            f"levels: {', '.join(lvl.name for lvl in levels)}."
         ),
         scoring=base.scoring,
         model_params=base.model_params,
