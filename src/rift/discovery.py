@@ -65,6 +65,7 @@ from .config import EvalCase, ModelConfig, SuiteConfig, resolve_model
 from .pricing import cost_of
 from .providers import BaseProvider
 from .providers.anthropic import AnthropicProvider
+from .providers.google import GoogleProvider
 from .providers.openai import OpenAIProvider
 from .runner import run_suite
 
@@ -346,6 +347,8 @@ def _default_provider_factory(model_id: str) -> BaseProvider:
         return AnthropicProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "openai":
         return OpenAIProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "google":
+        return GoogleProvider(model=cfg.model, **cfg.params)
     raise ValueError(
         f"discover() does not support proposer provider "
         f"'{cfg.provider}' (model={model_id})"

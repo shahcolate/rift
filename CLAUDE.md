@@ -22,6 +22,7 @@ rift/
 │   ├── providers/
 │   │   ├── __init__.py      # Abstract BaseProvider + Completion dataclass
 │   │   ├── anthropic.py
+│   │   ├── google.py        # Gemini (Generative Language API)
 │   │   └── openai.py
 │   └── config.py            # YAML parsing + model alias resolution
 ├── suites/
@@ -131,6 +132,7 @@ cases:
 
 - ANTHROPIC_API_KEY — for Anthropic provider
 - OPENAI_API_KEY — for OpenAI provider
+- GEMINI_API_KEY — for Google (Gemini) provider
 - RIFT_CACHE_DIR — override cache location (default: .rift/cache)
 
 ## Development Commands

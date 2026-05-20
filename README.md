@@ -252,6 +252,24 @@ power, minimum detectable effect at 80% power, and (optionally) the
 N needed to detect a target effect — the answer to "we did not see
 drift, but could we have?".
 
+## Providers
+
+| Vendor | Models supported | Env var | Notes |
+|--------|------------------|---------|-------|
+| Anthropic | `claude-*` (Opus / Sonnet / Haiku, all 3.x / 4.x) | `ANTHROPIC_API_KEY` | Messages API |
+| OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API |
+| Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
+
+Short aliases (`opus-4-7`, `sonnet-4-6`, `gemini-flash`, etc.) live in
+`MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor comparisons
+work out of the box:
+
+```bash
+rift compare \
+  --baseline opus-4-7 --challenger gemini-3.5-flash \
+  --suite reasoning
+```
+
 ## Power-stratified case discovery
 
 Hand-written suites under-sample exactly the prompts on which two

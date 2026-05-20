@@ -84,6 +84,11 @@ MODEL_ALIASES: dict[str, str] = {
     "sonnet-4":   "claude-sonnet-4-20250514",
     "haiku-4-5":  "claude-haiku-4-5-20251001",
     "sonnet-3-5": "claude-3-5-sonnet-20241022",
+    # Google Gemini — keep both punctuations so users can type the
+    # "3.5" they see in marketing or the "3-5" that's filename-safe.
+    "gemini-3-5-flash": "gemini-3.5-flash",
+    "gemini-3.5-flash": "gemini-3.5-flash",
+    "gemini-flash":     "gemini-3.5-flash",
 }
 
 
@@ -102,5 +107,8 @@ def resolve_model(model_str: str) -> ModelConfig:
 
     if model_str.startswith(("gpt-", "o1", "o3", "o4")):
         return ModelConfig(provider="openai", model=model_str)
+
+    if model_str.startswith("gemini"):
+        return ModelConfig(provider="google", model=model_str)
 
     return ModelConfig(provider="local", model=model_str)

@@ -328,6 +328,7 @@ def _default_provider_factory(model_id: str) -> BaseProvider:
     """
     from ..config import resolve_model
     from ..providers.anthropic import AnthropicProvider
+    from ..providers.google import GoogleProvider
     from ..providers.openai import OpenAIProvider
 
     cfg = resolve_model(model_id)
@@ -335,6 +336,8 @@ def _default_provider_factory(model_id: str) -> BaseProvider:
         return AnthropicProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "openai":
         return OpenAIProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "google":
+        return GoogleProvider(model=cfg.model, **cfg.params)
     raise ValueError(
         f"LLM judge does not support provider '{cfg.provider}' (model={model_id})"
     )
