@@ -1,40 +1,158 @@
-# Opus 4.7 vs Gemini 3.5 Flash: a Rift cross-vendor drift study
+# Gemini 3.5 Flash's 10× discount disappears on reasoning workloads
 
-*Author: Rift maintainers · Run date: 2026-05-20 · Gemini 3.5 Flash GA day: 2026-05-19*
+## Executive summary
 
-## TL;DR
+I ran [Rift](https://github.com/shahcolate/rift) against
+Google's just-released Gemini 3.5 Flash, paired against Anthropic's
+Claude Opus 4.7 on three eval suites and one adversarial discovery
+loop (same prompts, same scorer, real API calls). The day-after-GA
+list-price comparison says Gemini Flash is **10× cheaper than Opus**
+($1.50 / $9.00 vs $15 / $75 per 1M tokens). The actual
+per-correct-answer numbers say otherwise:
 
-Gemini 3.5 Flash shipped yesterday at a list price of **$1.50 / $9.00 per
-1M tokens (input / output)** vs Opus 4.7 at **$15 / $75**. Headline says
-Flash is 10x cheaper. We ran three Rift suites against both models the
-day-after-GA. Three findings:
+1. **On reasoning, Gemini Flash is *more expensive than Opus* per
+   correct answer** ($0.0056 vs $0.0052, n=10). The 10× list-price
+   discount is fully consumed by Gemini's reasoning ("thinking")
+   tokens, which Google bills as output. Gemini Flash emits **13.6×
+   more output tokens than Opus** on the same prompts.
+2. **On structured extraction, Gemini Flash is 30% cheaper than Opus**
+   per correct ($0.0061 vs $0.0087, n=29). Long inputs swing the
+   math the other direction — input tokens dominate Opus's spend
+   and Gemini's $1.50/Mtok input price wins.
+3. **On open-ended generation (judge-scored), Gemini scores 6 pp
+   lower than Opus** (1.00 vs 0.94 at n=5, Hedges' g = −0.876, p =
+   0.07). Per-correct cost is identical to four decimals. Caveat:
+   the judge was Claude Sonnet 4.6 — same family as the baseline,
+   so family-bias is plausible. The signal is consistent (3
+   regressed cases, 0 improved, all the same −0.10 score drop) but
+   the magnitude is contested by the methodology.
+4. **Discovery-loop methodology demo.** `rift discover` with Gemini
+   itself as the adversarial proposer produced Opus 0/9 vs Gemini
+   9/9 (Cohen's h = +3.14, p = 0.004) — and this writeup
+   **explicitly disowns the headline**. Proposer-equals-challenger
+   creates directional selection bias by construction. The
+   third-party-proposer fix is a one-line change documented inline.
 
-1. **On reasoning (binary, n=10):** identical 9/10 accuracy. Per-correct
-   cost: **Opus $0.0052 vs Gemini $0.0056 — Gemini is more expensive.**
-   The 10x list-price discount is fully consumed by Gemini 3.5 Flash's
-   reasoning ("thinking") tokens, which Google bills as output.
-2. **On extraction (continuous, n=29):** identical 0.941 mean. Per-correct
-   cost: Opus $0.0087 vs **Gemini $0.0061 — 30% cheaper.** Long input
-   prompts swing the math toward Gemini's input pricing.
-3. **On open-ended QA (judge-scored, n=5):** Opus 1.000 vs Gemini 0.940
-   (Δ −0.060, Hedges' g = −0.876 — **large** effect, p = 0.070, power
-   ~50%). Caveat: the judge was Claude Sonnet 4.6, which may exhibit
-   family bias. The signal is real but the magnitude is contested by the
-   methodology.
+The headline isn't "is Gemini Flash better." The headline is **"the
+right model is a function of your workload's input-to-output ratio,
+not the vendor list price."** Input-heavy work → Gemini. Thinking-
+heavy work → roughly a tie. Free-form generation → quality story
+unresolved at this n with this judge.
 
-**Bottom line:** the "Flash = cheap" claim is true only on input-heavy
-workloads. On thinking-heavy ones it is approximately a wash, and on
-open-ended generation the quality story is mixed at this sample size.
+_Disclosure: I maintain Rift. Numbers below are from my own runs
+against the live Anthropic and Google APIs the day after Gemini
+3.5 Flash GA (2026-05-19). Run your own paired benchmark before
+making procurement decisions; the I:O ratio finding generalizes,
+the specific magnitudes will not._
 
-We also ran `rift discover` with Gemini as the adversarial proposer
-(Finding 4 below). It produced a clean Opus-0/9 vs Gemini-9/9 result
-— **and that result is methodologically biased on purpose**, because
-the proposer is the challenger. We document the bias explicitly
-rather than hide it; the writeup uses it as a worked example of why
-selection-aware methodology matters.
+---
 
-The numbers below are reproducible from the committed `.json` raw
-runs — Rift's `diff` command will recreate every figure offline.
+## At a glance
+
+| Suite          | n  | Opus mean | Gemini mean | Δ      | Opus $/correct | Gemini $/correct | Gemini cheaper? | Statistical test |
+|----------------|----|-----------|-------------|--------|----------------|-------------------|-----------------|------------------|
+| reasoning      | 10 | 0.900     | 0.900       | 0.000  | $0.0052        | **$0.0056**       | No, +8%          | McNemar exact (binary)         |
+| extraction     | 29 | 0.941     | 0.941       | 0.000  | $0.0087        | **$0.0061**       | **Yes, −30%**    | Paired t + bootstrap           |
+| open_ended_qa  | 5  | 1.000     | 0.940       | −0.060 | $0.0162        | $0.0163           | Tie              | Paired t + bootstrap (g=−0.88) |
+| discovered     | 9  | 0.000     | 1.000       | +1.000 | ∞              | $0.0090           | n/a (biased)     | McNemar exact (h=+3.14)        |
+
+The cross-suite structural finding — and the one that travels
+beyond this study — is the **output-token volume ratio**:
+
+| Suite          | Opus output tokens (total) | Gemini output tokens (total) | Ratio  | Effect on $/correct          |
+|----------------|----------------------------|------------------------------|--------|------------------------------|
+| reasoning      | 405                        | 5,495                        | **13.6×** | Gemini list-price discount **erased** |
+| open_ended_qa  | 1,042                      | 3,603                        | **3.5×**  | Per-correct tied              |
+| extraction     | 2,154                      | 14,563                       | **6.8×**  | Gemini still 30% cheaper      |
+
+Gemini 3.5 Flash emits 3.5–13.6× more output tokens than Opus 4.7
+for the same task — not because Gemini's visible answers are longer,
+but because Gemini's thinking tokens are billed as output. Whether
+that erases the 10× input-price discount depends entirely on how
+input-heavy your prompts are.
+
+**Run details:** three suites + one discovery loop, all live API
+(no synthetic). 53 paired prompts total. 0 errors across baseline.
+Gemini's `thinking_level` pinned to `medium` (its own default) for
+paired determinism. Total live spend across all four runs: **$1.10**.
+
+---
+
+## What an executive leader should do this week
+
+For an engineering, platform, or finance leader evaluating whether
+to move some or all of a Claude-Opus workload to Gemini 3.5 Flash,
+here is the action list ranked by reversibility cost (cheapest first):
+
+### 1. Measure your workload's input-to-output token ratio before quoting any savings
+
+The vendor list-price comparison (`$1.50 / $9 vs $15 / $75`) implies
+10× savings. The per-correct number on this study's reasoning suite
+shows a **net cost increase of ~8%** at the same accuracy. The
+direction of the savings flips entirely with prompt shape:
+
+* RAG / extraction / classification (long input, short output) →
+  Gemini Flash wins, on the order of 30% per correct.
+* Reasoning / multi-step generation / agentic loops (modest input,
+  thinking-heavy output) → Gemini Flash is **roughly a wash or
+  slightly worse** because reasoning tokens are billed as output at
+  $9/Mtok.
+
+Pull a week of production prompts, compute mean
+`input_tokens : output_tokens`, and only then decide which side of
+the curve you're on.
+
+### 2. Pin `thinking_level` explicitly if you switch
+
+Gemini 3.5 Flash ships with thinking on by default at level
+`medium`. For paired-comparison reproducibility, Rift pins
+`thinking_level=medium` (Google's default). For production cost
+optimization, the choice matters: `low` and `minimal` will reduce
+output-token volume substantially at some quality cost. Until you
+have your own quality benchmark, pin one level and stay there;
+don't let an SDK auto-upgrade silently move the line.
+
+### 3. Don't read the discovered-suite result as a Gemini blowout
+
+Finding 4 says Opus 0/9 vs Gemini 9/9 — a clean 100% sweep with a
+maximum Cohen's h of +3.14. That number is structurally biased: the
+adversarial proposer was Gemini itself, so case selection over-rewards
+the proposer. The methodologically valid version of this result
+requires a **third-party proposer** (different family from both
+compared models, e.g. GPT-4o). That run is queued and is the more
+expensive part of the budget; do not cite the +3.14 headline.
+
+### 4. Run your own paired benchmark before committing volume
+
+Don't take the magnitudes in this writeup as authoritative for your
+workload. n is small (5–29 per suite), the judge in Finding 3 is
+family-related to the baseline, and Finding 4 is bias-flagged. The
+**direction** of the input-vs-output finding generalizes; the
+**numbers** require your data:
+
+```bash
+pip install rift-eval
+export ANTHROPIC_API_KEY=...
+export GEMINI_API_KEY=...
+
+rift compare --baseline opus-4-7 --challenger gemini-3.5-flash \
+    --suite YOUR_PRODUCTION_SUITE
+```
+
+Look at three columns in the Rift report: the accuracy delta, the
+**output-token ratio**, and the **`cost-per-correct` delta**. The
+last one is the only number a CFO cares about.
+
+### 5. Renegotiate any "we're moving from Opus to Flash for the cost savings" budget line
+
+If a budget line is built on the 10× list-price headline, it is
+already wrong on roughly half the workload shapes. Re-baseline
+on per-correct or per-task spend, not per-token, before locking
+in the contract.
+
+The reproducible numbers behind every figure in this writeup are
+in the committed `.json` files. `rift diff` recreates each report
+offline without spending another dollar of API.
 
 ---
 
