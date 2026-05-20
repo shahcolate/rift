@@ -1,0 +1,445 @@
+{
+  "drift": {
+    "baseline_model": "opus-4-7",
+    "challenger_model": "gemini-3.5-flash",
+    "suite_name": "reasoning__discovered_claude-opus-4-7_vs_gemini-3.5-flash",
+    "n_cases": 9,
+    "baseline_mean": 0.0,
+    "challenger_mean": 1.0,
+    "delta": 1.0,
+    "delta_pct": 0.0,
+    "p_value": 0.003906,
+    "ci_lower": 1.0,
+    "ci_upper": 1.0,
+    "significant": true,
+    "test_used": "mcnemar_exact",
+    "regressed_cases": [],
+    "improved_cases": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "baseline_cost_usd": 0.112,
+    "challenger_cost_usd": 0.0811,
+    "baseline_cost_per_correct": Infinity,
+    "challenger_cost_per_correct": 0.009007,
+    "cost_normalized_delta_usd": 0.0,
+    "effect_size": 3.1416,
+    "effect_size_kind": "cohens_h",
+    "effect_size_magnitude": "large",
+    "subgroups": {}
+  },
+  "baseline": {
+    "model": "claude-opus-4-7",
+    "suite_name": "reasoning__discovered_claude-opus-4-7_vs_gemini-3.5-flash",
+    "scoring_method": "exact_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Answer with just the name on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nAlice, Bob, and Charlie sit in a row. Alice always tells the truth, Bob always lies, and Charlie sometimes lies and sometimes tells the truth. The person on the left says: 'Bob is in the middle.' The person in the middle says: 'I am Charlie.' The person on the right says: 'Alice is in the middle.' Who is sitting in the middle?",
+        "expected": "Bob",
+        "output": "The middle person says \"I am Charlie.\" \n\nIf Alice is in the middle, she'd truthfully say \"I am Alice\" - contradiction.\nIf Bob is in the middle, he lies, so saying \"I am Charlie\" is a lie - consistent.\nIf Charlie is in the middle, saying \"I am Charlie\" is true - possible.\n\nLeft says \"Bob is in the middle.\" Right says \"Alice is in the middle.\"\n\nIf Bob is in middle: Left's statement is true (so Left is Alice or truthful Charlie). Right's statement is false (so Right is lying Charlie). Then Left is Alice. Works: Alice-Bob-Charlie.\n\nIf Charlie is in middle: Left says \"Bob is in middle\" - false. Right says \"Alice is in middle\" - false. Left and Right are Alice and Bob in some order. But Alice tells truth, so she can't make a false statement. Contradiction.\n\nSo Bob is in the middle.\n\nBob\nConfidence: 0.95",
+        "score": 0.0,
+        "latency_ms": 5229.0727879999395,
+        "input_tokens": 177,
+        "output_tokens": 326,
+        "cost_usd": 0.027105,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 1,
+        "input_text": "Answer with just the name of the day on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nIf today is a Tuesday, what day of the week will it be 2^50 days from now?",
+        "expected": "Saturday",
+        "output": "Thursday\nConfidence: 1",
+        "score": 0.0,
+        "latency_ms": 1143.8838770000075,
+        "input_tokens": 82,
+        "output_tokens": 16,
+        "cost_usd": 0.00243,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 2,
+        "input_text": "Answer with just \"Knight\" or \"Knave\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nOn an island, inhabitants are either Knights (always tell the truth) or Knaves (always lie). You meet two inhabitants, X and Y. X says: \"At least one of us is a Knave.\" What is Y?",
+        "expected": "Knave",
+        "output": "Knave\nConfidence: 1.0\n\nIf X is a Knave, the statement \"at least one of us is a Knave\" would be true, contradicting that Knaves lie. So X is a Knight, and the statement is true, meaning Y must be the Knave.\n\nKnave\nConfidence: 1.0",
+        "score": 0.0,
+        "latency_ms": 2442.4559100002625,
+        "input_tokens": 128,
+        "output_tokens": 98,
+        "cost_usd": 0.00927,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 3,
+        "input_text": "Answer with just the number on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA clock strikes once at 1:00, twice at 2:00, and so on. It also strikes once at every half-hour (e.g., at 1:30, 2:30). How many times does it strike in total between 12:15 PM and 6:45 PM on the same day?",
+        "expected": "28",
+        "output": "Strikes between 12:15 PM and 6:45 PM:\n- 12:30: 1\n- 1:00: 1\n- 1:30: 1\n- 2:00: 2\n- 2:30: 1\n- 3:00: 3\n- 3:30: 1\n- 4:00: 4\n- 4:30: 1\n- 5:00: 5\n- 5:30: 1\n- 6:00: 6\n- 6:30: 1\n\nTotal: 1+1+1+2+1+3+1+4+1+5+1+6+1 = 28\n\n28\nConfidence: 0.9",
+        "score": 0.0,
+        "latency_ms": 3178.3547810000528,
+        "input_tokens": 135,
+        "output_tokens": 188,
+        "cost_usd": 0.016125,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 4,
+        "input_text": "Answer with just \"First\" or \"Second\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nTwo players take turns removing stones from a pile of 21 stones. In each turn, a player can remove 1, 2, or 4 stones. The player who takes the last stone wins. If both players play optimally, which player has a guaranteed winning strategy?",
+        "expected": "Second",
+        "output": "First\nConfidence: 0.95",
+        "score": 0.0,
+        "latency_ms": 1414.656720000039,
+        "input_tokens": 137,
+        "output_tokens": 15,
+        "cost_usd": 0.0031799999999999997,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 5,
+        "input_text": "Answer with just the number on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA drawer contains 10 red socks, 20 blue socks, and 30 green socks. If you pull socks out at random in the dark, what is the minimum number of socks you must pull out to guarantee you have at least 3 matching pairs of different colors (i.e., at least one pair of red, one pair of blue, and one pair of green socks)?",
+        "expected": "52",
+        "output": "56\n\nConfidence: 0.7",
+        "score": 0.0,
+        "latency_ms": 1334.4818000000487,
+        "input_tokens": 161,
+        "output_tokens": 16,
+        "cost_usd": 0.003615,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 6,
+        "input_text": "Answer with just \"Doctor\", \"Lawyer\", or \"Teacher\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nAlbert, Bernard, and Cheryl have different professions: Doctor, Lawyer, and Teacher. The Doctor always tells the truth, the Lawyer always lies, and the Teacher sometimes lies and sometimes tells the truth. \nAlbert says: 'Cheryl is the Lawyer.'\nBernard says: 'Albert is the Doctor.'\nCheryl says: 'I am the Teacher.'\nWhat is Bernard's profession?",
+        "expected": "Teacher",
+        "output": "Let me work through this.\n\nIf Albert is the Doctor, then Cheryl is the Lawyer (truth). Then Cheryl says \"I am the Teacher\" - that's a lie, consistent with Lawyer. Bernard would be Teacher, saying \"Albert is the Doctor\" - true, which is fine for Teacher. This works.\n\nCheck other cases:\n- If Albert is Lawyer: \"Cheryl is the Lawyer\" is a lie, consistent. Bernard says \"Albert is the Doctor\" - false. If Bernard is Doctor, contradiction. If Bernard is Teacher, Cheryl is Doctor, but Cheryl says \"I am the Teacher\" - lie, contradicts Doctor. So no.\n- If Albert is Teacher: Then Doctor is Bernard or Cheryl. Cheryl says \"I am the Teacher\" - false, so Cheryl isn't Doctor. Bernard is Doctor, says \"Albert is the Doctor\" - false, contradiction.\n\nTeacher\nConfidence: 0.98",
+        "score": 0.0,
+        "latency_ms": 5207.043295000403,
+        "input_tokens": 225,
+        "output_tokens": 353,
+        "cost_usd": 0.029849999999999998,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 7,
+        "input_text": "Answer with just the coordinates (like (4,1)) on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA robot starts at position (0,0) on a 5x5 grid where coordinates run from 0 to 4. The grid wraps around like a torus (e.g., moving right from x=4 puts you at x=0, and moving down from y=0 puts you at y=4). Assume 'Right' increases x, 'Left' decreases x, 'Up' increases y, and 'Down' decreases y. The robot executes the following sequence of moves: Right 3, Down 2, Left 4, Up 3. What is its final position (x,y)?",
+        "expected": "(4,1)",
+        "output": "Start (0,0).\nRight 3: (3,0)\nDown 2: (3,-2) \u2192 (3,3)\nLeft 4: (-1,3) \u2192 (4,3)\nUp 3: (4,6) \u2192 (4,1)\n\n(4,1)\nConfidence: 0.98",
+        "score": 0.0,
+        "latency_ms": 2160.670330999892,
+        "input_tokens": 234,
+        "output_tokens": 91,
+        "cost_usd": 0.010335,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 8,
+        "input_text": "Answer with just the day of the week on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nIf the day after tomorrow is four days before Wednesday, what day of the week was the day before yesterday?",
+        "expected": "Tuesday",
+        "output": "Friday\nConfidence: 0.9\n\nWait, let me reconsider.\n\nDay after tomorrow is four days before Wednesday. Four days before Wednesday = Saturday. So day after tomorrow = Saturday, meaning today = Thursday. Day before yesterday = Tuesday.\n\nTuesday\nConfidence: 0.9",
+        "score": 0.0,
+        "latency_ms": 2856.939318000059,
+        "input_tokens": 88,
+        "output_tokens": 117,
+        "cost_usd": 0.010095,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      }
+    ],
+    "started_at": "2026-05-20T18:26:54Z",
+    "completed_at": "2026-05-20T18:27:01Z",
+    "metadata": {
+      "concurrency": 5,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0
+    }
+  },
+  "challenger": {
+    "model": "gemini-3.5-flash",
+    "suite_name": "reasoning__discovered_claude-opus-4-7_vs_gemini-3.5-flash",
+    "scoring_method": "exact_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Answer with just the name on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nAlice, Bob, and Charlie sit in a row. Alice always tells the truth, Bob always lies, and Charlie sometimes lies and sometimes tells the truth. The person on the left says: 'Bob is in the middle.' The person in the middle says: 'I am Charlie.' The person on the right says: 'Alice is in the middle.' Who is sitting in the middle?",
+        "expected": "Bob",
+        "output": "Bob\nConfidence: 1",
+        "score": 1.0,
+        "latency_ms": 6221.082647999992,
+        "input_tokens": 113,
+        "output_tokens": 1368,
+        "cost_usd": 0.0124815,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 1,
+        "input_text": "Answer with just the name of the day on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nIf today is a Tuesday, what day of the week will it be 2^50 days from now?",
+        "expected": "Saturday",
+        "output": "Saturday\nConfidence: 1",
+        "score": 1.0,
+        "latency_ms": 4206.447788999867,
+        "input_tokens": 61,
+        "output_tokens": 879,
+        "cost_usd": 0.0080025,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 2,
+        "input_text": "Answer with just \"Knight\" or \"Knave\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nOn an island, inhabitants are either Knights (always tell the truth) or Knaves (always lie). You meet two inhabitants, X and Y. X says: \"At least one of us is a Knave.\" What is Y?",
+        "expected": "Knave",
+        "output": "Knave\nConfidence: 1",
+        "score": 1.0,
+        "latency_ms": 3031.4164659998823,
+        "input_tokens": 89,
+        "output_tokens": 537,
+        "cost_usd": 0.0049664999999999996,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 3,
+        "input_text": "Answer with just the number on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA clock strikes once at 1:00, twice at 2:00, and so on. It also strikes once at every half-hour (e.g., at 1:30, 2:30). How many times does it strike in total between 12:15 PM and 6:45 PM on the same day?",
+        "expected": "28",
+        "output": "28\nConfidence: 1.0",
+        "score": 1.0,
+        "latency_ms": 5353.0374919996575,
+        "input_tokens": 113,
+        "output_tokens": 1162,
+        "cost_usd": 0.0106275,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 4,
+        "input_text": "Answer with just \"First\" or \"Second\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nTwo players take turns removing stones from a pile of 21 stones. In each turn, a player can remove 1, 2, or 4 stones. The player who takes the last stone wins. If both players play optimally, which player has a guaranteed winning strategy?",
+        "expected": "Second",
+        "output": "Second\nConfidence: 1.0",
+        "score": 1.0,
+        "latency_ms": 6086.589633000131,
+        "input_tokens": 97,
+        "output_tokens": 1271,
+        "cost_usd": 0.0115845,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 5,
+        "input_text": "Answer with just the number on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA drawer contains 10 red socks, 20 blue socks, and 30 green socks. If you pull socks out at random in the dark, what is the minimum number of socks you must pull out to guarantee you have at least 3 matching pairs of different colors (i.e., at least one pair of red, one pair of blue, and one pair of green socks)?",
+        "expected": "52",
+        "output": "52\nConfidence: 1.0",
+        "score": 1.0,
+        "latency_ms": 6889.970721999816,
+        "input_tokens": 116,
+        "output_tokens": 1477,
+        "cost_usd": 0.013467,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 6,
+        "input_text": "Answer with just \"Doctor\", \"Lawyer\", or \"Teacher\" on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nAlbert, Bernard, and Cheryl have different professions: Doctor, Lawyer, and Teacher. The Doctor always tells the truth, the Lawyer always lies, and the Teacher sometimes lies and sometimes tells the truth. \nAlbert says: 'Cheryl is the Lawyer.'\nBernard says: 'Albert is the Doctor.'\nCheryl says: 'I am the Teacher.'\nWhat is Bernard's profession?",
+        "expected": "Teacher",
+        "output": "Teacher\nConfidence: 1",
+        "score": 1.0,
+        "latency_ms": 4293.6880130000645,
+        "input_tokens": 125,
+        "output_tokens": 855,
+        "cost_usd": 0.007882499999999999,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 7,
+        "input_text": "Answer with just the coordinates (like (4,1)) on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nA robot starts at position (0,0) on a 5x5 grid where coordinates run from 0 to 4. The grid wraps around like a torus (e.g., moving right from x=4 puts you at x=0, and moving down from y=0 puts you at y=4). Assume 'Right' increases x, 'Left' decreases x, 'Up' increases y, and 'Down' decreases y. The robot executes the following sequence of moves: Right 3, Down 2, Left 4, Up 3. What is its final position (x,y)?",
+        "expected": "(4,1)",
+        "output": "(4,1)\nConfidence: 1.0",
+        "score": 1.0,
+        "latency_ms": 3774.9595790000967,
+        "input_tokens": 169,
+        "output_tokens": 797,
+        "cost_usd": 0.0074265,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 8,
+        "input_text": "Answer with just the day of the week on the first line.\nOn the second line, write `Confidence: X` where X is a number between 0 and 1.\n\nIf the day after tomorrow is four days before Wednesday, what day of the week was the day before yesterday?",
+        "expected": "Tuesday",
+        "output": "Tuesday\nConfidence: 1",
+        "score": 1.0,
+        "latency_ms": 2847.437366000122,
+        "input_tokens": 60,
+        "output_tokens": 504,
+        "cost_usd": 0.004626,
+        "tags": [
+          "discovered",
+          "info:1.00"
+        ],
+        "error": null,
+        "attempts": 1
+      }
+    ],
+    "started_at": "2026-05-20T18:27:01Z",
+    "completed_at": "2026-05-20T18:27:12Z",
+    "metadata": {
+      "concurrency": 5,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0
+    }
+  },
+  "refusal": {
+    "n_cases": 9,
+    "n_refused": 0,
+    "refusal_rate": 0.0,
+    "classifications": [
+      {
+        "case_index": 0,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Bob\nConfidence: 1"
+      },
+      {
+        "case_index": 1,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Saturday\nConfidence: 1"
+      },
+      {
+        "case_index": 2,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Knave\nConfidence: 1"
+      },
+      {
+        "case_index": 3,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "28\nConfidence: 1.0"
+      },
+      {
+        "case_index": 4,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Second\nConfidence: 1.0"
+      },
+      {
+        "case_index": 5,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "52\nConfidence: 1.0"
+      },
+      {
+        "case_index": 6,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Teacher\nConfidence: 1"
+      },
+      {
+        "case_index": 7,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "(4,1)\nConfidence: 1.0"
+      },
+      {
+        "case_index": 8,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Tuesday\nConfidence: 1"
+      }
+    ],
+    "baseline_refusal_rate": 0.0,
+    "challenger_refusal_rate": 0.0,
+    "delta_refusal_rate": 0.0,
+    "over_refusal_cases": [],
+    "new_compliance_cases": []
+  },
+  "power": {
+    "observed_effect": 3.1416,
+    "observed_effect_kind": "cohens_h",
+    "observed_power": 1.0,
+    "min_detectable_effect": 0.9339,
+    "n_for_target": null
+  }
+}

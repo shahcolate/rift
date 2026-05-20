@@ -1,0 +1,108 @@
+name: reasoning__discovered_claude-opus-4-7_vs_gemini-3.5-flash
+description: "Discovered by rift discover targeting drift between claude-opus-4-7 and gemini-3.5-flash on seed suite 'reasoning'.\n\
+  Proposer: gemini-3.5-flash.\nTarget power: 0.9 at \u0394=0.05, \u03B1=0.05.\nAchieved power: 1.0 (early-stopped).\nDiscordant\
+  \ rate (of verified): 0.2571.\nn_proposed=36, n_after_dedup=35, n_both_zero=0, n_kept=9.\nSpend: proposer $0.1730, verification\
+  \ $0.3963.\n\nIMPORTANT: cases were selected on divergence between the named baseline/challenger pair. The achieved_power\
+  \ figure is the sensitivity of THIS suite, not an unbiased estimate of population drift between these two models on arbitrary\
+  \ prompts."
+scoring: exact_match
+cases:
+- input: 'Answer with just the name on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    Alice, Bob, and Charlie sit in a row. Alice always tells the truth, Bob always lies, and Charlie sometimes lies and sometimes
+    tells the truth. The person on the left says: ''Bob is in the middle.'' The person in the middle says: ''I am Charlie.''
+    The person on the right says: ''Alice is in the middle.'' Who is sitting in the middle?'
+  expected: Bob
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just the name of the day on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    If today is a Tuesday, what day of the week will it be 2^50 days from now?'
+  expected: Saturday
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just "Knight" or "Knave" on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    On an island, inhabitants are either Knights (always tell the truth) or Knaves (always lie). You meet two inhabitants,
+    X and Y. X says: "At least one of us is a Knave." What is Y?'
+  expected: Knave
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just the number on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    A clock strikes once at 1:00, twice at 2:00, and so on. It also strikes once at every half-hour (e.g., at 1:30, 2:30).
+    How many times does it strike in total between 12:15 PM and 6:45 PM on the same day?'
+  expected: '28'
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just "First" or "Second" on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    Two players take turns removing stones from a pile of 21 stones. In each turn, a player can remove 1, 2, or 4 stones.
+    The player who takes the last stone wins. If both players play optimally, which player has a guaranteed winning strategy?'
+  expected: Second
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just the number on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    A drawer contains 10 red socks, 20 blue socks, and 30 green socks. If you pull socks out at random in the dark, what is
+    the minimum number of socks you must pull out to guarantee you have at least 3 matching pairs of different colors (i.e.,
+    at least one pair of red, one pair of blue, and one pair of green socks)?'
+  expected: '52'
+  tags:
+  - discovered
+  - info:1.00
+- input: "Answer with just \"Doctor\", \"Lawyer\", or \"Teacher\" on the first line.\nOn the second line, write `Confidence:\
+    \ X` where X is a number between 0 and 1.\n\nAlbert, Bernard, and Cheryl have different professions: Doctor, Lawyer, and\
+    \ Teacher. The Doctor always tells the truth, the Lawyer always lies, and the Teacher sometimes lies and sometimes tells\
+    \ the truth. \nAlbert says: 'Cheryl is the Lawyer.'\nBernard says: 'Albert is the Doctor.'\nCheryl says: 'I am the Teacher.'\n\
+    What is Bernard's profession?"
+  expected: Teacher
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just the coordinates (like (4,1)) on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    A robot starts at position (0,0) on a 5x5 grid where coordinates run from 0 to 4. The grid wraps around like a torus (e.g.,
+    moving right from x=4 puts you at x=0, and moving down from y=0 puts you at y=4). Assume ''Right'' increases x, ''Left''
+    decreases x, ''Up'' increases y, and ''Down'' decreases y. The robot executes the following sequence of moves: Right 3,
+    Down 2, Left 4, Up 3. What is its final position (x,y)?'
+  expected: (4,1)
+  tags:
+  - discovered
+  - info:1.00
+- input: 'Answer with just the day of the week on the first line.
+
+    On the second line, write `Confidence: X` where X is a number between 0 and 1.
+
+
+    If the day after tomorrow is four days before Wednesday, what day of the week was the day before yesterday?'
+  expected: Tuesday
+  tags:
+  - discovered
+  - info:1.00

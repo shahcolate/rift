@@ -1,0 +1,1359 @@
+{
+  "drift": {
+    "baseline_model": "opus-4-7",
+    "challenger_model": "gemini-3.5-flash",
+    "suite_name": "structured_extraction",
+    "n_cases": 29,
+    "baseline_mean": 0.9414,
+    "challenger_mean": 0.9414,
+    "delta": 0.0,
+    "delta_pct": 0.0,
+    "p_value": 1.0,
+    "ci_lower": -0.0259,
+    "ci_upper": 0.0259,
+    "significant": false,
+    "test_used": "paired_t+bootstrap",
+    "regressed_cases": [
+      0
+    ],
+    "improved_cases": [
+      21
+    ],
+    "baseline_cost_usd": 0.1998,
+    "challenger_cost_usd": 0.1336,
+    "baseline_cost_per_correct": 0.008685,
+    "challenger_cost_per_correct": 0.006072,
+    "cost_normalized_delta_usd": -0.002613,
+    "effect_size": 0.0,
+    "effect_size_kind": "hedges_g",
+    "effect_size_magnitude": "negligible",
+    "subgroups": {}
+  },
+  "baseline": {
+    "model": "claude-opus-4-7",
+    "suite_name": "structured_extraction",
+    "scoring_method": "exact_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nInvoice #4521, issued January 15, 2025, total amount $1,240.00 payable to Acme Corp.\n",
+        "expected": {
+          "invoice_number": "4521",
+          "date": "2025-01-15",
+          "total": 1240.0,
+          "recipient": "Acme Corp"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"4521\",\n  \"date\": \"2025-01-15\",\n  \"total\": 1240.00,\n  \"recipient\": \"Acme Corp\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1817.781316000037,
+        "input_tokens": 83,
+        "output_tokens": 65,
+        "cost_usd": 0.0061200000000000004,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 1,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nINV-2024-0087 | Date: 03/22/2024 | Amount Due: EUR 5,300.50 | Billed To: Globex International Ltd.\n",
+        "expected": {
+          "invoice_number": "INV-2024-0087",
+          "date": "2024-03-22",
+          "total": 5300.5,
+          "recipient": "Globex International Ltd."
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"INV-2024-0087\",\n  \"date\": \"2024-03-22\",\n  \"total\": 5300.50,\n  \"recipient\": \"Globex International Ltd.\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2619.955085999891,
+        "input_tokens": 98,
+        "output_tokens": 73,
+        "cost_usd": 0.006945,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 2,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nReference: 99102\nTo: Martinez & Sons LLC\nInv. Date: Dec 1 2023\nBalance: $420\n",
+        "expected": {
+          "invoice_number": "99102",
+          "date": "2023-12-01",
+          "total": 420,
+          "recipient": "Martinez & Sons LLC"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"99102\",\n  \"date\": \"2023-12-01\",\n  \"total\": 420,\n  \"recipient\": \"Martinez & Sons LLC\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 3585.0454300000365,
+        "input_tokens": 89,
+        "output_tokens": 67,
+        "cost_usd": 0.00636,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 3,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nINVOICE\nNumber: A-10244\nClient: Northwind Traders Inc\nIssue Date: 2024-07-30\nGrand Total (incl. tax): USD 12,750.00\n",
+        "expected": {
+          "invoice_number": "A-10244",
+          "date": "2024-07-30",
+          "total": 12750.0,
+          "recipient": "Northwind Traders Inc"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"A-10244\",\n  \"date\": \"2024-07-30\",\n  \"total\": 12750.00,\n  \"recipient\": \"Northwind Traders Inc\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1995.238517999951,
+        "input_tokens": 107,
+        "output_tokens": 71,
+        "cost_usd": 0.00693,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 4,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\ninv no 33219, billed 8/15/24 to Riverside Medical Group for $890.25\n",
+        "expected": {
+          "invoice_number": "33219",
+          "date": "2024-08-15",
+          "total": 890.25,
+          "recipient": "Riverside Medical Group"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"33219\",\n  \"date\": \"2024-08-15\",\n  \"total\": 890.25,\n  \"recipient\": \"Riverside Medical Group\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1805.56647100002,
+        "input_tokens": 76,
+        "output_tokens": 67,
+        "cost_usd": 0.006165,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 5,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nHi, I'm Jordan Lee from Pinnacle Systems. You can reach me at jordan.lee@pinnaclesys.com or (415) 555-0198.\n",
+        "expected": {
+          "name": "Jordan Lee",
+          "email": "jordan.lee@pinnaclesys.com",
+          "phone": "(415) 555-0198",
+          "company": "Pinnacle Systems"
+        },
+        "output": "```json\n{\n  \"name\": \"Jordan Lee\",\n  \"email\": \"jordan.lee@pinnaclesys.com\",\n  \"phone\": \"(415) 555-0198\",\n  \"company\": \"Pinnacle Systems\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1836.249012000053,
+        "input_tokens": 90,
+        "output_tokens": 82,
+        "cost_usd": 0.0075,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 6,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nContact: Dr. Priya Sharma, PhD\nOrganization: BioVenture Labs\nEmail: p.sharma@bioventlabs.org\nTel: +44 20 7946 0958\n",
+        "expected": {
+          "name": "Dr. Priya Sharma",
+          "email": "p.sharma@bioventlabs.org",
+          "phone": "+44 20 7946 0958",
+          "company": "BioVenture Labs"
+        },
+        "output": "```json\n{\n  \"name\": \"Dr. Priya Sharma, PhD\",\n  \"email\": \"p.sharma@bioventlabs.org\",\n  \"phone\": \"+44 20 7946 0958\",\n  \"company\": \"BioVenture Labs\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 1880.8022350001465,
+        "input_tokens": 98,
+        "output_tokens": 89,
+        "cost_usd": 0.008145,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 7,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nOrder line: 500 units of Widget Pro X at $12.99 each\n",
+        "expected": {
+          "product": "Widget Pro X",
+          "quantity": 500,
+          "unit_price": 12.99,
+          "currency": "USD"
+        },
+        "output": "```json\n{\n  \"product\": \"Widget Pro X\",\n  \"quantity\": 500,\n  \"unit_price\": 12.99,\n  \"currency\": \"USD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2025.855902000103,
+        "input_tokens": 61,
+        "output_tokens": 60,
+        "cost_usd": 0.005415,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 8,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nItem: Enterprise License (Annual), Qty: 25 seats, Price per seat: EUR 199.00\n",
+        "expected": {
+          "product": "Enterprise License (Annual)",
+          "quantity": 25,
+          "unit_price": 199.0,
+          "currency": "EUR"
+        },
+        "output": "```json\n{\n  \"product\": \"Enterprise License (Annual)\",\n  \"quantity\": 25,\n  \"unit_price\": 199.00,\n  \"currency\": \"EUR\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2112.4662780000563,
+        "input_tokens": 75,
+        "output_tokens": 65,
+        "cost_usd": 0.006,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 9,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nYou're invited to the 2024 Global AI Summit hosted by TechForward Foundation, taking place November 14-16, 2024 at the Moscone Center, San Francisco.\n",
+        "expected": {
+          "event": "2024 Global AI Summit",
+          "date": "2024-11-14",
+          "location": "Moscone Center, San Francisco",
+          "organizer": "TechForward Foundation"
+        },
+        "output": "```json\n{\n  \"event\": \"2024 Global AI Summit\",\n  \"date\": \"2024-11-14/2024-11-16\",\n  \"location\": \"Moscone Center, San Francisco\",\n  \"organizer\": \"TechForward Foundation\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 2292.254474999936,
+        "input_tokens": 97,
+        "output_tokens": 86,
+        "cost_usd": 0.007905,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 10,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nBill to Hawthorne Dental - invoice 2024/Q3/0117, issued on the 5th of September 2024, $2,015.75 due net 30.\n",
+        "expected": {
+          "invoice_number": "2024/Q3/0117",
+          "date": "2024-09-05",
+          "total": 2015.75,
+          "recipient": "Hawthorne Dental"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"2024/Q3/0117\",\n  \"date\": \"2024-09-05\",\n  \"total\": 2015.75,\n  \"recipient\": \"Hawthorne Dental\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2823.9395010000408,
+        "input_tokens": 98,
+        "output_tokens": 75,
+        "cost_usd": 0.007095,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 11,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nRecipient: Blackwood Architects, LLP\nRef #: BW-0471-A\nDated: 11 February 2025\nPayable: \u00a38,940.00\n",
+        "expected": {
+          "invoice_number": "BW-0471-A",
+          "date": "2025-02-11",
+          "total": 8940.0,
+          "recipient": "Blackwood Architects, LLP"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"BW-0471-A\",\n  \"date\": \"2025-02-11\",\n  \"total\": 8940.00,\n  \"recipient\": \"Blackwood Architects, LLP\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2110.5917180000233,
+        "input_tokens": 98,
+        "output_tokens": 76,
+        "cost_usd": 0.00717,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 12,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nInvoice no: 7781\nClient: Oak & Sons Landscaping\nService date: 2024-06-09\nAmount: $312.40 (includes 8% tax)\n",
+        "expected": {
+          "invoice_number": "7781",
+          "date": "2024-06-09",
+          "total": 312.4,
+          "recipient": "Oak & Sons Landscaping"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"7781\",\n  \"date\": \"2024-06-09\",\n  \"total\": 312.40,\n  \"recipient\": \"Oak & Sons Landscaping\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1817.3194170001352,
+        "input_tokens": 101,
+        "output_tokens": 70,
+        "cost_usd": 0.006765,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 13,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nFrom Harper Design Studio: please remit $480 for inv #H-2024-55, sent 4/1/2024, to Summit Realty Group.\n",
+        "expected": {
+          "invoice_number": "H-2024-55",
+          "date": "2024-04-01",
+          "total": 480,
+          "recipient": "Summit Realty Group"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"H-2024-55\",\n  \"date\": \"2024-04-01\",\n  \"total\": 480,\n  \"recipient\": \"Summit Realty Group\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2109.5641360000172,
+        "input_tokens": 92,
+        "output_tokens": 68,
+        "cost_usd": 0.0064800000000000005,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 14,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nPlease add to your records:\nMiguel Ortiz-Ramirez | Director of Engineering | Vertex Robotics\nmiguel.o@vertexrobotics.ai \u00b7 +1-512-555-7734\n",
+        "expected": {
+          "name": "Miguel Ortiz-Ramirez",
+          "email": "miguel.o@vertexrobotics.ai",
+          "phone": "+1-512-555-7734",
+          "company": "Vertex Robotics"
+        },
+        "output": "```json\n{\n  \"name\": \"Miguel Ortiz-Ramirez\",\n  \"email\": \"miguel.o@vertexrobotics.ai\",\n  \"phone\": \"+1-512-555-7734\",\n  \"company\": \"Vertex Robotics\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1747.97670199996,
+        "input_tokens": 100,
+        "output_tokens": 90,
+        "cost_usd": 0.00825,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 15,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nHey \u2014 this is Anne-Sophie Bernard calling on behalf of Clairmont & Vincent. Best number is 020 7946 1122 and you can email me at as.bernard@clairmontvincent.co.uk.\n",
+        "expected": {
+          "name": "Anne-Sophie Bernard",
+          "email": "as.bernard@clairmontvincent.co.uk",
+          "phone": "020 7946 1122",
+          "company": "Clairmont & Vincent"
+        },
+        "output": "```json\n{\n  \"name\": \"Anne-Sophie Bernard\",\n  \"email\": \"as.bernard@clairmontvincent.co.uk\",\n  \"phone\": \"020 7946 1122\",\n  \"company\": \"Clairmont & Vincent\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2096.206102000224,
+        "input_tokens": 107,
+        "output_tokens": 89,
+        "cost_usd": 0.008280000000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 16,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nContact card:\n--------------\nTomoko Yamamoto\nHead of Research, Midori Biotech K.K.\nt.yamamoto@midori-bio.jp\n+81 3-1234-5678\n",
+        "expected": {
+          "name": "Tomoko Yamamoto",
+          "email": "t.yamamoto@midori-bio.jp",
+          "phone": "+81 3-1234-5678",
+          "company": "Midori Biotech K.K."
+        },
+        "output": "```json\n{\n  \"name\": \"Tomoko Yamamoto\",\n  \"email\": \"t.yamamoto@midori-bio.jp\",\n  \"phone\": \"+81 3-1234-5678\",\n  \"company\": \"Midori Biotech K.K.\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1955.6005739998454,
+        "input_tokens": 100,
+        "output_tokens": 89,
+        "cost_usd": 0.008175,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 17,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nPO line 3: 12x \"Titanium Bolt M8x40\" @ GBP 3.75 ea.\n",
+        "expected": {
+          "product": "Titanium Bolt M8x40",
+          "quantity": 12,
+          "unit_price": 3.75,
+          "currency": "GBP"
+        },
+        "output": "```json\n{\n  \"product\": \"Titanium Bolt M8x40\",\n  \"quantity\": 12,\n  \"unit_price\": 3.75,\n  \"currency\": \"GBP\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2029.384035000021,
+        "input_tokens": 74,
+        "output_tokens": 66,
+        "cost_usd": 0.00606,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 18,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nOrdered 1,000 bottles of Cold Brew Concentrate (1L) at \u00a5620 per bottle.\n",
+        "expected": {
+          "product": "Cold Brew Concentrate (1L)",
+          "quantity": 1000,
+          "unit_price": 620,
+          "currency": "JPY"
+        },
+        "output": "```json\n{\n  \"product\": \"Cold Brew Concentrate (1L)\",\n  \"quantity\": 1000,\n  \"unit_price\": 620,\n  \"currency\": \"JPY\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1935.92783400004,
+        "input_tokens": 77,
+        "output_tokens": 68,
+        "cost_usd": 0.006255,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 19,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nItem line: 3 units of \"Studio Monitor Pair - 5\\\"\" for CAD 429.00 each.\n",
+        "expected": {
+          "product": "Studio Monitor Pair - 5\"",
+          "quantity": 3,
+          "unit_price": 429.0,
+          "currency": "CAD"
+        },
+        "output": "```json\n{\n  \"product\": \"Studio Monitor Pair - 5\\\"\",\n  \"quantity\": 3,\n  \"unit_price\": 429.00,\n  \"currency\": \"CAD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1559.280693999881,
+        "input_tokens": 75,
+        "output_tokens": 69,
+        "cost_usd": 0.0063,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 20,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nSave the date: PyData Berlin 2024, organized by NumFOCUS, will run April 22-24, 2024 at bcc Berlin Congress Center.\n",
+        "expected": {
+          "event": "PyData Berlin 2024",
+          "date": "2024-04-22",
+          "location": "bcc Berlin Congress Center",
+          "organizer": "NumFOCUS"
+        },
+        "output": "```json\n{\n  \"event\": \"PyData Berlin 2024\",\n  \"date\": \"2024-04-22/2024-04-24\",\n  \"location\": \"bcc Berlin Congress Center\",\n  \"organizer\": \"NumFOCUS\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 2475.6201049999618,
+        "input_tokens": 92,
+        "output_tokens": 85,
+        "cost_usd": 0.007755,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 21,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nThe North Coast Jazz Festival (presented by the Cleveland Arts Council) returns August 2nd through 4th, 2024 on the shores of Lake Erie at Edgewater Park.\n",
+        "expected": {
+          "event": "North Coast Jazz Festival",
+          "date": "2024-08-02",
+          "location": "Edgewater Park",
+          "organizer": "Cleveland Arts Council"
+        },
+        "output": "```json\n{\n  \"event\": \"North Coast Jazz Festival\",\n  \"date\": \"2024-08-02/2024-08-04\",\n  \"location\": \"Edgewater Park, Lake Erie\",\n  \"organizer\": \"Cleveland Arts Council\"\n}\n```",
+        "score": 0.5,
+        "latency_ms": 2235.5725800000528,
+        "input_tokens": 103,
+        "output_tokens": 91,
+        "cost_usd": 0.00837,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 22,
+        "input_text": "Extract the following fields as JSON: street, city, state, postal_code, country.\n\nShip to: 4412 Magnolia Blvd Apt 3B, Nashville, TN 37205, United States\n",
+        "expected": {
+          "street": "4412 Magnolia Blvd Apt 3B",
+          "city": "Nashville",
+          "state": "TN",
+          "postal_code": "37205",
+          "country": "United States"
+        },
+        "output": "```json\n{\n  \"street\": \"4412 Magnolia Blvd Apt 3B\",\n  \"city\": \"Nashville\",\n  \"state\": \"TN\",\n  \"postal_code\": \"37205\",\n  \"country\": \"United States\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2704.418639000096,
+        "input_tokens": 75,
+        "output_tokens": 79,
+        "cost_usd": 0.00705,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 23,
+        "input_text": "Extract the following fields as JSON: street, city, state, postal_code, country.\n\nAddress on file:\n  12 Rue de Rivoli\n  75001 Paris\n  France\n",
+        "expected": {
+          "street": "12 Rue de Rivoli",
+          "city": "Paris",
+          "state": "",
+          "postal_code": "75001",
+          "country": "France"
+        },
+        "output": "```json\n{\n  \"street\": \"12 Rue de Rivoli\",\n  \"city\": \"Paris\",\n  \"state\": null,\n  \"postal_code\": \"75001\",\n  \"country\": \"France\"\n}\n```",
+        "score": 0.8,
+        "latency_ms": 1687.2119170000133,
+        "input_tokens": 66,
+        "output_tokens": 68,
+        "cost_usd": 0.00609,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 24,
+        "input_text": "Extract the following fields as JSON: patient, medication, dosage, refills (number).\n\nRx for J. Patel: Amoxicillin 500mg, one capsule every 8 hours. 2 refills remaining.\n",
+        "expected": {
+          "patient": "J. Patel",
+          "medication": "Amoxicillin",
+          "dosage": "500mg",
+          "refills": 2
+        },
+        "output": "```json\n{\n  \"patient\": \"J. Patel\",\n  \"medication\": \"Amoxicillin\",\n  \"dosage\": \"500mg, one capsule every 8 hours\",\n  \"refills\": 2\n}\n```",
+        "score": 0.75,
+        "latency_ms": 1885.0222910000412,
+        "input_tokens": 81,
+        "output_tokens": 72,
+        "cost_usd": 0.006615,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 25,
+        "input_text": "Extract the following fields as JSON: flight, departure, arrival, date (ISO format).\n\nBooking confirmed: UA 2287, SFO \u2192 ORD, departing Tuesday, March 4 2025.\n",
+        "expected": {
+          "flight": "UA 2287",
+          "departure": "SFO",
+          "arrival": "ORD",
+          "date": "2025-03-04"
+        },
+        "output": "```json\n{\n  \"flight\": \"UA 2287\",\n  \"departure\": \"SFO\",\n  \"arrival\": \"ORD\",\n  \"date\": \"2025-03-04\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1501.5359090000402,
+        "input_tokens": 78,
+        "output_tokens": 62,
+        "cost_usd": 0.00582,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 26,
+        "input_text": "Extract the following fields as JSON: job_title, company, location, salary_max (number).\n\nNow hiring: Senior Platform Engineer at Lumen Analytics (remote within EU), up to \u20ac95,000 per year.\n",
+        "expected": {
+          "job_title": "Senior Platform Engineer",
+          "company": "Lumen Analytics",
+          "location": "remote within EU",
+          "salary_max": 95000
+        },
+        "output": "```json\n{\n  \"job_title\": \"Senior Platform Engineer\",\n  \"company\": \"Lumen Analytics\",\n  \"location\": \"remote within EU\",\n  \"salary_max\": 95000\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1664.2339749998882,
+        "input_tokens": 81,
+        "output_tokens": 70,
+        "cost_usd": 0.006465,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 27,
+        "input_text": "Extract the following fields as JSON: sender, recipient, amount (number), currency.\n\nTransfer complete: Elena Rossi sent AU$1,450.00 to The Green Pantry Pty Ltd on 10 Oct 2024.\n",
+        "expected": {
+          "sender": "Elena Rossi",
+          "recipient": "The Green Pantry Pty Ltd",
+          "amount": 1450.0,
+          "currency": "AUD"
+        },
+        "output": "```json\n{\n  \"sender\": \"Elena Rossi\",\n  \"recipient\": \"The Green Pantry Pty Ltd\",\n  \"amount\": 1450.00,\n  \"currency\": \"AUD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1803.186529999948,
+        "input_tokens": 90,
+        "output_tokens": 74,
+        "cost_usd": 0.0069,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 28,
+        "input_text": "Extract the following fields as JSON: title, author, isbn, pages (number).\n\n\"The Long Coastline\" by R. Nakamura \u2014 ISBN 978-0-19-912345-6, 382 pages, Oxford University Press.\n",
+        "expected": {
+          "title": "The Long Coastline",
+          "author": "R. Nakamura",
+          "isbn": "978-0-19-912345-6",
+          "pages": 382
+        },
+        "output": "```json\n{\n  \"title\": \"The Long Coastline\",\n  \"author\": \"R. Nakamura\",\n  \"isbn\": \"978-0-19-912345-6\",\n  \"pages\": 382\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1738.8828220000505,
+        "input_tokens": 85,
+        "output_tokens": 68,
+        "cost_usd": 0.0063750000000000005,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      }
+    ],
+    "started_at": "2026-05-20T18:07:30Z",
+    "completed_at": "2026-05-20T18:07:43Z",
+    "metadata": {
+      "concurrency": 5,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0
+    }
+  },
+  "challenger": {
+    "model": "gemini-3.5-flash",
+    "suite_name": "structured_extraction",
+    "scoring_method": "exact_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nInvoice #4521, issued January 15, 2025, total amount $1,240.00 payable to Acme Corp.\n",
+        "expected": {
+          "invoice_number": "4521",
+          "date": "2025-01-15",
+          "total": 1240.0,
+          "recipient": "Acme Corp"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"4521\",\n  \"date\": \"2025-01-15\",\n  \"total\": 1240.00,\n  \"recipient\": \"Acme Corp.\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 2792.584917999875,
+        "input_tokens": 59,
+        "output_tokens": 521,
+        "cost_usd": 0.0047775,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 1,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nINV-2024-0087 | Date: 03/22/2024 | Amount Due: EUR 5,300.50 | Billed To: Globex International Ltd.\n",
+        "expected": {
+          "invoice_number": "INV-2024-0087",
+          "date": "2024-03-22",
+          "total": 5300.5,
+          "recipient": "Globex International Ltd."
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"INV-2024-0087\",\n  \"date\": \"2024-03-22\",\n  \"total\": 5300.50,\n  \"recipient\": \"Globex International Ltd.\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2480.195522000031,
+        "input_tokens": 73,
+        "output_tokens": 517,
+        "cost_usd": 0.0047625,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 2,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nReference: 99102\nTo: Martinez & Sons LLC\nInv. Date: Dec 1 2023\nBalance: $420\n",
+        "expected": {
+          "invoice_number": "99102",
+          "date": "2023-12-01",
+          "total": 420,
+          "recipient": "Martinez & Sons LLC"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"99102\",\n  \"date\": \"2023-12-01\",\n  \"total\": 420,\n  \"recipient\": \"Martinez & Sons LLC\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2764.1297320001286,
+        "input_tokens": 59,
+        "output_tokens": 544,
+        "cost_usd": 0.0049845,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 3,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nINVOICE\nNumber: A-10244\nClient: Northwind Traders Inc\nIssue Date: 2024-07-30\nGrand Total (incl. tax): USD 12,750.00\n",
+        "expected": {
+          "invoice_number": "A-10244",
+          "date": "2024-07-30",
+          "total": 12750.0,
+          "recipient": "Northwind Traders Inc"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"A-10244\",\n  \"date\": \"2024-07-30\",\n  \"total\": 12750.00,\n  \"recipient\": \"Northwind Traders Inc\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2569.726547000073,
+        "input_tokens": 78,
+        "output_tokens": 518,
+        "cost_usd": 0.004779,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 4,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\ninv no 33219, billed 8/15/24 to Riverside Medical Group for $890.25\n",
+        "expected": {
+          "invoice_number": "33219",
+          "date": "2024-08-15",
+          "total": 890.25,
+          "recipient": "Riverside Medical Group"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"33219\",\n  \"date\": \"2024-08-15\",\n  \"total\": 890.25,\n  \"recipient\": \"Riverside Medical Group\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2562.070337000023,
+        "input_tokens": 54,
+        "output_tokens": 504,
+        "cost_usd": 0.0046170000000000004,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 5,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nHi, I'm Jordan Lee from Pinnacle Systems. You can reach me at jordan.lee@pinnaclesys.com or (415) 555-0198.\n",
+        "expected": {
+          "name": "Jordan Lee",
+          "email": "jordan.lee@pinnaclesys.com",
+          "phone": "(415) 555-0198",
+          "company": "Pinnacle Systems"
+        },
+        "output": "```json\n{\n  \"name\": \"Jordan Lee\",\n  \"email\": \"jordan.lee@pinnaclesys.com\",\n  \"phone\": \"(415) 555-0198\",\n  \"company\": \"Pinnacle Systems\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 1886.3341159999436,
+        "input_tokens": 59,
+        "output_tokens": 336,
+        "cost_usd": 0.0031125000000000002,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 6,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nContact: Dr. Priya Sharma, PhD\nOrganization: BioVenture Labs\nEmail: p.sharma@bioventlabs.org\nTel: +44 20 7946 0958\n",
+        "expected": {
+          "name": "Dr. Priya Sharma",
+          "email": "p.sharma@bioventlabs.org",
+          "phone": "+44 20 7946 0958",
+          "company": "BioVenture Labs"
+        },
+        "output": "```json\n{\n  \"name\": \"Dr. Priya Sharma, PhD\",\n  \"email\": \"p.sharma@bioventlabs.org\",\n  \"phone\": \"+44 20 7946 0958\",\n  \"company\": \"BioVenture Labs\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 2362.63685300014,
+        "input_tokens": 65,
+        "output_tokens": 449,
+        "cost_usd": 0.004138500000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 7,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nOrder line: 500 units of Widget Pro X at $12.99 each\n",
+        "expected": {
+          "product": "Widget Pro X",
+          "quantity": 500,
+          "unit_price": 12.99,
+          "currency": "USD"
+        },
+        "output": "```json\n{\n  \"product\": \"Widget Pro X\",\n  \"quantity\": 500,\n  \"unit_price\": 12.99,\n  \"currency\": \"USD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 3915.6104969999888,
+        "input_tokens": 39,
+        "output_tokens": 743,
+        "cost_usd": 0.006745500000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 8,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nItem: Enterprise License (Annual), Qty: 25 seats, Price per seat: EUR 199.00\n",
+        "expected": {
+          "product": "Enterprise License (Annual)",
+          "quantity": 25,
+          "unit_price": 199.0,
+          "currency": "EUR"
+        },
+        "output": "```json\n{\n  \"product\": \"Enterprise License (Annual)\",\n  \"quantity\": 25,\n  \"unit_price\": 199.00,\n  \"currency\": \"EUR\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2391.7123569999603,
+        "input_tokens": 46,
+        "output_tokens": 420,
+        "cost_usd": 0.003849,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 9,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nYou're invited to the 2024 Global AI Summit hosted by TechForward Foundation, taking place November 14-16, 2024 at the Moscone Center, San Francisco.\n",
+        "expected": {
+          "event": "2024 Global AI Summit",
+          "date": "2024-11-14",
+          "location": "Moscone Center, San Francisco",
+          "organizer": "TechForward Foundation"
+        },
+        "output": "```json\n{\n  \"event\": \"2024 Global AI Summit\",\n  \"date\": \"2024-11-14/2024-11-16\",\n  \"location\": \"Moscone Center, San Francisco\",\n  \"organizer\": \"TechForward Foundation\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 3578.4155740000188,
+        "input_tokens": 64,
+        "output_tokens": 710,
+        "cost_usd": 0.006486,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 10,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nBill to Hawthorne Dental - invoice 2024/Q3/0117, issued on the 5th of September 2024, $2,015.75 due net 30.\n",
+        "expected": {
+          "invoice_number": "2024/Q3/0117",
+          "date": "2024-09-05",
+          "total": 2015.75,
+          "recipient": "Hawthorne Dental"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"2024/Q3/0117\",\n  \"date\": \"2024-09-05\",\n  \"total\": 2015.75,\n  \"recipient\": \"Hawthorne Dental\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2435.8142099999895,
+        "input_tokens": 73,
+        "output_tokens": 476,
+        "cost_usd": 0.0043935,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 11,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nRecipient: Blackwood Architects, LLP\nRef #: BW-0471-A\nDated: 11 February 2025\nPayable: \u00a38,940.00\n",
+        "expected": {
+          "invoice_number": "BW-0471-A",
+          "date": "2025-02-11",
+          "total": 8940.0,
+          "recipient": "Blackwood Architects, LLP"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"BW-0471-A\",\n  \"date\": \"2025-02-11\",\n  \"total\": 8940.00,\n  \"recipient\": \"Blackwood Architects, LLP\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2515.180823000037,
+        "input_tokens": 67,
+        "output_tokens": 466,
+        "cost_usd": 0.0042945,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 12,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nInvoice no: 7781\nClient: Oak & Sons Landscaping\nService date: 2024-06-09\nAmount: $312.40 (includes 8% tax)\n",
+        "expected": {
+          "invoice_number": "7781",
+          "date": "2024-06-09",
+          "total": 312.4,
+          "recipient": "Oak & Sons Landscaping"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"7781\",\n  \"date\": \"2024-06-09\",\n  \"total\": 312.40,\n  \"recipient\": \"Oak & Sons Landscaping\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2684.504919999881,
+        "input_tokens": 72,
+        "output_tokens": 541,
+        "cost_usd": 0.004977,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 13,
+        "input_text": "Extract the following fields as JSON: invoice_number, date (ISO format), total (number), recipient.\n\nFrom Harper Design Studio: please remit $480 for inv #H-2024-55, sent 4/1/2024, to Summit Realty Group.\n",
+        "expected": {
+          "invoice_number": "H-2024-55",
+          "date": "2024-04-01",
+          "total": 480,
+          "recipient": "Summit Realty Group"
+        },
+        "output": "```json\n{\n  \"invoice_number\": \"H-2024-55\",\n  \"date\": \"2024-04-01\",\n  \"total\": 480,\n  \"recipient\": \"Summit Realty Group\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 3220.061898999802,
+        "input_tokens": 64,
+        "output_tokens": 609,
+        "cost_usd": 0.0055769999999999995,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 14,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nPlease add to your records:\nMiguel Ortiz-Ramirez | Director of Engineering | Vertex Robotics\nmiguel.o@vertexrobotics.ai \u00b7 +1-512-555-7734\n",
+        "expected": {
+          "name": "Miguel Ortiz-Ramirez",
+          "email": "miguel.o@vertexrobotics.ai",
+          "phone": "+1-512-555-7734",
+          "company": "Vertex Robotics"
+        },
+        "output": "```json\n{\n  \"name\": \"Miguel Ortiz-Ramirez\",\n  \"email\": \"miguel.o@vertexrobotics.ai\",\n  \"phone\": \"+1-512-555-7734\",\n  \"company\": \"Vertex Robotics\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2150.1525830001356,
+        "input_tokens": 63,
+        "output_tokens": 406,
+        "cost_usd": 0.0037485,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 15,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nHey \u2014 this is Anne-Sophie Bernard calling on behalf of Clairmont & Vincent. Best number is 020 7946 1122 and you can email me at as.bernard@clairmontvincent.co.uk.\n",
+        "expected": {
+          "name": "Anne-Sophie Bernard",
+          "email": "as.bernard@clairmontvincent.co.uk",
+          "phone": "020 7946 1122",
+          "company": "Clairmont & Vincent"
+        },
+        "output": "```json\n{\n  \"name\": \"Anne-Sophie Bernard\",\n  \"email\": \"as.bernard@clairmontvincent.co.uk\",\n  \"phone\": \"020 7946 1122\",\n  \"company\": \"Clairmont & Vincent\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2219.303224999976,
+        "input_tokens": 71,
+        "output_tokens": 399,
+        "cost_usd": 0.0036975,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 16,
+        "input_text": "Extract the following fields as JSON: name, email, phone, company.\n\nContact card:\n--------------\nTomoko Yamamoto\nHead of Research, Midori Biotech K.K.\nt.yamamoto@midori-bio.jp\n+81 3-1234-5678\n",
+        "expected": {
+          "name": "Tomoko Yamamoto",
+          "email": "t.yamamoto@midori-bio.jp",
+          "phone": "+81 3-1234-5678",
+          "company": "Midori Biotech K.K."
+        },
+        "output": "```json\n{\n  \"name\": \"Tomoko Yamamoto\",\n  \"email\": \"t.yamamoto@midori-bio.jp\",\n  \"phone\": \"+81 3-1234-5678\",\n  \"company\": \"Midori Biotech K.K.\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2298.424590000195,
+        "input_tokens": 66,
+        "output_tokens": 449,
+        "cost_usd": 0.0041400000000000005,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 17,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nPO line 3: 12x \"Titanium Bolt M8x40\" @ GBP 3.75 ea.\n",
+        "expected": {
+          "product": "Titanium Bolt M8x40",
+          "quantity": 12,
+          "unit_price": 3.75,
+          "currency": "GBP"
+        },
+        "output": "```json\n{\n  \"product\": \"Titanium Bolt M8x40\",\n  \"quantity\": 12,\n  \"unit_price\": 3.75,\n  \"currency\": \"GBP\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2059.724193999955,
+        "input_tokens": 47,
+        "output_tokens": 365,
+        "cost_usd": 0.0033555,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 18,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nOrdered 1,000 bottles of Cold Brew Concentrate (1L) at \u00a5620 per bottle.\n",
+        "expected": {
+          "product": "Cold Brew Concentrate (1L)",
+          "quantity": 1000,
+          "unit_price": 620,
+          "currency": "JPY"
+        },
+        "output": "```json\n{\n  \"product\": \"Cold Brew Concentrate (1L)\",\n  \"quantity\": 1000,\n  \"unit_price\": 620,\n  \"currency\": \"JPY\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 3137.0460020000337,
+        "input_tokens": 43,
+        "output_tokens": 587,
+        "cost_usd": 0.005347500000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 19,
+        "input_text": "Extract the following fields as JSON: product, quantity, unit_price, currency.\n\nItem line: 3 units of \"Studio Monitor Pair - 5\\\"\" for CAD 429.00 each.\n",
+        "expected": {
+          "product": "Studio Monitor Pair - 5\"",
+          "quantity": 3,
+          "unit_price": 429.0,
+          "currency": "CAD"
+        },
+        "output": "```json\n{\n  \"product\": \"Studio Monitor Pair - 5\\\"\",\n  \"quantity\": 3,\n  \"unit_price\": 429.00,\n  \"currency\": \"CAD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2257.871049999949,
+        "input_tokens": 46,
+        "output_tokens": 392,
+        "cost_usd": 0.003597,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 20,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nSave the date: PyData Berlin 2024, organized by NumFOCUS, will run April 22-24, 2024 at bcc Berlin Congress Center.\n",
+        "expected": {
+          "event": "PyData Berlin 2024",
+          "date": "2024-04-22",
+          "location": "bcc Berlin Congress Center",
+          "organizer": "NumFOCUS"
+        },
+        "output": "```json\n{\n  \"event\": \"PyData Berlin 2024\",\n  \"date\": \"2024-04-22/2024-04-24\",\n  \"location\": \"bcc Berlin Congress Center\",\n  \"organizer\": \"NumFOCUS\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 4221.7639650000365,
+        "input_tokens": 60,
+        "output_tokens": 850,
+        "cost_usd": 0.0077399999999999995,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 21,
+        "input_text": "Extract the following fields as JSON: event, date (ISO format), location, organizer.\n\nThe North Coast Jazz Festival (presented by the Cleveland Arts Council) returns August 2nd through 4th, 2024 on the shores of Lake Erie at Edgewater Park.\n",
+        "expected": {
+          "event": "North Coast Jazz Festival",
+          "date": "2024-08-02",
+          "location": "Edgewater Park",
+          "organizer": "Cleveland Arts Council"
+        },
+        "output": "```json\n{\n  \"event\": \"North Coast Jazz Festival\",\n  \"date\": \"2024-08-02/2024-08-04\",\n  \"location\": \"Edgewater Park\",\n  \"organizer\": \"Cleveland Arts Council\"\n}\n```",
+        "score": 0.75,
+        "latency_ms": 3452.9658210001344,
+        "input_tokens": 59,
+        "output_tokens": 724,
+        "cost_usd": 0.0066045,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 22,
+        "input_text": "Extract the following fields as JSON: street, city, state, postal_code, country.\n\nShip to: 4412 Magnolia Blvd Apt 3B, Nashville, TN 37205, United States\n",
+        "expected": {
+          "street": "4412 Magnolia Blvd Apt 3B",
+          "city": "Nashville",
+          "state": "TN",
+          "postal_code": "37205",
+          "country": "United States"
+        },
+        "output": "```json\n{\n  \"street\": \"4412 Magnolia Blvd Apt 3B\",\n  \"city\": \"Nashville\",\n  \"state\": \"TN\",\n  \"postal_code\": \"37205\",\n  \"country\": \"United States\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2345.1340740000433,
+        "input_tokens": 48,
+        "output_tokens": 419,
+        "cost_usd": 0.003843,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 23,
+        "input_text": "Extract the following fields as JSON: street, city, state, postal_code, country.\n\nAddress on file:\n  12 Rue de Rivoli\n  75001 Paris\n  France\n",
+        "expected": {
+          "street": "12 Rue de Rivoli",
+          "city": "Paris",
+          "state": "",
+          "postal_code": "75001",
+          "country": "France"
+        },
+        "output": "```json\n{\n  \"street\": \"12 Rue de Rivoli\",\n  \"city\": \"Paris\",\n  \"state\": null,\n  \"postal_code\": \"75001\",\n  \"country\": \"France\"\n}\n```",
+        "score": 0.8,
+        "latency_ms": 1967.0376660001239,
+        "input_tokens": 44,
+        "output_tokens": 363,
+        "cost_usd": 0.003333,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 24,
+        "input_text": "Extract the following fields as JSON: patient, medication, dosage, refills (number).\n\nRx for J. Patel: Amoxicillin 500mg, one capsule every 8 hours. 2 refills remaining.\n",
+        "expected": {
+          "patient": "J. Patel",
+          "medication": "Amoxicillin",
+          "dosage": "500mg",
+          "refills": 2
+        },
+        "output": "```json\n{\n  \"patient\": \"J. Patel\",\n  \"medication\": \"Amoxicillin\",\n  \"dosage\": \"500mg, one capsule every 8 hours\",\n  \"refills\": 2\n}\n```",
+        "score": 0.75,
+        "latency_ms": 2588.393743000097,
+        "input_tokens": 46,
+        "output_tokens": 479,
+        "cost_usd": 0.004379999999999999,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 25,
+        "input_text": "Extract the following fields as JSON: flight, departure, arrival, date (ISO format).\n\nBooking confirmed: UA 2287, SFO \u2192 ORD, departing Tuesday, March 4 2025.\n",
+        "expected": {
+          "flight": "UA 2287",
+          "departure": "SFO",
+          "arrival": "ORD",
+          "date": "2025-03-04"
+        },
+        "output": "```json\n{\n  \"flight\": \"UA 2287\",\n  \"departure\": \"SFO\",\n  \"arrival\": \"ORD\",\n  \"date\": \"2025-03-04\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2085.6320679999953,
+        "input_tokens": 47,
+        "output_tokens": 407,
+        "cost_usd": 0.0037335,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 26,
+        "input_text": "Extract the following fields as JSON: job_title, company, location, salary_max (number).\n\nNow hiring: Senior Platform Engineer at Lumen Analytics (remote within EU), up to \u20ac95,000 per year.\n",
+        "expected": {
+          "job_title": "Senior Platform Engineer",
+          "company": "Lumen Analytics",
+          "location": "remote within EU",
+          "salary_max": 95000
+        },
+        "output": "```json\n{\n  \"job_title\": \"Senior Platform Engineer\",\n  \"company\": \"Lumen Analytics\",\n  \"location\": \"remote within EU\",\n  \"salary_max\": 95000\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2360.5453590000707,
+        "input_tokens": 49,
+        "output_tokens": 409,
+        "cost_usd": 0.0037545,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 27,
+        "input_text": "Extract the following fields as JSON: sender, recipient, amount (number), currency.\n\nTransfer complete: Elena Rossi sent AU$1,450.00 to The Green Pantry Pty Ltd on 10 Oct 2024.\n",
+        "expected": {
+          "sender": "Elena Rossi",
+          "recipient": "The Green Pantry Pty Ltd",
+          "amount": 1450.0,
+          "currency": "AUD"
+        },
+        "output": "```json\n{\n  \"sender\": \"Elena Rossi\",\n  \"recipient\": \"The Green Pantry Pty Ltd\",\n  \"amount\": 1450.00,\n  \"currency\": \"AUD\"\n}\n```",
+        "score": 1.0,
+        "latency_ms": 3133.3344969998507,
+        "input_tokens": 52,
+        "output_tokens": 582,
+        "cost_usd": 0.0053159999999999995,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      },
+      {
+        "case_index": 28,
+        "input_text": "Extract the following fields as JSON: title, author, isbn, pages (number).\n\n\"The Long Coastline\" by R. Nakamura \u2014 ISBN 978-0-19-912345-6, 382 pages, Oxford University Press.\n",
+        "expected": {
+          "title": "The Long Coastline",
+          "author": "R. Nakamura",
+          "isbn": "978-0-19-912345-6",
+          "pages": 382
+        },
+        "output": "```json\n{\n  \"title\": \"The Long Coastline\",\n  \"author\": \"R. Nakamura\",\n  \"isbn\": \"978-0-19-912345-6\",\n  \"pages\": 382\n}\n```",
+        "score": 1.0,
+        "latency_ms": 2037.996706000058,
+        "input_tokens": 60,
+        "output_tokens": 378,
+        "cost_usd": 0.003492,
+        "tags": [],
+        "error": null,
+        "attempts": 1
+      }
+    ],
+    "started_at": "2026-05-20T18:07:43Z",
+    "completed_at": "2026-05-20T18:07:59Z",
+    "metadata": {
+      "concurrency": 5,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0
+    }
+  },
+  "refusal": {
+    "n_cases": 29,
+    "n_refused": 0,
+    "refusal_rate": 0.0,
+    "classifications": [
+      {
+        "case_index": 0,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"4521\",\n  \"date\": \"2025-01-15\",\n  \"total\": 1240.00,\n  \"recipient\": \"Acme Corp.\"\n}\n```"
+      },
+      {
+        "case_index": 1,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"INV-2024-0087\",\n  \"date\": \"2024-03-22\",\n  \"total\": 5300.50,\n  \"recipient\": \"Globex International Ltd.\"\n}\n```"
+      },
+      {
+        "case_index": 2,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"99102\",\n  \"date\": \"2023-12-01\",\n  \"total\": 420,\n  \"recipient\": \"Martinez & Sons LLC\"\n}\n```"
+      },
+      {
+        "case_index": 3,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"A-10244\",\n  \"date\": \"2024-07-30\",\n  \"total\": 12750.00,\n  \"recipient\": \"Northwind Traders Inc\"\n}\n```"
+      },
+      {
+        "case_index": 4,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"33219\",\n  \"date\": \"2024-08-15\",\n  \"total\": 890.25,\n  \"recipient\": \"Riverside Medical Group\"\n}\n```"
+      },
+      {
+        "case_index": 5,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"name\": \"Jordan Lee\",\n  \"email\": \"jordan.lee@pinnaclesys.com\",\n  \"phone\": \"(415) 555-0198\",\n  \"company\": \"Pinnacle Systems\"\n}\n```"
+      },
+      {
+        "case_index": 6,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"name\": \"Dr. Priya Sharma, PhD\",\n  \"email\": \"p.sharma@bioventlabs.org\",\n  \"phone\": \"+44 20 7946 0958\",\n  \"company\": \"BioVenture Labs\"\n}\n```"
+      },
+      {
+        "case_index": 7,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"product\": \"Widget Pro X\",\n  \"quantity\": 500,\n  \"unit_price\": 12.99,\n  \"currency\": \"USD\"\n}\n```"
+      },
+      {
+        "case_index": 8,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"product\": \"Enterprise License (Annual)\",\n  \"quantity\": 25,\n  \"unit_price\": 199.00,\n  \"currency\": \"EUR\"\n}\n```"
+      },
+      {
+        "case_index": 9,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"event\": \"2024 Global AI Summit\",\n  \"date\": \"2024-11-14/2024-11-16\",\n  \"location\": \"Moscone Center, San Francisco\",\n  \"organizer\": \"TechForward Foundation\"\n}\n```"
+      },
+      {
+        "case_index": 10,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"2024/Q3/0117\",\n  \"date\": \"2024-09-05\",\n  \"total\": 2015.75,\n  \"recipient\": \"Hawthorne Dental\"\n}\n```"
+      },
+      {
+        "case_index": 11,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"BW-0471-A\",\n  \"date\": \"2025-02-11\",\n  \"total\": 8940.00,\n  \"recipient\": \"Blackwood Architects, LLP\"\n}\n```"
+      },
+      {
+        "case_index": 12,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"7781\",\n  \"date\": \"2024-06-09\",\n  \"total\": 312.40,\n  \"recipient\": \"Oak & Sons Landscaping\"\n}\n```"
+      },
+      {
+        "case_index": 13,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"invoice_number\": \"H-2024-55\",\n  \"date\": \"2024-04-01\",\n  \"total\": 480,\n  \"recipient\": \"Summit Realty Group\"\n}\n```"
+      },
+      {
+        "case_index": 14,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"name\": \"Miguel Ortiz-Ramirez\",\n  \"email\": \"miguel.o@vertexrobotics.ai\",\n  \"phone\": \"+1-512-555-7734\",\n  \"company\": \"Vertex Robotics\"\n}\n```"
+      },
+      {
+        "case_index": 15,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"name\": \"Anne-Sophie Bernard\",\n  \"email\": \"as.bernard@clairmontvincent.co.uk\",\n  \"phone\": \"020 7946 1122\",\n  \"company\": \"Clairmont & Vincent\"\n}\n```"
+      },
+      {
+        "case_index": 16,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"name\": \"Tomoko Yamamoto\",\n  \"email\": \"t.yamamoto@midori-bio.jp\",\n  \"phone\": \"+81 3-1234-5678\",\n  \"company\": \"Midori Biotech K.K.\"\n}\n```"
+      },
+      {
+        "case_index": 17,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"product\": \"Titanium Bolt M8x40\",\n  \"quantity\": 12,\n  \"unit_price\": 3.75,\n  \"currency\": \"GBP\"\n}\n```"
+      },
+      {
+        "case_index": 18,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"product\": \"Cold Brew Concentrate (1L)\",\n  \"quantity\": 1000,\n  \"unit_price\": 620,\n  \"currency\": \"JPY\"\n}\n```"
+      },
+      {
+        "case_index": 19,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"product\": \"Studio Monitor Pair - 5\\\"\",\n  \"quantity\": 3,\n  \"unit_price\": 429.00,\n  \"currency\": \"CAD\"\n}\n```"
+      },
+      {
+        "case_index": 20,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"event\": \"PyData Berlin 2024\",\n  \"date\": \"2024-04-22/2024-04-24\",\n  \"location\": \"bcc Berlin Congress Center\",\n  \"organizer\": \"NumFOCUS\"\n}\n```"
+      },
+      {
+        "case_index": 21,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"event\": \"North Coast Jazz Festival\",\n  \"date\": \"2024-08-02/2024-08-04\",\n  \"location\": \"Edgewater Park\",\n  \"organizer\": \"Cleveland Arts Council\"\n}\n```"
+      },
+      {
+        "case_index": 22,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"street\": \"4412 Magnolia Blvd Apt 3B\",\n  \"city\": \"Nashville\",\n  \"state\": \"TN\",\n  \"postal_code\": \"37205\",\n  \"country\": \"United States\"\n}\n```"
+      },
+      {
+        "case_index": 23,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"street\": \"12 Rue de Rivoli\",\n  \"city\": \"Paris\",\n  \"state\": null,\n  \"postal_code\": \"75001\",\n  \"country\": \"France\"\n}\n```"
+      },
+      {
+        "case_index": 24,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"patient\": \"J. Patel\",\n  \"medication\": \"Amoxicillin\",\n  \"dosage\": \"500mg, one capsule every 8 hours\",\n  \"refills\": 2\n}\n```"
+      },
+      {
+        "case_index": 25,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"flight\": \"UA 2287\",\n  \"departure\": \"SFO\",\n  \"arrival\": \"ORD\",\n  \"date\": \"2025-03-04\"\n}\n```"
+      },
+      {
+        "case_index": 26,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"job_title\": \"Senior Platform Engineer\",\n  \"company\": \"Lumen Analytics\",\n  \"location\": \"remote within EU\",\n  \"salary_max\": 95000\n}\n```"
+      },
+      {
+        "case_index": 27,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"sender\": \"Elena Rossi\",\n  \"recipient\": \"The Green Pantry Pty Ltd\",\n  \"amount\": 1450.00,\n  \"currency\": \"AUD\"\n}\n```"
+      },
+      {
+        "case_index": 28,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "```json\n{\n  \"title\": \"The Long Coastline\",\n  \"author\": \"R. Nakamura\",\n  \"isbn\": \"978-0-19-912345-6\",\n  \"pages\": 382\n}\n```"
+      }
+    ],
+    "baseline_refusal_rate": 0.0,
+    "challenger_refusal_rate": 0.0,
+    "delta_refusal_rate": 0.0,
+    "over_refusal_cases": [],
+    "new_compliance_cases": []
+  },
+  "power": {
+    "observed_effect": 0.0,
+    "observed_effect_kind": "smd",
+    "observed_power": 0.05,
+    "min_detectable_effect": 0.5202,
+    "n_for_target": null
+  }
+}
