@@ -55,6 +55,13 @@ PRICING: dict[str, TokenPrice] = {
     "gpt-4-turbo":    TokenPrice(10.00, 30.00),
     "o1":             TokenPrice(15.00, 60.00),
     "o3":             TokenPrice(10.00, 40.00),
+
+    # Google Gemini — list price as published by Google AI (per 1M tokens).
+    # Gemini 3.5 Flash (May 2026): $1.50 input / $9.00 output. Thinking
+    # tokens are billed as output — GoogleProvider sums them into
+    # ``output_tokens`` so this catalog entry covers both.
+    "gemini-3.5-flash":         TokenPrice( 1.50,  9.00),
+    "gemini-3-flash-preview":   TokenPrice( 0.50,  3.00),
 }
 
 

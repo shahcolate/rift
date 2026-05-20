@@ -42,6 +42,7 @@ from .config import ModelConfig, SuiteConfig
 from .pricing import cost_of
 from .providers import BaseProvider, Completion
 from .providers.anthropic import AnthropicProvider
+from .providers.google import GoogleProvider
 from .providers.openai import OpenAIProvider
 from .scoring import get_scorer
 
@@ -146,6 +147,8 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         return AnthropicProvider(model=config.model, **config.params)
     elif config.provider == "openai":
         return OpenAIProvider(model=config.model, **config.params)
+    elif config.provider == "google":
+        return GoogleProvider(model=config.model, **config.params)
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 
