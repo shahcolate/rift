@@ -26,6 +26,13 @@ day-after-GA. Three findings:
 workloads. On thinking-heavy ones it is approximately a wash, and on
 open-ended generation the quality story is mixed at this sample size.
 
+We also ran `rift discover` with Gemini as the adversarial proposer
+(Finding 4 below). It produced a clean Opus-0/9 vs Gemini-9/9 result
+— **and that result is methodologically biased on purpose**, because
+the proposer is the challenger. We document the bias explicitly
+rather than hide it; the writeup uses it as a worked example of why
+selection-aware methodology matters.
+
 The numbers below are reproducible from the committed `.json` raw
 runs — Rift's `diff` command will recreate every figure offline.
 
@@ -163,19 +170,94 @@ input-to-output ratio*. Vendor-table list prices are misleading.
 
 ---
 
+## Finding 4 — Discovery: a methodology trap, surfaced honestly
+
+`rift discover` ran with Gemini 3.5 Flash as the adversarial proposer
+against the reasoning seed suite, targeting `target_power=0.9 at
+Δ=0.05, α=0.05`. The loop early-stopped at 9 accepted cases:
+
+| Metric | Value |
+|--------|-------|
+| n_proposed | 36 |
+| n_after_dedup | 35 |
+| n_both_zero | 0 |
+| n_kept | 9 |
+| discordant rate (of verified) | 25.7% |
+| achieved_power | 1.0 (early-stopped) |
+| spend (proposer + verification) | $0.57 |
+
+The compare on the discovered suite shows:
+
+| Model | Score on discovered suite | $/correct |
+|-------|---------------------------|-----------|
+| `claude-opus-4-7` | **0 / 9** | ∞ |
+| `gemini-3.5-flash` | **9 / 9** | $0.0090 |
+
+McNemar p = 0.0039, Cohen's h = **+3.14** (the maximum value for a
+0-vs-1 proportion shift). Every discovered case is Gemini-right /
+Opus-wrong, none in the other direction.
+
+**A naïve reader would call this a Gemini blowout. The honest reading
+is more interesting.**
+
+The proposer was *Gemini itself*. Discovery selects on cases where
+the two models disagree, and we biased the proposer toward generating
+cases for which it knows the answer. The mechanism:
+
+1. The proposer generates a candidate input and an `expected` answer.
+2. The verification loop scores both models against that `expected`.
+3. A case is accepted only when the two models disagree.
+4. Since the proposer wrote the `expected` itself, it has an advantage
+   on "would my answer be marked correct?" — and the validity gate
+   (drop cases neither model got) further filters in favor of the
+   proposer being right.
+
+So the +3.14 effect size is **a measure of the proposer-asymmetry
+bias**, not a population estimate of Opus vs Gemini on novel
+reasoning. The Rift YAML metadata states this explicitly
+(`IMPORTANT: cases were selected on divergence...`), but the directional
+bias from `proposer == challenger` is sharper than that generic caveat.
+
+**The methodological fix** is to use a third-party proposer — a model
+from a different family from both compared models. With this codebase
+that's a one-line change:
+
+```
+proposer_model="gpt-4o"   # neither baseline nor challenger family
+```
+
+We did not run that variant in this study (would cost ~$2-3 extra and
+introduce a third API key) but it is the obvious follow-up.
+
+**What this finding does demonstrate cleanly:**
+* The discovery loop works end-to-end — proposer + dedup + validity
+  gate + power-based early-stop all fire correctly.
+* Caching makes the final compare free — once the verification calls
+  during discovery are written to `.rift/cache/`, the published
+  compare run incurs zero new API spend.
+* The selection-bias caveat is load-bearing, not decorative. A reader
+  who ignores it will mis-cite this result. A methodology-stable
+  comparison **requires** a third-party proposer; we will not publish
+  Opus-vs-Gemini-via-Gemini-proposer headline numbers without that
+  fix in a future run.
+
+The raw discovered suite is at
+`benchmarks/opus47_vs_gemini35/discovered_reasoning.yaml`, and the
+compare output at `discovered_drift.md`. Both are committed so the
+selection-bias claim is reviewable case-by-case.
+
 ## What is NOT in this writeup
 
-* **Discovery.** We started a `rift discover` run with Gemini 3.5 Flash
-  as the adversarial proposer (the methodologically novel artifact),
-  but Anthropic credits ran out mid-loop. Queued for a follow-up.
+* **A bias-free discovery run.** As discussed above, the discovered
+  suite is biased toward the proposer model. A third-party-proposer
+  variant (e.g., GPT-4o or Sonnet) is the obvious next step.
 * **Larger sample sizes.** n=5 on open_ended_qa is not enough to call
   the quality gap significant at α=0.05. The Hedges' g of −0.876 is
   large; whether it holds at n=30+ is open.
 * **A non-Claude judge.** The judge family-bias caveat on Finding 3
   needs a Gemini-judge or GPT-judge replication.
-* **Refusal / calibration drift.** Both ran clean across all three
-  suites (0 over-refusals, 0 safety regressions), so no narrative
-  there yet.
+* **Refusal / calibration drift.** Both ran clean across all suites
+  (0 over-refusals, 0 safety regressions), so no narrative there yet.
 
 ---
 
