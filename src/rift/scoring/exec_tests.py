@@ -27,11 +27,13 @@ from pathlib import Path
 from typing import Any
 
 
-# Strip a leading ```python / ``` fence if the model added one despite
-# the prompt asking for "no markdown". We only pull the *first* fenced
+# Strip a leading ``` fence if the model added one despite the prompt
+# asking for "no markdown". Accepts any language tag (``python``,
+# ``py``, ``python3``, etc.) so a model that emits ``py`` doesn't get
+# scored 0 on otherwise-correct code. We only pull the *first* fenced
 # block so chatty preambles after the code (rare with temperature=0
 # but possible) don't pollute the namespace.
-_FENCE_RE = re.compile(r"```(?:python)?\s*\n?(.*?)```", re.DOTALL)
+_FENCE_RE = re.compile(r"```\w*\s*\n(.*?)```", re.DOTALL)
 
 
 def _extract_code(output: str) -> str:

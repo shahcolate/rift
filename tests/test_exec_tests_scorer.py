@@ -35,6 +35,16 @@ def test_fenced_code_is_extracted() -> None:
     assert ExecTestsScorer().score(fenced, FIZZBUZZ_SPEC) == 1.0
 
 
+def test_py_fence_is_extracted() -> None:
+    fenced = "```py\n" + CORRECT_FIZZBUZZ + "\n```"
+    assert ExecTestsScorer().score(fenced, FIZZBUZZ_SPEC) == 1.0
+
+
+def test_unmarked_fence_is_extracted() -> None:
+    fenced = "```\n" + CORRECT_FIZZBUZZ + "\n```"
+    assert ExecTestsScorer().score(fenced, FIZZBUZZ_SPEC) == 1.0
+
+
 def test_missing_function_scores_zero() -> None:
     code = "def something_else(n): return []"
     assert ExecTestsScorer().score(code, FIZZBUZZ_SPEC) == 0.0
