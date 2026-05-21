@@ -89,6 +89,9 @@ MODEL_ALIASES: dict[str, str] = {
     "gemini-3-5-flash": "gemini-3.5-flash",
     "gemini-3.5-flash": "gemini-3.5-flash",
     "gemini-flash":     "gemini-3.5-flash",
+    # OpenAI — keep "5.5" and "5-5" both routable for the same reason.
+    "gpt-5-5":          "gpt-5.5",
+    "gpt-5.5":          "gpt-5.5",
 }
 
 
