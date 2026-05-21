@@ -51,7 +51,8 @@ PRICING: dict[str, TokenPrice] = {
     "claude-3-5-haiku-20241022":  TokenPrice(0.80,  4.00),
 
     # OpenAI — frontier
-    "gpt-4o":         TokenPrice(2.50, 10.00),
+    "gpt-5.5":        TokenPrice( 5.00, 20.00),
+    "gpt-4o":         TokenPrice( 2.50, 10.00),
     "gpt-4-turbo":    TokenPrice(10.00, 30.00),
     "o1":             TokenPrice(15.00, 60.00),
     "o3":             TokenPrice(10.00, 40.00),

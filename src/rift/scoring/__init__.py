@@ -36,6 +36,7 @@ def get_scorer(name: str, **kwargs) -> Scorer:
     ``judge_params``; the other built-ins ignore kwargs.
     """
     from .exact_match import ExactMatchScorer
+    from .exec_tests import ExecTestsScorer
     from .fuzzy_match import FuzzyMatchScorer
     from .llm_judge import LLMJudgeScorer
 
@@ -43,9 +44,11 @@ def get_scorer(name: str, **kwargs) -> Scorer:
         return ExactMatchScorer()
     if name == "fuzzy_match":
         return FuzzyMatchScorer()
+    if name == "exec_tests":
+        return ExecTestsScorer(**kwargs)
     if name == "llm_judge":
         return LLMJudgeScorer(**kwargs)
     raise ValueError(
         f"Unknown scorer: {name}. Available: "
-        f"['exact_match', 'fuzzy_match', 'llm_judge']"
+        f"['exact_match', 'fuzzy_match', 'exec_tests', 'llm_judge']"
     )
