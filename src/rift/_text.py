@@ -29,17 +29,30 @@ def parse_json_array_response(
     text: str,
     *,
     required_str_keys: Iterable[str] = ("input",),
+    required_keys: Iterable[str] = (),
 ) -> list[dict]:
     """Extract a list of object dicts from an LLM JSON-array response.
 
     Tolerates triple-backtick ``json`` fences and a small amount of
-    surrounding prose. Each returned dict must contain every key in
-    ``required_str_keys`` as a non-empty string; items missing one
-    are dropped (not raised) so a single bad item doesn't poison a
-    batch. Returns ``[]`` on any top-level parse failure.
+    surrounding prose. Each returned dict must:
 
-    Discovery requires ``("input", "expected")``; bisect's mutator
-    requires only ``("input",)``.
+    * contain every key in ``required_str_keys`` as a non-empty
+      string; and
+    * contain every key in ``required_keys`` with any non-``None``
+      value (no type restriction — accepts dicts, numbers, lists).
+
+    Items missing either constraint are dropped (not raised) so a
+    single bad item doesn't poison a batch. Returns ``[]`` on any
+    top-level parse failure.
+
+    Discovery's ``parse_proposer_response`` uses
+    ``required_str_keys=("input",), required_keys=("expected",)`` —
+    matching the original behaviour where structured-extraction
+    suites can have dict/number/list ``expected`` values. Bisect's
+    mutator uses ``required_str_keys=("input",)`` with no
+    ``required_keys`` because bisect mutates an existing case and
+    pulls ``expected`` from the source suite, not the mutator
+    response.
     """
     if not text:
         return []
@@ -63,14 +76,17 @@ def parse_json_array_response(
     if not isinstance(obj, list):
         return []
     out: list[dict] = []
-    required = tuple(required_str_keys)
+    str_required = tuple(required_str_keys)
+    presence_required = tuple(required_keys)
     for item in obj:
         if not isinstance(item, dict):
             continue
         if any(
             k not in item or not isinstance(item[k], str) or not item[k].strip()
-            for k in required
+            for k in str_required
         ):
+            continue
+        if any(item.get(k) is None for k in presence_required):
             continue
         out.append(item)
     return out

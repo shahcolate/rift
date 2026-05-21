@@ -51,7 +51,7 @@ class TestParseJsonArrayResponse:
         out = _text.parse_json_array_response(text)
         assert out == [{"input": "ok"}]
 
-    def test_multi_required_keys(self):
+    def test_multi_required_str_keys(self):
         text = (
             '[{"input": "a", "expected": "x"},'
             ' {"input": "b"},'
@@ -66,15 +66,45 @@ class TestParseJsonArrayResponse:
             {"input": "d", "expected": "z"},
         ]
 
+    def test_required_keys_presence_only_accepts_non_string_values(self):
+        # Regression test for the original parse_proposer_response
+        # behaviour: ``expected`` only had to be present, not a
+        # string. Extraction-style suites have dict / number /
+        # list / bool ``expected`` values and the proposer mimics
+        # the seed format. The new ``required_keys`` kwarg
+        # preserves that.
+        text = (
+            '[{"input": "a", "expected": {"k": "v"}},'  # dict
+            ' {"input": "b", "expected": 42},'           # number
+            ' {"input": "c", "expected": [1, 2, 3]},'    # list
+            ' {"input": "d", "expected": true},'          # bool
+            ' {"input": "e"},'                            # missing → drop
+            ' {"input": "f", "expected": null}]'          # null → drop
+        )
+        out = _text.parse_json_array_response(
+            text,
+            required_str_keys=("input",),
+            required_keys=("expected",),
+        )
+        assert out == [
+            {"input": "a", "expected": {"k": "v"}},
+            {"input": "b", "expected": 42},
+            {"input": "c", "expected": [1, 2, 3]},
+            {"input": "d", "expected": True},
+        ]
+
     def test_truncates_oversize_input_then_parses_array(self):
-        # Bury a valid array inside a >_MAX_RESPONSE_CHARS blob. The
-        # parser truncates first, so we expect the array fragment that
-        # lands inside the truncation window to still parse via the
-        # regex fallback.
-        prose = "x" * (_text._MAX_RESPONSE_CHARS - 200)
-        text = prose + '\n[{"input": "after-truncation"}]\n'
+        # Bury a valid array inside the leading edge of a
+        # >_MAX_RESPONSE_CHARS blob. The parser must truncate first
+        # and still extract the array via the regex fallback against
+        # the truncated text. Prose padding > the truncation budget
+        # guarantees the truncation branch fires.
+        valid_array = '\n[{"input": "before-truncation"}]\n'
+        prose = "x" * (_text._MAX_RESPONSE_CHARS + 500)
+        text = valid_array + prose
+        assert len(text) > _text._MAX_RESPONSE_CHARS
         out = _text.parse_json_array_response(text)
-        assert out == [{"input": "after-truncation"}]
+        assert out == [{"input": "before-truncation"}]
 
     def test_non_dict_items_in_array_skipped(self):
         text = '[{"input": "a"}, "stringy", 42, null, {"input": "b"}]'

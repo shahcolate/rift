@@ -184,14 +184,17 @@ def _build_proposer_prompt(
 def parse_proposer_response(text: str) -> list[dict]:
     """Extract a list of candidate dicts from a proposer response.
 
-    Discovery requires both ``input`` and ``expected`` keys (the
-    proposer is generating new eval cases, so the ground-truth
-    answer must come along). Bisect's mutator uses
-    :func:`_text.parse_json_array_response` directly with only
-    ``("input",)`` required.
+    Discovery requires ``input`` as a non-empty string and
+    ``expected`` to be present (any non-``None`` shape — a string,
+    a dict for structured-extraction suites, a number, a list).
+    Bisect's mutator uses :func:`_text.parse_json_array_response`
+    directly with only ``("input",)`` because bisect doesn't need
+    the mutator to re-emit ``expected``.
     """
     return _text.parse_json_array_response(
-        text, required_str_keys=("input", "expected"),
+        text,
+        required_str_keys=("input",),
+        required_keys=("expected",),
     )
 
 
