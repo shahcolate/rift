@@ -55,18 +55,15 @@ Still queued for future versions
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from dataclasses import dataclass, field
 from typing import Callable
 
+from . import _text
 from .comparator import power_analysis
-from .config import EvalCase, ModelConfig, SuiteConfig, resolve_model
+from .config import EvalCase, ModelConfig, SuiteConfig
 from .pricing import cost_of
 from .providers import BaseProvider
-from .providers.anthropic import AnthropicProvider
-from .providers.google import GoogleProvider
-from .providers.openai import OpenAIProvider
 from .runner import run_suite
 
 
@@ -77,10 +74,6 @@ DEFAULT_MAX_CASES = 50
 DEFAULT_TARGET_POWER = 0.9
 DEFAULT_TARGET_EFFECT = 0.05
 DEFAULT_ALPHA = 0.05
-
-# Maximum proposer-output characters we'll attempt to parse. Guards
-# against a runaway proposer that fills its context.
-_MAX_PROPOSER_OUTPUT = 200_000
 
 # Bail out after this many consecutive batches yielded zero accepted
 # cases. Protects against a proposer that keeps emitting the same
@@ -187,78 +180,29 @@ def _build_proposer_prompt(
 # Parsing + validity gate
 # ---------------------------------------------------------------------------
 
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
-
 
 def parse_proposer_response(text: str) -> list[dict]:
     """Extract a list of candidate dicts from a proposer response.
 
-    Tolerates triple-backtick ``json`` fences and a small amount of
-    surrounding prose. Each returned dict has at minimum an
-    ``input`` and an ``expected`` field; everything else is
-    preserved as-is for the validity gate to inspect. Returns
-    ``[]`` on any parse failure rather than raising so a bad batch
-    is just skipped.
+    Discovery requires ``input`` as a non-empty string and
+    ``expected`` to be present (any non-``None`` shape — a string,
+    a dict for structured-extraction suites, a number, a list).
+    Bisect's mutator uses :func:`_text.parse_json_array_response`
+    directly with only ``("input",)`` because bisect doesn't need
+    the mutator to re-emit ``expected``.
     """
-    if not text:
-        return []
-    if len(text) > _MAX_PROPOSER_OUTPUT:
-        text = text[:_MAX_PROPOSER_OUTPUT]
-    s = text.strip()
-    if s.startswith("```"):
-        s = s.strip("`")
-        if s.lower().startswith("json"):
-            s = s[4:].lstrip()
-    try:
-        obj = json.loads(s)
-    except json.JSONDecodeError:
-        m = _JSON_ARRAY_RE.search(text)
-        if not m:
-            return []
-        try:
-            obj = json.loads(m.group(0))
-        except json.JSONDecodeError:
-            return []
-    if not isinstance(obj, list):
-        return []
-    out: list[dict] = []
-    for item in obj:
-        if not isinstance(item, dict):
-            continue
-        if "input" not in item or "expected" not in item:
-            continue
-        if not isinstance(item["input"], str) or not item["input"].strip():
-            continue
-        out.append(item)
-    return out
+    return _text.parse_json_array_response(
+        text,
+        required_str_keys=("input",),
+        required_keys=("expected",),
+    )
 
 
 def _jaccard_5gram(a: str, b: str) -> float:
-    """Character-5-gram Jaccard similarity. Cheap and surprisingly OK.
-
-    Used to drop near-duplicate proposals against the existing
-    suite (seed + already-accepted). v1 swaps this for embedding
-    similarity; for v0 the false-positive rate is acceptable
-    because the consequence of a missed dedup is a slightly
-    redundant suite, not a wrong drift conclusion.
-
-    Inputs shorter than the 5-gram window have no 5-grams to
-    intersect, so fall back to case-insensitive exact equality —
-    otherwise dedup silently no-ops on every short prompt.
+    """Thin alias for :func:`_text.jaccard_5gram` (preserves the public
+    name used by ``tests/test_discovery.py``).
     """
-    def grams(s: str) -> set[str]:
-        s = s.lower()
-        return {s[i:i + 5] for i in range(max(0, len(s) - 4))}
-
-    if len(a) < 5 or len(b) < 5:
-        return 1.0 if a.strip().lower() == b.strip().lower() else 0.0
-
-    ga, gb = grams(a), grams(b)
-    if not ga or not gb:
-        return 0.0
-    inter = len(ga & gb)
-    union = len(ga | gb)
-    return inter / union
+    return _text.jaccard_5gram(a, b)
 
 
 # A pair is considered a duplicate above this Jaccard. Calibrated
@@ -336,23 +280,13 @@ ProviderFactory = Callable[[str], BaseProvider]
 
 
 def _default_provider_factory(model_id: str) -> BaseProvider:
-    """Build a provider for a proposer model identifier.
+    """Thin alias for :func:`_text.default_provider_factory`.
 
-    Same shape as ``LLMJudgeScorer._default_provider_factory``; kept
-    a separate function so tests can patch one without affecting the
-    other.
+    Kept as a separate function in this module so tests can patch
+    ``discovery._default_provider_factory`` without affecting other
+    callers (``llm_judge`` keeps its own, on purpose).
     """
-    cfg = resolve_model(model_id)
-    if cfg.provider == "anthropic":
-        return AnthropicProvider(model=cfg.model, **cfg.params)
-    if cfg.provider == "openai":
-        return OpenAIProvider(model=cfg.model, **cfg.params)
-    if cfg.provider == "google":
-        return GoogleProvider(model=cfg.model, **cfg.params)
-    raise ValueError(
-        f"discover() does not support proposer provider "
-        f"'{cfg.provider}' (model={model_id})"
-    )
+    return _text.default_provider_factory(model_id)
 
 
 # ---------------------------------------------------------------------------

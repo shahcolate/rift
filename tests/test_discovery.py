@@ -120,6 +120,37 @@ class TestParseProposerResponse:
     def test_non_list_top_level_returns_empty(self):
         assert parse_proposer_response('{"not": "an array"}') == []
 
+    def test_accepts_structured_expected_values(self):
+        # Discovery's seed suites can have ``expected`` of any shape —
+        # extraction.yaml uses dicts, classification suites use bools
+        # or numbers. The proposer mimics the seed format, so the
+        # parser must accept those shapes verbatim. Regression test
+        # for the silent drop that the _text.py refactor briefly
+        # introduced.
+        text = (
+            '[{"input": "extract from X", "expected": {"k": "v"}},'
+            ' {"input": "classify Y", "expected": true},'
+            ' {"input": "count Z", "expected": 42},'
+            ' {"input": "list W", "expected": [1, 2]}]'
+        )
+        out = parse_proposer_response(text)
+        assert len(out) == 4
+        assert out[0]["expected"] == {"k": "v"}
+        assert out[1]["expected"] is True
+        assert out[2]["expected"] == 42
+        assert out[3]["expected"] == [1, 2]
+
+    def test_drops_items_with_null_expected(self):
+        # Null/missing expected can't be turned into an EvalCase
+        # downstream, so it still gets dropped.
+        text = (
+            '[{"input": "ok", "expected": "y"},'
+            ' {"input": "null-expected", "expected": null}]'
+        )
+        out = parse_proposer_response(text)
+        assert len(out) == 1
+        assert out[0]["input"] == "ok"
+
 
 # ---------------------------------------------------------------------------
 # Dedup
