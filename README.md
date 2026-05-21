@@ -1,10 +1,16 @@
 # Rift
 
-**You upgraded your model. What broke?**
+**You upgraded your model. What broke?
+You're picking a vendor. Who actually wins?**
 
-Rift detects behavioral regressions between LLM model versions. Run structured eval suites against any two models, get statistically rigorous drift reports.
+Rift compares any two (or three+) LLM endpoints on structured eval
+suites and returns statistically rigorous drift reports with
+cost-per-correct. Use it to catch silent regressions on a same-family
+upgrade — or to settle a cross-vendor procurement call with real
+numbers instead of list-price math.
 
-No vibes. No "it feels dumber." Just p-values and confidence intervals.
+No vibes. No "it feels dumber." Just p-values, confidence intervals,
+and `$/correct`.
 
 ## Quick Start
 
@@ -19,7 +25,7 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
     --suite context_rot_reasoning --context-rot --subgroup distractor:
 
 # Compare 3+ models at once — prints an NxN drift matrix
-rift matrix --models opus-4-7,sonnet-4-6,gpt-4o --suite reasoning
+rift matrix --models gpt-5.5,opus-4-7,gemini-3-5-flash --suite reasoning
 
 # Diff two saved runs
 rift diff results/before.json results/after.json
@@ -78,73 +84,13 @@ Three numbers carry the story:
    equivalent if one costs 3× more; `$/correct` folds quality and price
    into one line.
 
-## Define Your Own Eval Suite
+## Worked studies
 
-```yaml
-# my_suite.yaml
-name: customer_support_triage
-description: Classify support tickets by urgency and category
-scoring: exact_match
-cases:
-  - input: "My account was charged twice for the same order #8812"
-    expected:
-      urgency: high
-      category: billing
-  - input: "How do I change my notification preferences?"
-    expected:
-      urgency: low
-      category: settings
-```
+Two paired runs against live APIs, one for each question in the
+tagline. Both are reproducible from committed JSONs without spending
+another dollar.
 
-```bash
-rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
-```
-
-## Scoring Methods
-
-| Method | Use When |
-|--------|----------|
-| `exact_match` | Output must match expected exactly (structured data, classification). Tolerates a trailing `Confidence: X` line so the same suite can drive calibration. |
-| `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). **Not** embedding-based — for that, see the roadmap. |
-| `llm_judge` | Open-ended outputs (summaries, explanations, code) scored on a 0-1 scale by a separate judge model. Supports both **reference-answer** scoring (`expected: "..."`) and **rubric** scoring (`expected: {rubric: "..."}`). The judge model, judge prompt, and a one-sentence judge reasoning per case are all surfaced for auditability. See `suites/open_ended_qa.yaml` for a worked example. |
-
-### `llm_judge` setup
-
-```bash
-# Configure once (or set per-suite via the `judge_model` field):
-export RIFT_JUDGE_MODEL=claude-sonnet-4-6
-
-# Compare two models on an open-ended suite:
-rift compare --baseline gpt-4o --challenger claude-opus-4-7 \
-             --suite open_ended_qa
-```
-
-Judges have known biases (length bias, family bias, self-preference;
-Zheng et al. 2023). Rift mitigates by asking for a 0-1 numeric score
-on a fixed scale (not pairwise A-vs-B), instructing the judge to
-ignore wording differences, and caching every judgment by `(judge,
-prompt)` so re-runs are deterministic. Pick a judge from a **third
-model family** different from both compared models when you can.
-
-## CI/CD Integration
-
-Rift returns exit code 1 when significant drift is detected. Drop it in your deployment pipeline:
-
-```yaml
-# GitHub Actions
-- name: Check for model drift
-  run: rift compare --baseline $CURRENT_MODEL --challenger $NEW_MODEL --suite production_evals
-  env:
-    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-```
-
-## Why Rift?
-
-Every model update is a silent deployment to your production system. Providers don't publish granular changelogs. "Improved reasoning" could mean your extraction pipeline now returns different field names. "Better instruction following" could mean your carefully-tuned prompts behave differently.
-
-Rift gives you the audit trail.
-
-## Executive readout: a worked Opus 4.6 → 4.7 study
+### Did the upgrade regress? — Opus 4.6 → 4.7
 
 Live paired run against the Anthropic API. 32 cases (8 reasoning
 prompts × 4 distractor regimes: 0k, 2k, 8k, 32k tokens). Same
@@ -183,6 +129,154 @@ Full writeup with reproduction steps, per-subgroup tables, and the
 tooling bug Rift caught along the way:
 [`benchmarks/context_rot_opus47_analysis.md`](benchmarks/context_rot_opus47_analysis.md).
 Raw report: [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.md).
+
+### Which vendor wins per correct? — gpt-5.5 vs Opus 4.7 vs Gemini 3.5 Flash
+
+Three frontier models, three suites (reasoning n=10, structured
+extraction n=29, open-ended QA n=5), same scorers, byte-identical
+prompts, single trial, temperature 0. 132 live completions, total
+live API spend: **$0.65**.
+
+| Suite | gpt-5.5 $/c | Opus 4.7 $/c | Gemini Flash $/c | Verdict |
+|---|---|---|---|---|
+| reasoning | **$0.0026** | $0.0057 | $0.0056 | gpt-5.5, 2.2× cheaper, same accuracy (9/10 each) |
+| extraction | **$0.0027** | $0.0088 | $0.0061 | gpt-5.5, 2.3× cheaper than Gemini, same accuracy |
+| open_ended_qa | $0.0034 | $0.0169 | $0.0163 | Opus uniquely perfect (5/5, judge-scored) |
+
+Three takeaways a leader can act on:
+
+- **gpt-5.5 is the cheapest per correct on every suite — despite not
+  being the cheapest per token.** Per-Mtok list prices are
+  Gemini $1.50/$9, gpt-5.5 $5/$20, Opus $15/$75. gpt-5.5 wins
+  `$/correct` because its output is *terse* (2.0× Opus's output
+  tokens on reasoning vs Gemini's 11.7×). The bill is
+  `output_tokens × output_price`, not `output_price`.
+- **The I:O-ratio mechanism from the prior 2-way writeup reproduces.**
+  Gemini's thinking tokens (billed as output) still erase its
+  input-price discount on output-heavy workloads. Pricing decisions
+  on per-token list prices alone are still wrong; multiply by *your*
+  observed output volume.
+- **Opus retains a judge-scored quality edge on free-form generation**,
+  with the same family-bias caveat as before (judge is Claude Sonnet
+  4.6). The 3-way data weakens but doesn't refute the caveat — re-run
+  with a non-Anthropic judge before treating the gap as settled.
+
+Full writeup with per-suite tables, statistical tests, and an
+executive action list:
+[`benchmarks/3way_full/analysis.md`](benchmarks/3way_full/analysis.md).
+Prior 2-way that this builds on:
+[`benchmarks/opus47_vs_gemini35_analysis.md`](benchmarks/opus47_vs_gemini35_analysis.md).
+
+## Define Your Own Eval Suite
+
+```yaml
+# my_suite.yaml
+name: customer_support_triage
+description: Classify support tickets by urgency and category
+scoring: exact_match
+cases:
+  - input: "My account was charged twice for the same order #8812"
+    expected:
+      urgency: high
+      category: billing
+  - input: "How do I change my notification preferences?"
+    expected:
+      urgency: low
+      category: settings
+```
+
+```bash
+rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
+```
+
+## Scoring Methods
+
+| Method | Use When |
+|--------|----------|
+| `exact_match` | Output must match expected exactly (structured data, classification). Tolerates a trailing `Confidence: X` line so the same suite can drive calibration. |
+| `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). **Not** embedding-based — for that, see the roadmap. |
+| `llm_judge` | Open-ended outputs (summaries, explanations, code) scored on a 0-1 scale by a separate judge model. Supports both **reference-answer** scoring (`expected: "..."`) and **rubric** scoring (`expected: {rubric: "..."}`). The judge model, judge prompt, and a one-sentence judge reasoning per case are all surfaced for auditability. See `suites/open_ended_qa.yaml` for a worked example. |
+| `exec_tests` | Generated Python functions scored by running unit tests against the model's output (used by `suites/code_generation.yaml`). Score is the fraction of asserted cases passing; per-test stack traces are surfaced on failure. |
+
+### `llm_judge` setup
+
+```bash
+# Configure once (or set per-suite via the `judge_model` field):
+export RIFT_JUDGE_MODEL=claude-sonnet-4-6
+
+# Compare two models on an open-ended suite:
+rift compare --baseline gpt-4o --challenger claude-opus-4-7 \
+             --suite open_ended_qa
+```
+
+Judges have known biases (length bias, family bias, self-preference;
+Zheng et al. 2023). Rift mitigates by asking for a 0-1 numeric score
+on a fixed scale (not pairwise A-vs-B), instructing the judge to
+ignore wording differences, and caching every judgment by `(judge,
+prompt)` so re-runs are deterministic. Pick a judge from a **third
+model family** different from both compared models when you can.
+
+## Providers
+
+| Vendor | Models supported | Env var | Notes |
+|--------|------------------|---------|-------|
+| Anthropic | `claude-*` (Opus / Sonnet / Haiku, all 3.x / 4.x) | `ANTHROPIC_API_KEY` | Messages API |
+| OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API. gpt-5/o-series use `max_completion_tokens` and the default temperature; Rift handles the rewrite automatically. |
+| Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
+
+Short aliases (`opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
+etc.) live in `MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor
+comparisons work out of the box:
+
+```bash
+rift matrix \
+  --models gpt-5.5,opus-4-7,gemini-3-5-flash \
+  --suite reasoning
+```
+
+## CI/CD Integration
+
+Rift returns exit code 1 when significant drift is detected. Drop it in your deployment pipeline:
+
+```yaml
+# GitHub Actions
+- name: Check for model drift
+  run: rift compare --baseline $CURRENT_MODEL --challenger $NEW_MODEL --suite production_evals
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+---
+
+The sections below document the mechanics behind those headlines.
+Skip if you only need to use the tool.
+
+## Statistical tests
+
+Rift picks the test that matches the score distribution:
+
+- **Binary scores (exact-match):** McNemar's exact test on paired
+  discordant pairs. Valid at small n; no chi-squared approximation.
+- **Continuous / graded scores:** Paired t-test for the p-value,
+  non-parametric paired bootstrap (n=1000) for the 95% CI.
+
+Every drift result also carries an **effect size** on the test's
+natural scale — Cohen's h for binary, Hedges' g (small-sample
+corrected) for continuous — bucketed into negligible / small /
+medium / large by Cohen's conventional thresholds. Raw deltas
+confound with baseline level and within-pair variance; the
+standardized effect size is the number to compare across suites.
+
+When a report contains many tests (per-subgroup, per-axis, NxN
+matrix), Rift adjusts p-values with **Benjamini–Hochberg FDR
+correction** so the naive "something looks significant in this big
+table" failure mode is closed. Subgroup tables show both raw `p`
+and adjusted `q (BH)`.
+
+Every comparison also gets a **post-hoc power analysis**: observed
+power, minimum detectable effect at 80% power, and (optionally) the
+N needed to detect a target effect — the answer to "we did not see
+drift, but could we have?".
 
 ## Cost as a first-class signal
 
@@ -224,51 +318,6 @@ across models. Use `--subgroup distractor:` to get a per-regime
 breakdown of where a model starts to fail. See
 [`benchmarks/context_rot_opus47_analysis.md`](benchmarks/context_rot_opus47_analysis.md)
 for a worked example.
-
-## Statistical tests
-
-Rift picks the test that matches the score distribution:
-
-- **Binary scores (exact-match):** McNemar's exact test on paired
-  discordant pairs. Valid at small n; no chi-squared approximation.
-- **Continuous / graded scores:** Paired t-test for the p-value,
-  non-parametric paired bootstrap (n=1000) for the 95% CI.
-
-Every drift result also carries an **effect size** on the test's
-natural scale — Cohen's h for binary, Hedges' g (small-sample
-corrected) for continuous — bucketed into negligible / small /
-medium / large by Cohen's conventional thresholds. Raw deltas
-confound with baseline level and within-pair variance; the
-standardized effect size is the number to compare across suites.
-
-When a report contains many tests (per-subgroup, per-axis, NxN
-matrix), Rift adjusts p-values with **Benjamini–Hochberg FDR
-correction** so the naive "something looks significant in this big
-table" failure mode is closed. Subgroup tables show both raw `p`
-and adjusted `q (BH)`.
-
-Every comparison also gets a **post-hoc power analysis**: observed
-power, minimum detectable effect at 80% power, and (optionally) the
-N needed to detect a target effect — the answer to "we did not see
-drift, but could we have?".
-
-## Providers
-
-| Vendor | Models supported | Env var | Notes |
-|--------|------------------|---------|-------|
-| Anthropic | `claude-*` (Opus / Sonnet / Haiku, all 3.x / 4.x) | `ANTHROPIC_API_KEY` | Messages API |
-| OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API |
-| Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
-
-Short aliases (`opus-4-7`, `sonnet-4-6`, `gemini-flash`, etc.) live in
-`MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor comparisons
-work out of the box:
-
-```bash
-rift compare \
-  --baseline opus-4-7 --challenger gemini-3.5-flash \
-  --suite reasoning
-```
 
 ## Power-stratified case discovery
 
@@ -338,7 +387,7 @@ release notes typically hand-wave around:
 ## Roadmap
 
 - [x] CLI with compare, run, diff, matrix commands
-- [x] Anthropic + OpenAI providers
+- [x] Anthropic + OpenAI + Google providers
 - [x] Built-in eval suites + context-rot expansion
 - [x] Statistical significance testing with test selection
 - [x] Cost-per-correct metrics + Enterprise pricing multiplier
@@ -349,6 +398,7 @@ release notes typically hand-wave around:
 - [x] Calibration drift (Brier / ECE / overconfidence)
 - [x] Sycophancy probe (pushback flip rate)
 - [x] `llm_judge` scorer for open-ended outputs (reference + rubric)
+- [x] `exec_tests` scorer for code generation suites
 - [x] Power-stratified auto-adversarial case discovery (`rift discover`)
 - [ ] Reasoning faithfulness perturbations
 - [ ] Embedding-based semantic scoring

@@ -28,9 +28,10 @@ Three findings, ranked by what changes a decision:
    6.8×. The "thinking tokens billed as output" effect is not a
    one-week artifact — it's a stable property of Gemini Flash's
    default `thinking_level=medium`. gpt-5.5 sits in the middle on
-   verbosity (2.0× Opus on reasoning, 1.3× on extraction) and its
-   low per-token output price ($10/Mtok) absorbs that without
-   blowing out the bill.
+   verbosity (2.0× Opus on reasoning, 1.3× on extraction) and at
+   mid-tier per-token pricing ($5/$20 per Mtok input/output) — it
+   wins on $/correct because output volume × output price beats
+   per-token list price in every realistic comparison.
 
 3. **The family-bias caveat on the judge-scored suite *weakens*
    in the 3-way, but isn't ruled out.** Opus is uniquely perfect on
@@ -90,13 +91,16 @@ Per-1M-token list prices (the lever the I:O ratio multiplies):
 
 | Model | Input ($/Mtok) | Output ($/Mtok) |
 |---|---|---|
-| gpt-5.5 | $1.25 | $10.00 |
 | gemini-3.5-flash | $1.50 | $9.00 |
+| gpt-5.5 | $5.00 | $20.00 |
 | claude-opus-4-7 | $15.00 | $75.00 |
 
-Gemini and gpt-5.5 sit within ~10% of each other on per-token
-pricing. The 2–3× cost gap on `$/correct` is therefore almost
-entirely about how many output tokens each model emits.
+gpt-5.5 is **mid-priced per token** — 3× more expensive on input
+and 2× more expensive on output than Gemini Flash. The reason it
+wins on `$/correct` is not its per-token price but its **output
+volume**: it emits 2.0× Opus's output tokens on reasoning vs
+Gemini's 11.7×. The invoice is `output_tokens × output_price`, not
+`output_price`.
 
 ---
 
@@ -129,8 +133,9 @@ output_tokens` on your production traffic before quoting savings.
 That still stands. What's changed is the answer:
 
 - **Input-heavy (RAG, extraction, classification):** gpt-5.5 wins
-  decisively. Its input price ($1.25/Mtok) is the cheapest, and it
-  doesn't blow out output volume.
+  decisively despite Gemini's cheaper input list price
+  ($5/Mtok vs $1.50/Mtok) — Gemini's output-token tax outweighs its
+  input-price discount when the suite has any output at all.
 - **Output-heavy (reasoning, agentic loops, long generation):**
   gpt-5.5 wins on cost, but Opus is the latency winner and is
   comparable on $/correct. Gemini is the worst pick in this
@@ -239,8 +244,10 @@ is *more expensive than Opus* per correct on reasoning, because the
 10× input-price discount is consumed by thinking tokens billed as
 output" — reproduces: Gemini $0.0056 vs Opus $0.0057. The new
 finding is that **both are 2.2× more expensive than gpt-5.5**
-($0.0026), which wins both axes simultaneously: cheapest input
-price *and* 5.8× less output volume than Gemini.
+($0.0026), despite gpt-5.5 sitting mid-price per token. gpt-5.5
+wins because it emits 5.8× fewer output tokens than Gemini — its
+list-price disadvantage on a per-token basis is more than wiped
+out by output-volume parsimony.
 
 The procurement implication: on reasoning workloads, neither Opus
 nor Gemini is the cheap default anymore. gpt-5.5 is.
@@ -268,9 +275,11 @@ $0.0061 vs Opus $0.0088). It's just no longer the cheapest option:
 gpt-5.5 at $0.0027 beats Flash by another 55%.
 
 Opus's spend ($0.20) is dominated by input-token cost — extraction
-prompts are long. Gemini's cheaper input price gets partly clawed
-back by 6.7× output verbosity, so it lands at $0.13. gpt-5.5 wins
-both axes: cheapest input price and modest output verbosity.
+prompts are long, and Opus is 3× more expensive per input token
+than gpt-5.5 ($15/Mtok vs $5/Mtok). Gemini's cheaper input list
+price ($1.50/Mtok) gets clawed back by 6.7× output verbosity, so
+it lands at $0.13. gpt-5.5 lands at $0.06 because it has both
+modest input price *and* modest output volume — neither extreme.
 
 ---
 
@@ -321,10 +330,10 @@ thinking tokens are billed as output.** Today's run confirms the
 output-token ratios within 15% of last time on every suite.
 
 The 3-way extension adds: **gpt-5.5 is, today, the model that
-*neither* gets dinged by long input (its input price is the
-cheapest of the three at $1.25/Mtok) *nor* by output verbosity
-(2–6× less than Gemini on every suite, and its per-token output
-price is $10/Mtok vs Opus's $75/Mtok).**
+balances both axes — neither cheapest per token (it's 3× Gemini's
+input price and 2× its output price) nor most verbose
+(2–6× less output than Gemini on every suite).** The per-correct
+math rewards balance.
 
 Multiply each model's listed output price by its average output
 tokens on a representative prompt. The product, not the list
@@ -333,9 +342,9 @@ heuristic, and the 3-way bake-off gives it a second data point.
 
 Models with extended-thinking defaults (Gemini Flash at
 `thinking_level: medium`) need a 3–13× multiplier on their list
-price for the implied bill; gpt-5.5 needs ~2× over Opus on
-output volume but more than compensates with its 7.5× lower
-per-output-token rate.
+price for the implied bill; gpt-5.5 emits ~2× Opus's output tokens
+but its per-output-token price is 3.75× lower ($20 vs $75 per
+Mtok), so it still wins on bill.
 
 ---
 
