@@ -1,0 +1,98 @@
+{
+  "model": "gemini-3.5-flash",
+  "suite_name": "open_ended_qa",
+  "scoring_method": "llm_judge",
+  "cases": [
+    {
+      "case_index": 0,
+      "input_text": "In two sentences, what was the main reason the Apollo 11 mission\nwas significant?\n",
+      "expected": "Apollo 11 was the first crewed mission to land humans on the Moon\n(in July 1969). Its significance is primarily as the first time\nhumans set foot on a body other than Earth.\n",
+      "output": "The Apollo 11 mission was historic because it marked the first time in human history that people successfully landed and walked on another celestial body. This monumental achievement demonstrated unprecedented technological capability and effectively won the Cold War Space Race for the United States.",
+      "score": 0.9,
+      "latency_ms": 3842.962041962892,
+      "input_tokens": 20,
+      "output_tokens": 555,
+      "cost_usd": 0.005025,
+      "tags": [
+        "history"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 1,
+      "input_text": "Why does the sky appear blue during the day? Answer in one\nparagraph at the level of a curious 12-year-old.\n",
+      "expected": "Sunlight is made of many colors, and as it passes through the\natmosphere, the shorter blue wavelengths get scattered in all\ndirections by air molecules far more than the longer red\nwavelengths (Rayleigh scattering). So when you look up, blue\nlight is what's coming at your eyes from all over the sky.\n",
+      "output": "Imagine sunlight as a team of colors traveling from the Sun to Earth. Even though sunlight looks white, it\u2019s actually a mix of all the colors of the rainbow, each traveling in different-sized waves. Red and yellow light travel in long, lazy waves that easily pass straight through Earth's atmosphere without hitting much. Blue light, however, travels in short, choppy waves that constantly crash into the tiny gas molecules in our air, causing the blue light to bounce around and scatter in every single direction. When you look up at the daytime sky, your eyes are catching all of this scattered blue light bouncing around above you!",
+      "score": 0.95,
+      "latency_ms": 4607.629665872082,
+      "input_tokens": 30,
+      "output_tokens": 723,
+      "cost_usd": 0.006552,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 2,
+      "input_text": "Summarize the plot of \"1984\" by George Orwell in three sentences,\navoiding spoilers about the ending.\n",
+      "expected": "Winston Smith works at the Ministry of Truth in a totalitarian\nsociety where the Party, led by Big Brother, surveils and\nrewrites history to control the population. Disillusioned, he\nbegins a forbidden love affair with Julia and is drawn toward\nwhat he believes is an underground resistance. The novel\nfollows his quiet rebellion against the Party's grip on\nthought, language, and even reality itself.\n",
+      "output": "In a dystopian world ruled by the totalitarian Party and its omnipresent leader, Big Brother, Winston Smith works rewriting history while secretly harboring rebellious thoughts against the regime. His quiet defiance intensifies when he begins a forbidden love affair with a co-worker named Julia, and together they attempt to align themselves with an underground resistance movement. However, in a society where even thoughts are policed, their quest for freedom puts them in constant danger of being detected by the ruthless authorities.",
+      "score": 0.9,
+      "latency_ms": 4588.357582921162,
+      "input_tokens": 27,
+      "output_tokens": 795,
+      "cost_usd": 0.0071955,
+      "tags": [
+        "literature"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 3,
+      "input_text": "Briefly explain what a recursive function is and give a simple\nexample in Python.\n",
+      "expected": {
+        "rubric": "The answer should: (1) define a recursive function as one\nthat calls itself, (2) mention that recursion needs a base\ncase to terminate, (3) provide a runnable Python example\n(factorial, Fibonacci, sum, or similar). Full marks if all\nthree are present; partial marks if missing one element.\n"
+      },
+      "output": "### What is a Recursive Function?\n\nA **recursive function** is a function that calls itself in order to solve a problem. \n\nTo prevent the function from calling itself forever (which causes a crash), every recursive function must have two parts:\n1. **Base Case:** The condition that stops the recursion.\n2. **Recursive Case:** The part where the function calls itself, usually with a smaller or simpler input, moving closer to the base case.\n\n---\n\n### Simple Python Example: Factorial\n\nA classic example of recursion is calculating the **factorial** of a number ($n!$), which is the product of all positive integers up to $n$ (e.g., $5! = 5 \\times 4 \\times 3 \\times 2 \\times 1 = 120$).\n\n```python\ndef factorial(n):\n    # 1. Base Case: 1! is 1. Stop recursing.\n    if n == 1:\n        return 1\n\n    # 2. Recursive Case: n! = n * (n-1)!\n    else:\n        return n * factorial(n - 1)\n\n\n# Example usage:\nresult = factorial(5)\nprint(result)  # Output: 120\n```\n\n### How it works behind the scenes:\nWhen you call `factorial(5)`, the computer stacks the calls like this:\n* `factorial(5)` returns `5 * factorial(4)`\n* `factorial(4)` returns `4 * factorial(3)`\n* `factorial(3)` returns `3 * factorial(2)`\n* `factorial(2)` returns `2 * factorial(1)`\n* `factorial(1)` hits the **base case** and returns `1`.\n\nOnce the base case is reached, the computer calculates the multiplication in reverse order: `1 * 2 * 3 * 4 * 5` to return the final answer, `120`.",
+      "score": 1.0,
+      "latency_ms": 5897.195958998054,
+      "input_tokens": 18,
+      "output_tokens": 1034,
+      "cost_usd": 0.009333,
+      "tags": [
+        "code",
+        "rubric"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 4,
+      "input_text": "Write one sentence explaining the difference between weather\nand climate.\n",
+      "expected": "Weather is the short-term state of the atmosphere at a\nparticular place and time (e.g. today's rain), while climate\nis the long-term average of weather patterns over years or\ndecades.\n",
+      "output": "Weather is the day-to-day state of the atmosphere, whereas climate is the long-term average of those weather patterns over decades.",
+      "score": 1.0,
+      "latency_ms": 3298.2029169797897,
+      "input_tokens": 13,
+      "output_tokens": 496,
+      "cost_usd": 0.0044835000000000005,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 1
+    }
+  ],
+  "started_at": "2026-05-21T16:05:41Z",
+  "completed_at": "2026-05-21T16:05:50Z",
+  "metadata": {
+    "concurrency": 5,
+    "enterprise_multiplier": 1.0,
+    "n_errors": 0,
+    "judge_model": "claude-sonnet-4-6"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "model": "gpt-5.5",
+  "suite_name": "open_ended_qa",
+  "scoring_method": "llm_judge",
+  "cases": [
+    {
+      "case_index": 0,
+      "input_text": "In two sentences, what was the main reason the Apollo 11 mission\nwas significant?\n",
+      "expected": "Apollo 11 was the first crewed mission to land humans on the Moon\n(in July 1969). Its significance is primarily as the first time\nhumans set foot on a body other than Earth.\n",
+      "output": "Apollo 11 was significant because it achieved the first successful human landing on the Moon, with Neil Armstrong and Buzz Aldrin walking on the lunar surface on July 20, 1969. It marked a major milestone in space exploration and demonstrated the United States\u2019 technological achievement during the Space Race.",
+      "score": 0.9,
+      "latency_ms": 2738.4201250970364,
+      "input_tokens": 24,
+      "output_tokens": 62,
+      "cost_usd": 0.00136,
+      "tags": [
+        "history"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 1,
+      "input_text": "Why does the sky appear blue during the day? Answer in one\nparagraph at the level of a curious 12-year-old.\n",
+      "expected": "Sunlight is made of many colors, and as it passes through the\natmosphere, the shorter blue wavelengths get scattered in all\ndirections by air molecules far more than the longer red\nwavelengths (Rayleigh scattering). So when you look up, blue\nlight is what's coming at your eyes from all over the sky.\n",
+      "output": "The sky looks blue during the day because sunlight, which seems white, is actually made of all the colors of the rainbow, and Earth\u2019s atmosphere scatters those colors in different ways. Tiny air molecules scatter shorter wavelengths of light, like blue and violet, much more than longer wavelengths, like red and orange. Even though violet scatters a lot too, our eyes are more sensitive to blue, and some violet gets absorbed higher up, so the scattered light we notice most is blue. That scattered blue light comes at us from all directions in the sky, making the whole sky appear blue.",
+      "score": 1.0,
+      "latency_ms": 5482.96391707845,
+      "input_tokens": 32,
+      "output_tokens": 138,
+      "cost_usd": 0.00292,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 2,
+      "input_text": "Summarize the plot of \"1984\" by George Orwell in three sentences,\navoiding spoilers about the ending.\n",
+      "expected": "Winston Smith works at the Ministry of Truth in a totalitarian\nsociety where the Party, led by Big Brother, surveils and\nrewrites history to control the population. Disillusioned, he\nbegins a forbidden love affair with Julia and is drawn toward\nwhat he believes is an underground resistance. The novel\nfollows his quiet rebellion against the Party's grip on\nthought, language, and even reality itself.\n",
+      "output": "In George Orwell\u2019s *1984*, Winston Smith lives under a totalitarian regime led by Big Brother, where constant surveillance, propaganda, and thought control dominate everyday life.  \nSecretly dissatisfied with the Party, Winston begins to question its version of truth and searches for personal freedom, especially through his relationship with Julia.  \nAs he becomes more involved in quiet rebellion, he faces the growing danger of a society designed to crush independent thought.",
+      "score": 0.95,
+      "latency_ms": 4249.202542006969,
+      "input_tokens": 30,
+      "output_tokens": 112,
+      "cost_usd": 0.0023899999999999998,
+      "tags": [
+        "literature"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 3,
+      "input_text": "Briefly explain what a recursive function is and give a simple\nexample in Python.\n",
+      "expected": {
+        "rubric": "The answer should: (1) define a recursive function as one\nthat calls itself, (2) mention that recursion needs a base\ncase to terminate, (3) provide a runnable Python example\n(factorial, Fibonacci, sum, or similar). Full marks if all\nthree are present; partial marks if missing one element.\n"
+      },
+      "output": "A **recursive function** is a function that calls itself in order to solve a problem by breaking it into smaller versions of the same problem. It must have a **base case** to stop the recursion.\n\nExample in Python:\n\n```python\ndef factorial(n):\n    if n == 0:  # base case\n        return 1\n    return n * factorial(n - 1)  # recursive call\n\nprint(factorial(5))  # Output: 120\n```\n\nHere, `factorial(5)` calculates:\n\n```text\n5 * 4 * 3 * 2 * 1 = 120\n```",
+      "score": 1.0,
+      "latency_ms": 2744.0206250175834,
+      "input_tokens": 23,
+      "output_tokens": 134,
+      "cost_usd": 0.002795,
+      "tags": [
+        "code",
+        "rubric"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 4,
+      "input_text": "Write one sentence explaining the difference between weather\nand climate.\n",
+      "expected": "Weather is the short-term state of the atmosphere at a\nparticular place and time (e.g. today's rain), while climate\nis the long-term average of weather patterns over years or\ndecades.\n",
+      "output": "Weather is the day-to-day condition of the atmosphere, while climate is the average pattern of weather in a place over many years.",
+      "score": 1.0,
+      "latency_ms": 1797.653416870162,
+      "input_tokens": 18,
+      "output_tokens": 29,
+      "cost_usd": 0.00067,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 1
+    }
+  ],
+  "started_at": "2026-05-21T16:05:24Z",
+  "completed_at": "2026-05-21T16:05:32Z",
+  "metadata": {
+    "concurrency": 5,
+    "enterprise_multiplier": 1.0,
+    "n_errors": 0,
+    "judge_model": "claude-sonnet-4-6"
+  }
+}
