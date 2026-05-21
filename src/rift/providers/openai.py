@@ -29,11 +29,20 @@ class OpenAIProvider(BaseProvider):
     async def complete(self, prompt: str, **kwargs) -> Completion:
         params = {
             "model": self.model,
-            "max_tokens": kwargs.get("max_tokens", 4096),
             "messages": [{"role": "user", "content": prompt}],
             **self.extra_params,
             **kwargs,
         }
+        max_tokens = params.pop("max_tokens", 4096)
+
+        # gpt-5 / o-series use `max_completion_tokens` and reject any
+        # non-default `temperature`. Older chat models still take
+        # `max_tokens` and arbitrary temperature.
+        if self.model.startswith(("gpt-5", "o1", "o3", "o4")):
+            params["max_completion_tokens"] = max_tokens
+            params.pop("temperature", None)
+        else:
+            params["max_tokens"] = max_tokens
 
         start = time.perf_counter()
         resp = await self.client.post("/v1/chat/completions", json=params)
