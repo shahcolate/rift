@@ -100,7 +100,7 @@
         "basic",
         "loops"
       ],
-      "error": "ValueError: OPENAI_API_KEY not set",
+      "error": "HTTPStatusError: Client error '403 Forbidden' for url 'https://api.openai.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
       "attempts": 8
     },
     {
@@ -157,7 +157,7 @@
         "basic",
         "strings"
       ],
-      "error": "ValueError: OPENAI_API_KEY not set",
+      "error": "HTTPStatusError: Client error '403 Forbidden' for url 'https://api.openai.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
       "attempts": 8
     },
     {
@@ -270,7 +270,7 @@
       "tags": [
         "recursion"
       ],
-      "error": "ValueError: OPENAI_API_KEY not set",
+      "error": "HTTPStatusError: Client error '403 Forbidden' for url 'https://api.openai.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
       "attempts": 8
     },
     {
@@ -349,7 +349,7 @@
         "algorithms",
         "hash_map"
       ],
-      "error": "ValueError: OPENAI_API_KEY not set",
+      "error": "HTTPStatusError: Client error '403 Forbidden' for url 'https://api.openai.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
       "attempts": 8
     },
     {
@@ -473,12 +473,12 @@
         "algorithms",
         "sorting"
       ],
-      "error": "ValueError: OPENAI_API_KEY not set",
+      "error": "HTTPStatusError: Client error '403 Forbidden' for url 'https://api.openai.com/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
       "attempts": 8
     }
   ],
-  "started_at": "2026-05-21T14:24:42Z",
-  "completed_at": "2026-05-21T14:24:42Z",
+  "started_at": "2026-05-21T14:26:33Z",
+  "completed_at": "2026-05-21T14:26:33Z",
   "metadata": {
     "concurrency": 5,
     "enterprise_multiplier": 1.0,
