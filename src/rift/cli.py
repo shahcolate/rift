@@ -14,6 +14,14 @@ from .calibration import compare_calibration
 from .comparator import compare_runs, compare_by_subgroup, power_analysis
 from .config import load_suite, resolve_model
 from .context_rot import expand_suite
+from .demo import (
+    SCENARIOS,
+    export_demo_html,
+    export_demo_markdown,
+    export_demo_svg,
+    load_scenario,
+    run_demo,
+)
 from .discovery import discover as discover_loop, to_suite_yaml
 from .refusal import compare_refusal
 from .reporter import (
@@ -528,6 +536,52 @@ def discover(baseline, challenger, seed_suite, proposer_model,
         f"Next step: [bold]rift compare --baseline {baseline} "
         f"--challenger {challenger} --suite {output}[/bold]"
     )
+
+
+@main.command()
+@click.option("--scenario", default="opus-46-vs-47",
+              type=click.Choice(sorted(SCENARIOS)),
+              help="Which prepared scenario to walk through.")
+@click.option("--auto/--paced", default=True,
+              help="Auto-advance between acts (default). --paced waits for "
+                   "Enter between acts for a live presenter.")
+@click.option("--beat-multiplier", default=1.0, type=float,
+              help="Multiplier on per-act pause length (--auto only). "
+                   "Set to 0.0 to skip pauses entirely.")
+@click.option("--export-html", default=None, type=click.Path(),
+              help="Also write a self-contained HTML executive memo.")
+@click.option("--export-md", default=None, type=click.Path(),
+              help="Also write a markdown executive memo.")
+@click.option("--export-svg", default=None, type=click.Path(),
+              help="Also write a static SVG screenshot of the terminal demo "
+                   "(self-contained, GitHub-embeddable).")
+@click.option("--no-clear", is_flag=True, default=False,
+              help="Don't clear the screen on start. Use this when piping "
+                   "output, recording, or running in CI.")
+def demo(scenario, auto, beat_multiplier, export_html, export_md,
+         export_svg, no_clear):
+    """Run a guided, narrated demo of a real drift finding (offline).
+
+    A four-act walkthrough with no API keys required. Replays the
+    committed Opus 4.6 → 4.7 benchmark: accuracy ticks up, but
+    cost-per-correct rises ~40% due to a silent tokenizer change.
+
+    Use --export-html to produce a single-file executive memo PMs can
+    forward; --export-svg to capture a screenshot for README embedding.
+    """
+    script, base_run, chal_run, drift = load_scenario(scenario)
+    run_demo(script, auto=auto, beat_multiplier=beat_multiplier,
+             console=console, no_clear=no_clear)
+
+    if export_html:
+        export_demo_html(script, export_html, base_run, chal_run, drift)
+        console.print(f"  HTML memo:   [green]{export_html}[/green]")
+    if export_md:
+        export_demo_markdown(script, export_md)
+        console.print(f"  Markdown:    [green]{export_md}[/green]")
+    if export_svg:
+        export_demo_svg(script, export_svg)
+        console.print(f"  SVG capture: [green]{export_svg}[/green]")
 
 
 if __name__ == "__main__":

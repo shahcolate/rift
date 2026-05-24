@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Rift demo — Opus 4.6 → 4.7</title>
+<style>
+:root {
+  --accent: #6c5ce7;
+  --warn: #d63031;
+  --good: #00b894;
+  --ink: #1a1a1a;
+  --mute: #6b6b6b;
+  --bg: #fafafa;
+  --card: #ffffff;
+  --border: #e6e6e6;
+}
+* { box-sizing: border-box; }
+body {
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+        'Helvetica Neue', Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  margin: 0;
+  padding: 32px 16px 64px;
+}
+.wrap { max-width: 760px; margin: 0 auto; }
+header { margin-bottom: 32px; }
+h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.subtitle { color: var(--mute); margin: 0 0 16px; font-size: 16px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.badge {
+  background: #f0eefb; color: var(--accent); padding: 3px 10px;
+  border-radius: 999px; font-size: 12px; font-weight: 600;
+}
+.badge.warn { background: #fdecec; color: var(--warn); }
+.badge.good { background: #e6f8f2; color: var(--good); }
+section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px; margin: 16px 0;
+}
+section h2 {
+  margin: 0 0 6px; font-size: 18px; letter-spacing: -0.005em;
+}
+section p { margin: 6px 0; }
+.lede { color: var(--mute); margin-bottom: 14px; }
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 12px; margin: 12px 0 4px;
+}
+.kpi {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; background: #fff;
+}
+.kpi .v { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.kpi .v.warn { color: var(--warn); }
+.kpi .v.good { color: var(--good); }
+.kpi .l {
+  font-size: 11px; color: var(--mute);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--mute); font-weight: 600; font-size: 12px;
+     text-transform: uppercase; letter-spacing: 0.04em; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.callout {
+  border-left: 3px solid var(--accent); background: #f7f6fd;
+  padding: 12px 16px; border-radius: 6px; margin: 14px 0;
+}
+.callout.warn { border-left-color: var(--warn); background: #fdf3f3; }
+.callout.good { border-left-color: var(--good); background: #effaf5; }
+.callout h3 { margin: 0 0 6px; font-size: 14px; text-transform: uppercase;
+               letter-spacing: 0.06em; color: var(--mute); }
+.action-list { margin: 6px 0 0; padding-left: 18px; }
+.action-list li { margin: 4px 0; }
+code, .mono {
+  font: 13px/1.5 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  background: #f3f3f3; padding: 1px 5px; border-radius: 4px;
+}
+pre {
+  background: #1a1a1a; color: #f3f3f3;
+  border-radius: 8px; padding: 14px 16px; overflow-x: auto;
+  font: 13px/1.5 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+footer {
+  margin-top: 32px; color: var(--mute); font-size: 12px; text-align: center;
+}
+svg { display: block; margin: 12px auto; max-width: 100%; height: auto; }
+@media print {
+  body { background: #fff; padding: 12px; }
+  section { break-inside: avoid; box-shadow: none; }
+  .kpi-grid { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="badges">
+    <span class="badge">Rift demo</span>
+    <span class="badge warn">cost-per-correct +39.7%</span>
+    <span class="badge">replay · n=32</span>
+  </div>
+  <h1>Rift demo — Opus 4.6 → 4.7</h1>
+  <p class="subtitle">A guided walkthrough of one real upgrade. Live in your terminal.</p>
+</header>
+
+<section>
+  <h2>What we tested</h2>
+  <p class="lede">
+    Paired comparison of <code>opus-4-6</code> and
+    <code>opus-4-7</code> on the
+    <code>context_rot_reasoning__context_rot</code> suite (32
+    cases, McNemar's exact). Data replayed from committed outcomes for
+    reproducibility.
+  </p>
+  <div class="kpi-grid"><div class="kpi"><div class="v">+3.12pp</div><div class="l">accuracy delta</div></div><div class="kpi"><div class="v warn">+39.7%</div><div class="l">$/correct delta</div></div><div class="kpi"><div class="v warn">1.45×</div><div class="l">input tokens</div></div></div>
+</section>
+
+<section>
+  <h2>Act 1 — Quality (what a casual eval sees)</h2>
+  <p class="lede">
+    Accuracy is the number every benchmark leaderboard reports. By this
+    measure, the upgrade looks like a win.
+  </p>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" role="img" aria-label="Accuracy by model"><text x="120" y="54.0" text-anchor="end" font-size="13" fill="#1a1a1a">opus-4-6</text><rect x="130" y="39.0" width="385.7" height="22.0" fill="#9b9b9b" rx="3"/><text x="507.7" y="54.0" text-anchor="end" font-size="12" font-weight="600" fill="#fff">0.844</text><text x="120" y="94.0" text-anchor="end" font-size="13" fill="#1a1a1a">opus-4-7</text><rect x="130" y="79.0" width="400.0" height="22.0" fill="#00b894" rx="3"/><text x="522.0" y="94.0" text-anchor="end" font-size="12" font-weight="600" fill="#fff">0.875</text></svg>
+  <div class="callout good">
+    <h3>Headline reading</h3>
+    Accuracy <b>+3.12pp</b> (p = 1.000, not
+    significant at α=0.05). 95% CI: [-0.156,
+    +0.219].
+  </div>
+</section>
+
+<section>
+  <h2>Act 2 — Cost (what Rift sees)</h2>
+  <p class="lede">
+    Same prompts. Same correctness. But the bill tells a different story.
+  </p>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" role="img" aria-label="$/correct by model"><text x="120" y="54.0" text-anchor="end" font-size="13" fill="#1a1a1a">opus-4-6</text><rect x="130" y="39.0" width="286.3" height="22.0" fill="#9b9b9b" rx="3"/><text x="408.3" y="54.0" text-anchor="end" font-size="12" font-weight="600" fill="#fff">$0.1882</text><text x="120" y="94.0" text-anchor="end" font-size="13" fill="#1a1a1a">opus-4-7</text><rect x="130" y="79.0" width="400.0" height="22.0" fill="#d63031" rx="3"/><text x="522.0" y="94.0" text-anchor="end" font-size="12" font-weight="600" fill="#fff">$0.2630</text></svg>
+  <div class="callout warn">
+    <h3>The twist</h3>
+    $/correct rose <b>+39.7%</b>
+    ($0.1882 → $0.2630). For byte-identical
+    prompts, the challenger emits <b>1.45× more input
+    tokens</b> (337,920 →
+    489,984). At list-price parity, this is a
+    silent per-prompt cost increase on migration.
+  </div>
+</section>
+
+<section><h2>Act 3 — Where the cost concentrates</h2><p class='lede'>By context length — does the inflation hit you everywhere, or only on long prompts?</p><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 220" width="560" height="220" role="img" aria-label="$/correct by distractor context length"><rect x="80" y="10" width="12" height="12" fill="#9b9b9b" rx="2"/><text x="98" y="20" font-size="12" fill="#1a1a1a">opus-4-6</text><rect x="182" y="10" width="12" height="12" fill="#d63031" rx="2"/><text x="200" y="20" font-size="12" fill="#1a1a1a">opus-4-7</text><rect x="97.1" y="183.7" width="37.9" height="0.3" fill="#9b9b9b" rx="2"/><text x="116.0" y="179.7" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.0015</text><rect x="137.0" y="183.6" width="37.9" height="0.4" fill="#d63031" rx="2"/><text x="155.9" y="179.6" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.0020</text><text x="137.0" y="208" text-anchor="middle" font-size="12" fill="#1a1a1a">0k</text><rect x="211.1" y="177.5" width="37.9" height="6.5" fill="#9b9b9b" rx="2"/><text x="230.0" y="173.5" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.0358</text><rect x="251.0" y="174.7" width="37.9" height="9.3" fill="#d63031" rx="2"/><text x="269.9" y="170.7" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.0517</text><text x="251.0" y="208" text-anchor="middle" font-size="12" fill="#1a1a1a">2k</text><rect x="325.1" y="84.7" width="37.9" height="99.3" fill="#9b9b9b" rx="2"/><text x="344.1" y="80.7" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.5501</text><rect x="365.0" y="40.0" width="37.9" height="144.0" fill="#d63031" rx="2"/><text x="383.9" y="36.0" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.7974</text><text x="365.0" y="208" text-anchor="middle" font-size="12" fill="#1a1a1a">32k</text><rect x="439.1" y="154.8" width="37.9" height="29.2" fill="#9b9b9b" rx="2"/><text x="458.1" y="150.8" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.1618</text><rect x="479.0" y="147.7" width="37.9" height="36.3" fill="#d63031" rx="2"/><text x="497.9" y="143.7" text-anchor="middle" font-size="10" fill="#1a1a1a">$0.2008</text><text x="479.0" y="208" text-anchor="middle" font-size="12" fill="#1a1a1a">8k</text><line x1="80" y1="184" x2="536" y2="184" stroke="#cccccc" stroke-width="1"/></svg><table><thead><tr><th>Subgroup</th><th>n</th><th>Baseline acc</th><th>Challenger acc</th><th>Δ acc</th><th>Baseline $/correct</th><th>Challenger $/correct</th><th>Δ %</th></tr></thead><tbody><tr><td>distractor:0k</td><td class='num'>8</td><td class='num'>0.875</td><td class='num'>0.875</td><td class='num'>+0.000</td><td class='num'>$0.0015</td><td class='num'>$0.0020</td><td class='num'>+30.6%</td></tr><tr><td>distractor:2k</td><td class='num'>8</td><td class='num'>0.875</td><td class='num'>0.875</td><td class='num'>+0.000</td><td class='num'>$0.0358</td><td class='num'>$0.0517</td><td class='num'>+44.4%</td></tr><tr><td>distractor:32k</td><td class='num'>8</td><td class='num'>0.875</td><td class='num'>0.875</td><td class='num'>+0.000</td><td class='num'>$0.5501</td><td class='num'>$0.7974</td><td class='num'>+45.0%</td></tr><tr><td>distractor:8k</td><td class='num'>8</td><td class='num'>0.750</td><td class='num'>0.875</td><td class='num'>+0.125</td><td class='num'>$0.1618</td><td class='num'>$0.2008</td><td class='num'>+24.2%</td></tr></tbody></table></section>
+
+<section>
+  <h2>Verdict — what to do Monday</h2>
+  <div class="callout">
+    <h3>Headline</h3>
+    Accuracy ticked up (+3.12pp, not significant at α=0.05), but $/correct rose +39.7%.
+  </div>
+  <p><b>Recommendation.</b> Do NOT migrate short-prompt workloads to opus-4-7 on price-parity assumptions. The quality lift on this suite does not pay for tokenizer inflation.</p>
+  <p><b>Action items.</b></p>
+  <ul class="action-list"><li>Pin opus-4-6 for short-prompt production paths until tokenizer parity is restored.</li><li>Consider opus-4-7 only for long-context workloads (8k+ distractor tokens) where the robustness lift is largest.</li><li>Re-evaluate every quarter — tokenizer changes ship without release-note announcements.</li><li>Add `rift compare` to CI for any model-version bump touching production prompts.</li></ul>
+  <p class="lede" style="margin-top:14px">
+    Findings replicate on the committed outcomes file (n=32, paired, McNemar&#x27;s exact). Significance threshold α=0.05; cost figures use list pricing — apply your enterprise multiplier for contracted rates.
+  </p>
+</section>
+
+<section>
+  <h2>Reproduce this</h2>
+  <p class="lede">
+    Runs offline, no API key required. The recorded outcomes are committed
+    to the repo.
+  </p>
+  <pre>rift demo  # or: python benchmarks/run_context_rot.py --mode record</pre>
+  <p class="lede">Sources:
+    <code>benchmarks/context_rot_outcomes.yaml</code>, <code>benchmarks/context_rot_opus47_analysis.md</code>
+  </p>
+</section>
+
+<footer>
+  Generated by <b>Rift</b> · 2026-05-24 18:19 UTC · self-contained, no external assets
+</footer>
+</div>
+</body>
+</html>

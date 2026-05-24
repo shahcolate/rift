@@ -36,11 +36,19 @@ import yaml
 
 
 MODELS = {
-    # model_id: (base_accuracy, pp_per_log_decade, middle_position_penalty)
-    "claude-opus-4-7":          (0.92, 2.5, 0.02),
-    "claude-opus-4-6":          (0.88, 4.0, 0.04),
-    "claude-sonnet-4-6":        (0.82, 6.5, 0.06),
-    "gpt-4o":                   (0.78, 8.0, 0.08),
+    # model_id: (base_accuracy, pp_per_log_decade, middle_position_penalty,
+    #             input_token_inflation)
+    #
+    # ``input_token_inflation`` is the multiplicative factor on input tokens
+    # vs. the family baseline tokenizer for byte-identical prompts. Anthropic
+    # shipped a new tokenizer with Opus 4.7 that emits ~1.45× more tokens
+    # than 4.6 on English-heavy prompts — a silent per-call cost increase
+    # invisible in the price sheet. We model it explicitly here so the
+    # cost-per-correct drift is reproducible from the committed outcomes.
+    "claude-opus-4-7":          (0.92, 2.5, 0.02, 1.450),
+    "claude-opus-4-6":          (0.88, 4.0, 0.04, 1.000),
+    "claude-sonnet-4-6":        (0.82, 6.5, 0.06, 1.000),
+    "gpt-4o":                   (0.78, 8.0, 0.08, 1.000),
 }
 
 
@@ -83,7 +91,7 @@ def _seeded(key: str) -> random.Random:
 
 
 def _p_correct(model: str, origin: int, level: str, position: str) -> float:
-    base, per_decade, mid_pen = MODELS[model]
+    base, per_decade, mid_pen, _ = MODELS[model]
     # Difficulty correction: harder cases lower base probability.
     p = base / CASE_DIFFICULTY[origin]
     # Context-length penalty, log-scaled. Treat 0k as 1k floor so log
@@ -103,13 +111,17 @@ def _position_for(origin: int) -> str:
     return ("prefix", "middle", "suffix")[origin % 3]
 
 
-def _token_counts(level: str, answer: str) -> tuple[int, int]:
+def _token_counts(model: str, level: str, answer: str) -> tuple[int, int]:
     """Synthesize plausible usage numbers.
 
-    Input tokens = distractor level + ~50 for the question.
-    Output tokens = len(answer) / 4 + short scaffold.
+    Input tokens = (distractor level + ~50 for the question) × the
+    model's tokenizer inflation factor. Output tokens are not inflated
+    because the model's emitted answer length depends on its decoding
+    behaviour, not on how prompts get tokenized.
     """
-    inp = LEVEL_TOKENS[level] + 60
+    _, _, _, inflation = MODELS[model]
+    base_inp = LEVEL_TOKENS[level] + 60
+    inp = int(round(base_inp * inflation))
     out = max(3, len(answer) // 4 + 5)
     return inp, out
 
@@ -125,7 +137,7 @@ def generate() -> dict:
                 p = _p_correct(model, origin, level, pos)
                 is_correct = rng.random() < p
                 answer = EXPECTED[origin] if is_correct else WRONG_FALLBACKS[origin]
-                inp_tok, out_tok = _token_counts(level, answer)
+                inp_tok, out_tok = _token_counts(model, level, answer)
                 key = f"origin:{origin}|distractor:{level}"
                 outcomes[model][key] = {
                     "output": answer,
