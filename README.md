@@ -12,6 +12,26 @@ numbers instead of list-price math.
 No vibes. No "it feels dumber." Just p-values, confidence intervals,
 and `$/correct`.
 
+## Try the demo (no API key needed)
+
+```bash
+pip install rift-eval
+rift demo
+```
+
+A 30-second guided walkthrough of one real upgrade: accuracy ticks
+up, but cost-per-correct rises ~40% from a silent tokenizer change.
+Replays the committed `benchmarks/context_rot_outcomes.yaml` —
+fully offline, reproducible, no keys.
+
+Forward the one-page memo to your VP:
+
+```bash
+rift demo --export-html demo.html      # self-contained executive memo
+rift demo --export-md  demo.md         # for Notion/Slack/email
+rift demo --paced                      # press Enter between acts (live)
+```
+
 ## Quick Start
 
 ```bash

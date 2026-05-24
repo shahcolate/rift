@@ -32,10 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
-import json
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 import yaml
@@ -43,52 +40,13 @@ import yaml
 from rift.comparator import compare_by_subgroup, compare_runs
 from rift.config import load_suite, resolve_model
 from rift.context_rot import expand_suite
-from rift.providers import Completion
+from rift.demo import prime_cache_from_recording
 from rift.reporter import generate_markdown_report
-from rift.runner import _cache_key, run_suite
+from rift.runner import run_suite
 
 
 ROOT = Path(__file__).parent.parent
 RECORDED = Path(__file__).parent / "context_rot_outcomes.yaml"
-
-
-def _prime_cache_from_recording(
-    suite, model: str, outcomes: dict, cache_dir: Path
-) -> None:
-    """Write recorded completions into Rift's cache so ``run_suite`` hits.
-
-    ``outcomes`` is keyed by ``(origin_index, distractor_level)``; we
-    resolve each expanded case back to its recorded answer via its
-    tags. This is intentionally decoupled from the suite's exact
-    prompt text — rewording the suite does not invalidate a recording
-    so long as the (origin, level) pairs are preserved.
-    """
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    for case in suite.cases:
-        origin = next(t for t in case.tags if t.startswith("origin:"))
-        level = next(t for t in case.tags if t.startswith("distractor:"))
-        key = f"{origin}|{level}"
-        rec = outcomes.get(model, {}).get(key)
-        if rec is None:
-            # Fall through — will be treated as correct-by-default in record
-            # mode. In a real benchmark, missing entries should raise.
-            continue
-        output_text = rec["output"]
-        input_tokens = rec.get("input_tokens", len(case.input) // 4)
-        output_tokens = rec.get("output_tokens", max(1, len(output_text) // 4))
-        ck = _cache_key(model, case.input, suite.model_params)
-        completion = Completion(
-            model=model,
-            input_text=case.input,
-            output_text=output_text,
-            latency_ms=float(rec.get("latency_ms", 0.0)),
-            input_tokens=int(input_tokens),
-            output_tokens=int(output_tokens),
-            raw_response={"source": "recorded"},
-        )
-        (cache_dir / f"{ck}.json").write_text(
-            json.dumps(asdict(completion), default=str)
-        )
 
 
 async def _run_all(models: list[str], cache_dir: Path, mode: str,
@@ -106,7 +64,7 @@ async def _run_all(models: list[str], cache_dir: Path, mode: str,
     for m in models:
         cfg = resolve_model(m)
         if mode == "record":
-            _prime_cache_from_recording(suite, cfg.model, outcomes, cache_dir)
+            prime_cache_from_recording(suite, cfg.model, outcomes, cache_dir)
         runs[m] = await run_suite(
             suite, cfg, concurrency=concurrency, cache_dir=str(cache_dir),
             enterprise_multiplier=enterprise_multiplier,

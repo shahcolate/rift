@@ -36,9 +36,15 @@ def _fmt_cost(x: float) -> str:
     return f"${x:.4f}"
 
 
-def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunResult) -> None:
-    """Print a formatted drift report to the terminal."""
-    console = Console()
+def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunResult,
+                       cost: bool = True, console: Console | None = None) -> None:
+    """Print a formatted drift report to the terminal.
+
+    Set ``cost=False`` to omit the cost block (e.g. when the caller
+    plans to reveal cost separately via :func:`print_cost_panel`).
+    """
+    if console is None:
+        console = Console()
 
     if drift.significant and drift.delta < 0:
         status = "[bold red]REGRESSION DETECTED[/bold red]"
@@ -69,7 +75,7 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
         f"  Improved cases:   {len(drift.improved_cases)}",
     ]
 
-    if drift.baseline_cost_usd or drift.challenger_cost_usd:
+    if cost and (drift.baseline_cost_usd or drift.challenger_cost_usd):
         lines += [
             "",
             "  [dim]Cost (USD)[/dim]",
@@ -78,11 +84,19 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
             f"  Baseline $/correct: {_fmt_cost(drift.baseline_cost_per_correct)}",
             f"  Challenger $/corr:  {_fmt_cost(drift.challenger_cost_per_correct)}",
         ]
-        if drift.cost_normalized_delta_usd:
-            arrow = "▲" if drift.cost_normalized_delta_usd > 0 else "▼"
+        delta_cpc = drift.cost_normalized_delta_usd
+        # Show the row even when the delta is exactly 0.0 — the "unchanged"
+        # state is a result, not a missing one.
+        if delta_cpc > 0:
             lines.append(
-                f"  Δ $/correct:        {arrow} {_fmt_cost(abs(drift.cost_normalized_delta_usd))}"
+                f"  Δ $/correct:        ▲ {_fmt_cost(abs(delta_cpc))}"
             )
+        elif delta_cpc < 0:
+            lines.append(
+                f"  Δ $/correct:        ▼ {_fmt_cost(abs(delta_cpc))}"
+            )
+        else:
+            lines.append("  Δ $/correct:        = $0.0000")
 
     console.print(Panel("\n".join(lines), title="[bold]Rift Drift Report[/bold]", border_style=border))
 
@@ -108,8 +122,64 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
         console.print(table)
 
 
+def print_cost_panel(drift: DriftResult, console: Console | None = None) -> None:
+    """Render only the cost block as a standalone panel.
+
+    Splits the cost reveal from the accuracy reveal so a guided demo
+    can stage them as separate beats.
+    """
+    if console is None:
+        console = Console()
+    if not (drift.baseline_cost_usd or drift.challenger_cost_usd):
+        return
+    delta_cpc = drift.cost_normalized_delta_usd
+    if delta_cpc > 0:
+        border = "red"
+        verdict = "[bold red]COST PER CORRECT WENT UP[/bold red]"
+    elif delta_cpc < 0:
+        border = "green"
+        verdict = "[bold green]COST PER CORRECT WENT DOWN[/bold green]"
+    else:
+        border = "blue"
+        verdict = "[bold blue]COST PER CORRECT UNCHANGED[/bold blue]"
+
+    base_cpc = drift.baseline_cost_per_correct
+    chal_cpc = drift.challenger_cost_per_correct
+    # Guard against inf (zero-correct baseline) and zero baseline — both
+    # make the percentage undefined. Render "n/a" rather than "nan%".
+    if math.isfinite(base_cpc) and base_cpc != 0.0:
+        pct = (chal_cpc - base_cpc) / base_cpc * 100.0
+        pct_str = f" ({pct:+.1f}%)" if math.isfinite(pct) else " (n/a)"
+    else:
+        pct_str = " (n/a)"
+
+    lines = [
+        f"  {verdict}",
+        "",
+        f"  Baseline total spend:    {_fmt_cost(drift.baseline_cost_usd)}",
+        f"  Challenger total spend:  {_fmt_cost(drift.challenger_cost_usd)}",
+        "",
+        f"  Baseline $/correct:      {_fmt_cost(base_cpc)}",
+        f"  Challenger $/correct:    {_fmt_cost(chal_cpc)}",
+    ]
+    if delta_cpc > 0:
+        lines.append(
+            f"  Δ $/correct:             ▲ {_fmt_cost(abs(delta_cpc))}{pct_str}"
+        )
+    elif delta_cpc < 0:
+        lines.append(
+            f"  Δ $/correct:             ▼ {_fmt_cost(abs(delta_cpc))}{pct_str}"
+        )
+    else:
+        lines.append(f"  Δ $/correct:             = $0.0000{pct_str}")
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Cost-per-correct[/bold]",
+                        border_style=border))
+
+
 def print_subgroup_table(subgroups: dict[str, DriftResult], title: str,
-                          alpha: float = 0.05) -> None:
+                          alpha: float = 0.05,
+                          console: Console | None = None) -> None:
     """Render a subgroup comparison table (e.g. by distractor level).
 
     Adds a Benjamini–Hochberg adjusted q-value column so a reader of
@@ -118,7 +188,8 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str,
     raw p-value.
     """
     from .comparator import benjamini_hochberg
-    console = Console()
+    if console is None:
+        console = Console()
     table = Table(title=title, show_lines=False)
     table.add_column("Subgroup", style="bold")
     table.add_column("n")
