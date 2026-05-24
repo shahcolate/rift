@@ -43,7 +43,7 @@ Same prompts. Same answers (mostly). But the bill tells a different story:
 - Baseline $/correct: **$0.1882**
 - Challenger $/correct: **$0.2630**  (**+39.7%**)
 
-**The why.** For byte-identical prompts, the challenger emits **1.45× more input tokens** than the baseline (337,920 → 489,984). At list-price parity, this is a silent per-prompt cost increase on migration. Accuracy doesn't pay for it.
+**The why.** For byte-identical prompts, the challenger emits **1.450× more input tokens** than the baseline (337,920 → 489,984). At list-price parity, this is a silent per-prompt cost increase on migration. Accuracy doesn't pay for it.
 
 ## Act 4 — Where the cost concentrates
 

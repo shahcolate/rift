@@ -84,11 +84,19 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
             f"  Baseline $/correct: {_fmt_cost(drift.baseline_cost_per_correct)}",
             f"  Challenger $/corr:  {_fmt_cost(drift.challenger_cost_per_correct)}",
         ]
-        if drift.cost_normalized_delta_usd:
-            arrow = "▲" if drift.cost_normalized_delta_usd > 0 else "▼"
+        delta_cpc = drift.cost_normalized_delta_usd
+        # Show the row even when the delta is exactly 0.0 — the "unchanged"
+        # state is a result, not a missing one.
+        if delta_cpc > 0:
             lines.append(
-                f"  Δ $/correct:        {arrow} {_fmt_cost(abs(drift.cost_normalized_delta_usd))}"
+                f"  Δ $/correct:        ▲ {_fmt_cost(abs(delta_cpc))}"
             )
+        elif delta_cpc < 0:
+            lines.append(
+                f"  Δ $/correct:        ▼ {_fmt_cost(abs(delta_cpc))}"
+            )
+        else:
+            lines.append("  Δ $/correct:        = $0.0000")
 
     console.print(Panel("\n".join(lines), title="[bold]Rift Drift Report[/bold]", border_style=border))
 
@@ -137,7 +145,13 @@ def print_cost_panel(drift: DriftResult, console: Console | None = None) -> None
 
     base_cpc = drift.baseline_cost_per_correct
     chal_cpc = drift.challenger_cost_per_correct
-    pct = ((chal_cpc - base_cpc) / base_cpc * 100.0) if base_cpc else 0.0
+    # Guard against inf (zero-correct baseline) and zero baseline — both
+    # make the percentage undefined. Render "n/a" rather than "nan%".
+    if math.isfinite(base_cpc) and base_cpc != 0.0:
+        pct = (chal_cpc - base_cpc) / base_cpc * 100.0
+        pct_str = f" ({pct:+.1f}%)" if math.isfinite(pct) else " (n/a)"
+    else:
+        pct_str = " (n/a)"
 
     lines = [
         f"  {verdict}",
@@ -148,11 +162,16 @@ def print_cost_panel(drift: DriftResult, console: Console | None = None) -> None
         f"  Baseline $/correct:      {_fmt_cost(base_cpc)}",
         f"  Challenger $/correct:    {_fmt_cost(chal_cpc)}",
     ]
-    if delta_cpc:
-        arrow = "▲" if delta_cpc > 0 else "▼"
+    if delta_cpc > 0:
         lines.append(
-            f"  Δ $/correct:             {arrow} {_fmt_cost(abs(delta_cpc))}  ({pct:+.1f}%)"
+            f"  Δ $/correct:             ▲ {_fmt_cost(abs(delta_cpc))}{pct_str}"
         )
+    elif delta_cpc < 0:
+        lines.append(
+            f"  Δ $/correct:             ▼ {_fmt_cost(abs(delta_cpc))}{pct_str}"
+        )
+    else:
+        lines.append(f"  Δ $/correct:             = $0.0000{pct_str}")
     console.print(Panel("\n".join(lines),
                         title="[bold]Cost-per-correct[/bold]",
                         border_style=border))

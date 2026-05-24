@@ -125,3 +125,49 @@ def test_scenarios_registry_has_opus47():
     assert spec["build"] is build_opus47_demo_script
     assert spec["baseline"] == "opus-4-6"
     assert spec["challenger"] == "opus-4-7"
+
+
+def test_safe_pct_change_handles_inf_and_zero():
+    """Percentage helper returns None on undefined inputs (no nan%)."""
+    from rift.demo import _fmt_pct, _safe_pct_change
+
+    # zero correct → cost_per_correct() returns inf → undefined pct
+    assert _safe_pct_change(float("inf"), 1.0) is None
+    assert _safe_pct_change(1.0, float("inf")) is None
+    assert _safe_pct_change(float("nan"), 1.0) is None
+    assert _safe_pct_change(0.0, 1.0) is None
+    # well-defined case still works
+    assert _safe_pct_change(1.0, 1.5) == pytest.approx(50.0)
+    # rendering
+    assert _fmt_pct(None) == "n/a"
+    assert _fmt_pct(50.0) == "+50.0%"
+    assert _fmt_pct(-10.0) == "-10.0%"
+
+
+def test_prime_cache_raises_clearly_on_missing_tags():
+    """A case without origin:/distractor: tags must error clearly."""
+    import tempfile
+    from dataclasses import dataclass
+
+    from rift.demo import prime_cache_from_recording
+
+    @dataclass
+    class FakeCase:
+        case_index: int
+        input: str
+        tags: list[str]
+
+    @dataclass
+    class FakeSuite:
+        name: str
+        cases: list
+        model_params: dict
+
+    suite = FakeSuite(
+        name="bad_suite",
+        cases=[FakeCase(case_index=0, input="x", tags=["something_else"])],
+        model_params={},
+    )
+    with tempfile.TemporaryDirectory() as td:
+        with pytest.raises(ValueError, match="missing required tags"):
+            prime_cache_from_recording(suite, "claude-opus-4-6", {}, Path(td))

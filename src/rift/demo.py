@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import math
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -48,6 +49,26 @@ ROOT = Path(__file__).parent.parent.parent
 RECORDED = ROOT / "benchmarks" / "context_rot_outcomes.yaml"
 
 
+def _safe_pct_change(base: float, chal: float) -> float | None:
+    """Percentage change (chal-base)/base*100, or ``None`` if undefined.
+
+    Undefined when base is 0, NaN, or non-finite (e.g. ``float('inf')``,
+    returned by ``RunResult.cost_per_correct()`` when zero correct).
+    Callers render ``None`` as 'n/a' rather than propagating 'nan%'.
+    """
+    if not math.isfinite(base) or base == 0.0:
+        return None
+    val = (chal - base) / base * 100.0
+    if not math.isfinite(val):
+        return None
+    return val
+
+
+def _fmt_pct(pct: float | None) -> str:
+    """Format a pct from :func:`_safe_pct_change` for display."""
+    return f"{pct:+.1f}%" if pct is not None else "n/a"
+
+
 # ---------------------------------------------------------------------------
 # Replay machinery — single source of truth, used by both this module and
 # benchmarks/run_context_rot.py.
@@ -66,8 +87,18 @@ def prime_cache_from_recording(suite, model: str, outcomes: dict,
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     for case in suite.cases:
-        origin = next(t for t in case.tags if t.startswith("origin:"))
-        level = next(t for t in case.tags if t.startswith("distractor:"))
+        # Bare ``next()`` on a generator would raise StopIteration on no
+        # match, which Python silently turns into RuntimeError inside a
+        # comprehension/generator frame. Use a sentinel and raise a
+        # clear error so suite-tagging mistakes don't crash opaquely.
+        origin = next((t for t in case.tags if t.startswith("origin:")), None)
+        level = next((t for t in case.tags if t.startswith("distractor:")), None)
+        if origin is None or level is None:
+            raise ValueError(
+                f"Case {case.case_index} in suite {suite.name!r} is missing "
+                f"required tags (need 'origin:' and 'distractor:'); got "
+                f"tags={case.tags!r}"
+            )
         key = f"{origin}|{level}"
         rec = outcomes.get(model, {}).get(key)
         if rec is None:
@@ -87,7 +118,8 @@ def prime_cache_from_recording(suite, model: str, outcomes: dict,
             raw_response={"source": "recorded"},
         )
         (cache_dir / f"{ck}.json").write_text(
-            json.dumps(asdict(completion), default=str)
+            json.dumps(asdict(completion), default=str),
+            encoding="utf-8",
         )
 
 
@@ -277,9 +309,16 @@ def build_opus47_demo_script(base_run: RunResult, chal_run: RunResult,
     delta_pp = drift.delta * 100.0
     base_cpc = drift.baseline_cost_per_correct
     chal_cpc = drift.challenger_cost_per_correct
-    cpc_pct = ((chal_cpc - base_cpc) / base_cpc * 100.0) if base_cpc else 0.0
-    in_ratio = (chal_run.total_input_tokens / base_run.total_input_tokens
-                if base_run.total_input_tokens else 1.0)
+    cpc_pct = _safe_pct_change(base_cpc, chal_cpc)  # None if base_cpc is 0/inf/nan
+    cpc_pct_str = _fmt_pct(cpc_pct)
+    # Token-inflation ratio: ``None`` (rendered 'n/a') when baseline emitted
+    # zero input tokens — better than silently displaying '1.000×' for a
+    # malformed recording.
+    in_ratio: float | None = (
+        chal_run.total_input_tokens / base_run.total_input_tokens
+        if base_run.total_input_tokens else None
+    )
+    in_ratio_str = f"{in_ratio:.3f}×" if in_ratio is not None else "n/a"
 
     # ------------------------------------------------------------------
     # Act 2 — quality (accuracy without cost).
@@ -332,7 +371,7 @@ def build_opus47_demo_script(base_run: RunResult, chal_run: RunResult,
             drift.challenger_model,
             f"{chal_run.total_input_tokens:,}",
             f"{chal_run.total_output_tokens:,}",
-            f"[red]{in_ratio:.3f}×[/red]",
+            f"[red]{in_ratio_str}[/red]",
         )
         c.print(tbl)
 
@@ -344,9 +383,9 @@ def build_opus47_demo_script(base_run: RunResult, chal_run: RunResult,
         f"- Challenger spend: **{_fmt_cost(drift.challenger_cost_usd)}**\n"
         f"- Baseline $/correct: **{_fmt_cost(base_cpc)}**\n"
         f"- Challenger $/correct: **{_fmt_cost(chal_cpc)}**  "
-        f"(**{cpc_pct:+.1f}%**)\n\n"
+        f"(**{cpc_pct_str}**)\n\n"
         "**The why.** For byte-identical prompts, the challenger emits "
-        f"**{in_ratio:.2f}× more input tokens** than the baseline "
+        f"**{in_ratio_str} more input tokens** than the baseline "
         f"({base_run.total_input_tokens:,} → "
         f"{chal_run.total_input_tokens:,}). At list-price parity, this is "
         "a silent per-prompt cost increase on migration. Accuracy doesn't "
@@ -359,7 +398,7 @@ def build_opus47_demo_script(base_run: RunResult, chal_run: RunResult,
     verdict = VerdictCard(
         headline=(
             f"Accuracy ticked up (+{delta_pp:.2f}pp, not significant at α=0.05), "
-            f"but $/correct rose {cpc_pct:+.1f}%."
+            f"but $/correct rose {cpc_pct_str}."
         ),
         recommendation=(
             "Do NOT migrate short-prompt workloads to "
@@ -473,10 +512,10 @@ def build_opus47_demo_script(base_run: RunResult, chal_run: RunResult,
         headline_numbers={
             "accuracy_delta": f"{delta_pp:+.2f}pp",
             "p_value": f"{drift.p_value:.3f}",
-            "cost_per_correct_pct": f"{cpc_pct:+.1f}%",
+            "cost_per_correct_pct": cpc_pct_str,
             "baseline_cpc": _fmt_cost(base_cpc),
             "challenger_cpc": _fmt_cost(chal_cpc),
-            "input_token_ratio": f"{in_ratio:.3f}×",
+            "input_token_ratio": in_ratio_str,
         },
         sources=[
             "benchmarks/context_rot_outcomes.yaml",
@@ -593,7 +632,7 @@ def export_demo_markdown(script: DemoScript, path: str | Path) -> None:
             parts.append(f"- `{s}`")
 
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text("\n".join(parts) + "\n")
+    Path(path).write_text("\n".join(parts) + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -696,12 +735,17 @@ svg { display: block; margin: 12px auto; max-width: 100%; height: auto; }
 def _svg_bar_chart(labels: list[str], values: list[float],
                    value_labels: list[str], colors: list[str],
                    title: str, width: int = 520, height: int = 200) -> str:
-    """Hand-rolled SVG bar chart. No external deps."""
+    """Hand-rolled SVG bar chart. No external deps.
+
+    Sanitizes inputs: non-finite (inf, NaN) and negative values are
+    clamped to 0 so the rendered SVG is always valid markup.
+    """
     pad_l, pad_r, pad_t, pad_b = 130, 30, 30, 30
     inner_w = width - pad_l - pad_r
     inner_h = height - pad_t - pad_b
+    values = [v if (math.isfinite(v) and v >= 0) else 0.0 for v in values]
     max_v = max(values) if values else 1.0
-    if max_v <= 0:
+    if max_v <= 0 or not math.isfinite(max_v):
         max_v = 1.0
     bar_h = inner_h / max(1, len(values))
     bar_thickness = bar_h * 0.55
@@ -748,7 +792,11 @@ def _svg_grouped_bar(group_labels: list[str], series_labels: list[str],
                      colors: list[str],
                      title: str,
                      width: int = 560, height: int = 240) -> str:
-    """Grouped bar — used for the subgroup drill-down."""
+    """Grouped bar — used for the subgroup drill-down.
+
+    Sanitizes inputs: non-finite or negative values are clamped to 0
+    so the rendered SVG is always valid markup.
+    """
     pad_l, pad_r, pad_t, pad_b = 80, 24, 40, 36
     inner_w = width - pad_l - pad_r
     inner_h = height - pad_t - pad_b
@@ -756,9 +804,11 @@ def _svg_grouped_bar(group_labels: list[str], series_labels: list[str],
     n_series = len(series_labels)
     group_w = inner_w / max(1, n_groups)
     bar_w = group_w * 0.7 / n_series
+    values = [[v if (math.isfinite(v) and v >= 0) else 0.0 for v in row]
+              for row in values]
     flat = [v for row in values for v in row]
     max_v = max(flat) if flat else 1.0
-    if max_v <= 0:
+    if max_v <= 0 or not math.isfinite(max_v):
         max_v = 1.0
     parts: list[str] = []
     # Legend
@@ -818,10 +868,14 @@ def _render_html(script: DemoScript, base_run: RunResult,
     chal_acc = drift.challenger_mean
     base_cpc = drift.baseline_cost_per_correct
     chal_cpc = drift.challenger_cost_per_correct
-    cpc_pct = ((chal_cpc - base_cpc) / base_cpc * 100.0) if base_cpc else 0.0
+    cpc_pct = _safe_pct_change(base_cpc, chal_cpc)
+    cpc_pct_str = _fmt_pct(cpc_pct)
     delta_pp = drift.delta * 100.0
-    in_ratio = (chal_run.total_input_tokens / base_run.total_input_tokens
-                if base_run.total_input_tokens else 1.0)
+    in_ratio: float | None = (
+        chal_run.total_input_tokens / base_run.total_input_tokens
+        if base_run.total_input_tokens else None
+    )
+    in_ratio_str = f"{in_ratio:.2f}×" if in_ratio is not None else "n/a"
 
     # ---- Chart 1: accuracy bars ------------------------------------------
     acc_svg = _svg_bar_chart(
@@ -871,9 +925,9 @@ def _render_html(script: DemoScript, base_run: RunResult,
     kpis = (
         f'<div class="kpi"><div class="v">{delta_pp:+.2f}pp</div>'
         f'<div class="l">accuracy delta</div></div>'
-        f'<div class="kpi"><div class="v warn">{cpc_pct:+.1f}%</div>'
+        f'<div class="kpi"><div class="v warn">{cpc_pct_str}</div>'
         f'<div class="l">$/correct delta</div></div>'
-        f'<div class="kpi"><div class="v warn">{in_ratio:.2f}×</div>'
+        f'<div class="kpi"><div class="v warn">{in_ratio_str}</div>'
         f'<div class="l">input tokens</div></div>'
     )
 
@@ -918,7 +972,7 @@ def _render_html(script: DemoScript, base_run: RunResult,
 <header>
   <div class="badges">
     <span class="badge">Rift demo</span>
-    <span class="badge warn">cost-per-correct {cpc_pct:+.1f}%</span>
+    <span class="badge warn">cost-per-correct {cpc_pct_str}</span>
     <span class="badge">replay · n={script.n_cases}</span>
   </div>
   <h1>{html.escape(script.title)}</h1>
@@ -960,9 +1014,9 @@ def _render_html(script: DemoScript, base_run: RunResult,
   {cpc_svg}
   <div class="callout warn">
     <h3>The twist</h3>
-    $/correct rose <b>{cpc_pct:+.1f}%</b>
+    $/correct rose <b>{cpc_pct_str}</b>
     ({_fmt_cost(base_cpc)} → {_fmt_cost(chal_cpc)}). For byte-identical
-    prompts, the challenger emits <b>{in_ratio:.2f}× more input
+    prompts, the challenger emits <b>{in_ratio_str} more input
     tokens</b> ({base_run.total_input_tokens:,} →
     {chal_run.total_input_tokens:,}). At list-price parity, this is a
     silent per-prompt cost increase on migration.
@@ -1012,7 +1066,7 @@ def export_demo_html(script: DemoScript, path: str | Path,
     """Write the HTML executive memo to ``path`` (single self-contained file)."""
     html_text = _render_html(script, base_run, chal_run, drift)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(html_text)
+    Path(path).write_text(html_text, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -1032,7 +1086,7 @@ def export_demo_svg(script: DemoScript, path: str | Path) -> None:
               console=console, no_clear=True)
     svg = console.export_svg(title=script.title)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(svg)
+    Path(path).write_text(svg, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
