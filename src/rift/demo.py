@@ -737,7 +737,9 @@ table { display: block; overflow-x: auto; white-space: nowrap; }
   body { background: #fff; padding: 12px; }
   section { break-inside: avoid; box-shadow: none; }
   .kpi-grid { break-inside: avoid; }
-  table { white-space: normal; }
+  /* Restore native table layout for print — display:block + overflow-x:auto
+     are useful on screen but break column alignment and clip content on paper. */
+  table { display: table; overflow-x: visible; white-space: normal; }
 }
 """
 
