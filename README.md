@@ -32,6 +32,11 @@ rift demo --export-md  demo.md         # for Notion/Slack/email
 rift demo --paced                      # press Enter between acts (live)
 ```
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/demo.svg">
+  <img alt="Rift demo screenshot — four-act terminal walkthrough" src="assets/demo.svg">
+</picture>
+
 ## Quick Start
 
 ```bash

@@ -681,7 +681,8 @@ section h2 {
 section p { margin: 6px 0; }
 .lede { color: var(--mute); margin-bottom: 14px; }
 .kpi-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px; margin: 12px 0 4px;
 }
 .kpi {
@@ -724,10 +725,19 @@ footer {
   margin-top: 32px; color: var(--mute); font-size: 12px; text-align: center;
 }
 svg { display: block; margin: 12px auto; max-width: 100%; height: auto; }
+table { display: block; overflow-x: auto; white-space: nowrap; }
+@media (max-width: 540px) {
+  body { padding: 16px 10px 40px; }
+  h1 { font-size: 22px; }
+  section { padding: 16px 14px; border-radius: 8px; }
+  .kpi .v { font-size: 18px; }
+  .kpi { padding: 10px 12px; }
+}
 @media print {
   body { background: #fff; padding: 12px; }
   section { break-inside: avoid; box-shadow: none; }
   .kpi-grid { break-inside: avoid; }
+  table { white-space: normal; }
 }
 """
 
