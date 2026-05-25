@@ -97,12 +97,26 @@ class DriftResult:
     baseline_cost_per_correct: float = 0.0
     challenger_cost_per_correct: float = 0.0
     cost_normalized_delta_usd: float = 0.0  # challenger - baseline, per correct
-    # Effect size on the test's natural scale (Cohen's h for binary,
-    # Hedges' g for continuous). Always populated; for non-applicable
-    # cases (n<2, no variation) it is 0.0 with effect_size_kind="none".
+    # 95% paired-bootstrap CI on the cost-normalized delta. Populated
+    # whenever cost data is supplied AND at least one case is correct
+    # in both runs (otherwise both per-correct figures are infinite and
+    # the difference is undefined; CI fields stay 0.0 and
+    # ``cost_delta_ci_defined`` is False).
+    cost_delta_ci_lower: float = 0.0
+    cost_delta_ci_upper: float = 0.0
+    cost_delta_ci_defined: bool = False
+    # Effect size on the test's natural scale.
+    # ``cohens_h_marginal``: Cohen's h on the marginal proportions (it does
+    # NOT use the paired structure — historical / convenient, not the
+    # canonical paired effect size). For paired binary, ``cohens_g_paired``
+    # below carries the imbalance among discordant pairs.
+    # ``hedges_g``: small-sample-corrected paired standardized mean diff.
     effect_size: float = 0.0
-    effect_size_kind: str = "none"           # "cohens_h" | "hedges_g" | "none"
+    effect_size_kind: str = "none"           # "cohens_h_marginal" | "hedges_g" | "none"
     effect_size_magnitude: str = "negligible"  # "negligible"|"small"|"medium"|"large"
+    # Paired binary only: Cohen's g = (b−c)/(b+c) on the discordant cells.
+    # Reported alongside Cohen's h_marginal so a reviewer can verify both.
+    cohens_g_paired: float | None = None
     # Per-tag subgroup drift (optional).
     subgroups: dict[str, "DriftResult"] = field(default_factory=dict)
 
@@ -151,17 +165,75 @@ def _bootstrap_ci(diffs: np.ndarray, n: int, bootstrap_n: int, seed: int = 42
     return float(np.percentile(sample_means, 2.5)), float(np.percentile(sample_means, 97.5))
 
 
+def _bootstrap_cost_per_correct_delta_ci(
+    b_scores: np.ndarray, c_scores: np.ndarray,
+    b_costs: np.ndarray, c_costs: np.ndarray,
+    bootstrap_n: int, seed: int = 42,
+) -> tuple[float, float] | None:
+    """Paired bootstrap 95% CI on the cost-per-correct delta.
+
+    Resamples paired ``(b_score_i, b_cost_i, c_score_i, c_cost_i)`` tuples
+    with replacement, recomputes per-correct $ on each resample, returns the
+    2.5/97.5 percentiles of (challenger_cpc − baseline_cpc). Returns
+    ``None`` when fewer than 10% of bootstrap samples yield ≥1 correct in
+    BOTH runs (CI undefined; better than reporting a wildly wide interval).
+    """
+    n = b_scores.size
+    if n == 0:
+        return None
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, size=(bootstrap_n, n))
+    b_correct_per_sample = (b_scores[idx] >= 0.999).sum(axis=1)
+    c_correct_per_sample = (c_scores[idx] >= 0.999).sum(axis=1)
+    valid = (b_correct_per_sample > 0) & (c_correct_per_sample > 0)
+    if valid.sum() < bootstrap_n * 0.10:
+        return None
+    b_cost_per_sample = b_costs[idx].sum(axis=1)
+    c_cost_per_sample = c_costs[idx].sum(axis=1)
+    # Avoid div-by-zero on the invalid mask; compute then filter.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        b_cpc = b_cost_per_sample / b_correct_per_sample
+        c_cpc = c_cost_per_sample / c_correct_per_sample
+    deltas = (c_cpc - b_cpc)[valid]
+    if deltas.size == 0:
+        return None
+    return float(np.percentile(deltas, 2.5)), float(np.percentile(deltas, 97.5))
+
+
 def _cohens_h(p1: float, p2: float) -> float:
     """Cohen's h for two proportions: 2*(arcsin(√p2) − arcsin(√p1)).
 
-    Sign convention matches Rift's ``delta``: positive h means the
-    challenger has the higher proportion. Conventional magnitude
-    thresholds (Cohen 1988): |h|<0.2 small, <0.5 medium, ≥0.8 large.
+    Convention: positive h means the challenger has the higher proportion.
+    Magnitude thresholds (Cohen 1988): |h|<0.2 small, <0.5 medium, ≥0.8 large.
+
+    **Caveat for paired binary data.** Cohen's h was defined for *independent*
+    proportions. When applied to the marginal proportions of a paired binary
+    comparison (Rift's default) it characterizes the marginal change but
+    ignores the paired structure (e.g. it is zero whenever the marginal means
+    tie, even when half the pairs flipped). For paired binary, prefer
+    :func:`_cohens_g_paired` on the discordant cells, or interpret h alongside
+    the McNemar p-value to recover the paired view.
     """
     # Clip so √ of −0 / >1 from float roundoff doesn't raise.
     p1 = float(np.clip(p1, 0.0, 1.0))
     p2 = float(np.clip(p2, 0.0, 1.0))
     return float(2.0 * (np.arcsin(np.sqrt(p2)) - np.arcsin(np.sqrt(p1))))
+
+
+def _cohens_g_paired(baseline: np.ndarray, challenger: np.ndarray) -> float | None:
+    """Cohen's g for paired binary data: (n_improve − n_regress)/n_discordant.
+
+    Ranges in [-1, 1]. Magnitude (Cohen 1988): |g|<0.05 negligible,
+    <0.15 small, <0.25 medium, ≥0.25 large. Returns ``None`` when there
+    are no discordant pairs (test is uninformative).
+    """
+    diff = challenger - baseline
+    n_improve = int(np.sum(diff > 0))
+    n_regress = int(np.sum(diff < 0))
+    n_disc = n_improve + n_regress
+    if n_disc == 0:
+        return None
+    return (n_improve - n_regress) / n_disc
 
 
 def _hedges_g(baseline: np.ndarray, challenger: np.ndarray) -> float:
@@ -277,7 +349,10 @@ def power_analysis(
 
     if _is_binary(b, c):
         eff = _cohens_h(float(b.mean()), float(c.mean()))
-        kind = "cohens_h"
+        # Match the label used by ``compare_runs`` so a reader who sees an
+        # effect_size_kind in a DriftResult and an observed_effect_kind in a
+        # power report knows they are the same statistic.
+        kind = "cohens_h_marginal"
         # Observed power: Pr(|Z| > z_α/2 | true effect = eff, n)
         # Test statistic ≈ h*√n under H1.
         ncp = abs(eff) * np.sqrt(n)
@@ -366,12 +441,17 @@ def compare_runs(
     improved = [int(i) for i in range(n) if c[i] > b[i]]
 
     # --- Effect size on the test's natural scale ---
+    cohens_g_paired = None
     if n < 2:
         effect_size = 0.0
         effect_size_kind = "none"
     elif test_used == "mcnemar_exact":
+        # Cohen's h on the marginal proportions — historical; ignores paired
+        # structure. The paired-binary canonical effect (Cohen's g) is
+        # reported alongside so a reviewer can interpret both.
         effect_size = _cohens_h(baseline_mean, challenger_mean)
-        effect_size_kind = "cohens_h"
+        effect_size_kind = "cohens_h_marginal"
+        cohens_g_paired = _cohens_g_paired(b, c)
     elif test_used == "paired_t+bootstrap":
         effect_size = _hedges_g(b, c)
         effect_size_kind = "hedges_g"
@@ -388,6 +468,9 @@ def compare_runs(
     baseline_cpc = 0.0
     challenger_cpc = 0.0
     cost_delta = 0.0
+    cost_delta_ci_lower = 0.0
+    cost_delta_ci_upper = 0.0
+    cost_delta_ci_defined = False
     if baseline_costs is not None and challenger_costs is not None:
         assert len(baseline_costs) == len(challenger_costs) == n
         total_baseline_cost = float(sum(baseline_costs))
@@ -402,6 +485,14 @@ def compare_runs(
         )
         if baseline_cpc != float("inf") and challenger_cpc != float("inf"):
             cost_delta = challenger_cpc - baseline_cpc
+            ci = _bootstrap_cost_per_correct_delta_ci(
+                b, c, np.asarray(baseline_costs, dtype=float),
+                np.asarray(challenger_costs, dtype=float),
+                bootstrap_n=bootstrap_n,
+            )
+            if ci is not None:
+                cost_delta_ci_lower, cost_delta_ci_upper = ci
+                cost_delta_ci_defined = True
 
     return DriftResult(
         baseline_model=baseline_model,
@@ -424,9 +515,14 @@ def compare_runs(
         baseline_cost_per_correct=round(baseline_cpc, 6) if baseline_cpc != float("inf") else float("inf"),
         challenger_cost_per_correct=round(challenger_cpc, 6) if challenger_cpc != float("inf") else float("inf"),
         cost_normalized_delta_usd=round(cost_delta, 6),
+        cost_delta_ci_lower=round(cost_delta_ci_lower, 6),
+        cost_delta_ci_upper=round(cost_delta_ci_upper, 6),
+        cost_delta_ci_defined=cost_delta_ci_defined,
         effect_size=round(effect_size, 4),
         effect_size_kind=effect_size_kind,
         effect_size_magnitude=effect_size_magnitude,
+        cohens_g_paired=(round(cohens_g_paired, 4)
+                          if cohens_g_paired is not None else None),
     )
 
 

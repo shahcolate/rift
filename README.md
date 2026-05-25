@@ -62,7 +62,7 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 
 ## What You Get
 
-Real output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases (live API run, n=32, McNemar's exact test):
+Output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases — numbers below are from the **live Anthropic API run on 2026-04-21** (authoritative capture: [`benchmarks/opus47_live.md`](benchmarks/opus47_live.md), n=32, paired, McNemar's exact, $11.56 total spend, 0 errors):
 
 ```
 ╭─────────────────────────────────────────────────╮
@@ -91,8 +91,18 @@ Real output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite
 
 Followed by a per-subgroup breakdown and a table of regressed cases with
 per-case score deltas. Use `-r report.md` to emit the same data as
-markdown (see [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.md)
-for a real example).
+markdown.
+
+> **Reproducibility note.** The committed
+> [`benchmarks/context_rot_outcomes.yaml`](benchmarks/context_rot_outcomes.yaml)
+> is a **synthetic** reproduction of the live run above (parameters
+> calibrated to match the headline numbers within ±1pp accuracy / ±15%
+> $/correct) so the `rift demo` command, CI, and contributor laptops can
+> replay the story without API keys. The authoritative live capture is
+> [`opus47_live.md`](benchmarks/opus47_live.md); the demo replay is
+> [`context_rot_opus47.md`](benchmarks/context_rot_opus47.md). The
+> calibration constants are documented in
+> [`generate_synthetic_outcomes.py`](benchmarks/generate_synthetic_outcomes.py).
 
 ### How to read it
 
@@ -112,8 +122,11 @@ Three numbers carry the story:
 ## Worked studies
 
 Two paired runs against live APIs, one for each question in the
-tagline. Both are reproducible from committed JSONs without spending
-another dollar.
+tagline. Run-level reports (markdown) and per-case completion JSONs
+are committed under `benchmarks/`; re-running offline from those
+captures requires the cache to be re-primed (the offline `rift demo`
+replays the same headline numbers from a calibrated synthetic file —
+see the reproducibility note above).
 
 ### Did the upgrade regress? — Opus 4.6 → 4.7
 
@@ -157,10 +170,26 @@ Raw report: [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.m
 
 ### Which vendor wins per correct? — gpt-5.5 vs Opus 4.7 vs Gemini 3.5 Flash
 
+> **Test-set contamination caveat.** The suites in `suites/` are public
+> in this repository. Frontier models trained on web snapshots after this
+> repo went public may have these prompts in training data, which can
+> inflate performance on the public suites without reflecting real-world
+> behaviour. Treat cross-vendor numbers below as **suggestive, not
+> authoritative**. For procurement decisions, run `rift discover` against
+> your own private prompts and compare on that (still adversarially-
+> selected — see `rift discover`'s output caveat — but at least not
+> public).
+>
+> Exact-match scoring also rewards terse outputs; vendors whose default
+> tone is more verbose (e.g. Anthropic) may underperform on this metric
+> relative to their actual quality. See [`suites/`](suites/) for the
+> exact `expected` outputs each suite enforces.
+
 Three frontier models, three suites (reasoning n=10, structured
 extraction n=29, open-ended QA n=5), same scorers, byte-identical
 prompts, single trial, temperature 0. 132 live completions, total
-live API spend: **$0.65**.
+live API spend: **$0.65** *(provenance: 2026-05-21 live capture, see
+[`benchmarks/3way_full/analysis.md`](benchmarks/3way_full/analysis.md))*.
 
 | Suite | gpt-5.5 $/c | Opus 4.7 $/c | Gemini Flash $/c | Verdict |
 |---|---|---|---|---|

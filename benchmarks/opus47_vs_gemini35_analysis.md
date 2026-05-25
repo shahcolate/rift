@@ -1,5 +1,11 @@
 # Gemini 3.5 Flash's 10× discount disappears on reasoning workloads
 
+> **Provenance.** Numbers below are from a **live API run on 2026-05-20**
+> against the production Anthropic and Google endpoints (day-after-GA of
+> Gemini 3.5 Flash). Per-model completion JSONs are committed under
+> `opus47_vs_gemini35/`. The bundled `rift demo` is a separate, offline
+> synthetic story and does NOT cite these numbers.
+
 ## Executive summary
 
 I ran [Rift](https://github.com/shahcolate/rift) against

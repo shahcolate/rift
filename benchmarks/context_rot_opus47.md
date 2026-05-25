@@ -2,6 +2,8 @@
 
 _Suite: `context_rot_reasoning__context_rot` · 32 cases (8 base × 4 distractor regimes). Mode: `record`._
 
+> ⚠️ **Synthetic replay — not a live API run.** This report is regenerated from `benchmarks/context_rot_outcomes.yaml`, a deterministic synthesis whose token-inflation parameter is calibrated to reproduce the headline numbers of a 2026-04-21 live capture. For the authoritative live numbers, see [`opus47_live.md`](opus47_live.md). For methodology, see [`generate_synthetic_outcomes.py`](generate_synthetic_outcomes.py).
+
 ## Headline: score and cost by model
 
 | Model | Mean | Correct | Errors | Spend | $/correct |

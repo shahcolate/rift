@@ -125,14 +125,26 @@ class RunResult:
             return float("inf")
         return self.total_cost_usd / n_correct
 
-    def to_dict(self) -> dict:
-        return asdict(self)
+    def to_dict(self, strip_io: bool = False) -> dict:
+        """Serialise the run to a dict.
 
-    def save(self, path: str | Path) -> None:
+        ``strip_io=True`` removes per-case ``input_text`` and ``output``
+        fields — useful for sharing a results file from a proprietary suite
+        without leaking the prompts or completions. Scores, costs, tokens,
+        tags, and errors are preserved.
+        """
+        d = asdict(self)
+        if strip_io:
+            for case in d.get("cases", []):
+                case["input_text"] = ""
+                case["output"] = ""
+        return d
+
+    def save(self, path: str | Path, strip_io: bool = False) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
-            json.dump(self.to_dict(), f, indent=2, default=str)
+            json.dump(self.to_dict(strip_io=strip_io), f, indent=2, default=str)
 
     @classmethod
     def load(cls, path: str | Path) -> "RunResult":

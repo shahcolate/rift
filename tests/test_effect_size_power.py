@@ -12,13 +12,26 @@ from rift.comparator import (
 
 
 class TestEffectSize:
-    def test_binary_uses_cohens_h(self):
+    def test_binary_uses_cohens_h_marginal(self):
         b = [1.0] * 10 + [0.0] * 10
         c = [1.0] * 5 + [0.0] * 15
         r = compare_runs(b, c, "A", "B", "suite")
-        assert r.effect_size_kind == "cohens_h"
+        # Renamed from "cohens_h" to make explicit that h is on the
+        # marginal proportions (it does not use the paired structure).
+        assert r.effect_size_kind == "cohens_h_marginal"
         # Direction: challenger has lower proportion → negative h.
         assert r.effect_size < 0
+        # Paired Cohen's g is also reported alongside, on the discordant pairs.
+        assert r.cohens_g_paired is not None
+        # n_improve=0, n_regress=5, n_disc=5 → g = (0-5)/5 = -1.0
+        assert r.cohens_g_paired == -1.0
+
+    def test_cohens_g_paired_none_when_no_discordant(self):
+        """All concordant pairs: paired g is undefined (None), not 0."""
+        b = [1.0, 1.0, 0.0, 0.0]
+        c = [1.0, 1.0, 0.0, 0.0]
+        r = compare_runs(b, c, "A", "B", "suite")
+        assert r.cohens_g_paired is None
 
     def test_continuous_uses_hedges_g(self):
         b = [0.80, 0.82, 0.85, 0.79, 0.81, 0.84, 0.83, 0.82]
@@ -105,7 +118,9 @@ class TestPowerAnalysis:
         p = power_analysis(b, c)
         assert p["observed_power"] >= 0.95
         assert p["min_detectable_effect"] > 0
-        assert p["observed_effect_kind"] == "cohens_h"
+        # Same label as ``compare_runs`` uses, so consumers can match on one
+        # string regardless of which entry point produced the result.
+        assert p["observed_effect_kind"] == "cohens_h_marginal"
 
     def test_low_power_at_tiny_effect(self):
         b = [0.5, 0.5, 0.6, 0.5]

@@ -107,6 +107,16 @@ def main():
         f"({len(suite.cases)//4} base × 4 distractor regimes). "
         f"Mode: `{args.mode}`._\n"
     )
+    if args.mode == "record":
+        sections.append(
+            "> ⚠️ **Synthetic replay — not a live API run.** This report is "
+            "regenerated from `benchmarks/context_rot_outcomes.yaml`, a "
+            "deterministic synthesis whose token-inflation parameter is "
+            "calibrated to reproduce the headline numbers of a 2026-04-21 "
+            "live capture. For the authoritative live numbers, see "
+            "[`opus47_live.md`](opus47_live.md). For methodology, see "
+            "[`generate_synthetic_outcomes.py`](generate_synthetic_outcomes.py).\n"
+        )
 
     # Per-model headline table.
     error_models = [m for m in models if runs[m].metadata.get("n_errors", 0) > 0]

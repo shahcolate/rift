@@ -1,5 +1,12 @@
 # 3-Way Code-Generation Matrix: gpt-5.5 vs opus-4-7 vs gemini-3-5-flash
 
+> **Provenance.** Numbers below are from a **live API run on 2026-05-21**
+> against the production OpenAI, Anthropic, and Google endpoints. Per-model
+> completion JSONs are committed alongside this file
+> (`gpt-5.5.json`, `opus-4-7.json`, `gemini-3-5-flash.json`) — not synthetic.
+> The bundled `rift demo` is a separate, offline synthetic story; do not
+> confuse it with this benchmark.
+
 ## Command
 
 ```bash
