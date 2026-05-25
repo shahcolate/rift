@@ -99,12 +99,18 @@ markdown.
 
 > **Reproducibility note.** The committed
 > [`benchmarks/context_rot_outcomes.yaml`](benchmarks/context_rot_outcomes.yaml)
-> is a **synthetic** reproduction of the live run above (parameters
-> calibrated to match the headline numbers within ±1pp accuracy / ±15%
-> $/correct) so the `rift demo` command, CI, and contributor laptops can
-> replay the story without API keys. The authoritative live capture is
-> [`opus47_live.md`](benchmarks/opus47_live.md); the demo replay is
-> [`context_rot_opus47.md`](benchmarks/context_rot_opus47.md). The
+> is a **synthetic** reproduction of the live run above so the `rift demo`
+> command, CI, and contributor laptops can replay the story without API
+> keys. Calibration fit (synthetic vs. live, as measured 2026-04-21):
+> per-model $/correct levels within ±10% (+3.7% baseline, +7.6%
+> challenger); top-level accuracy within ~3pp (baseline 0.8438 vs 0.8125;
+> challenger 0.8750 vs 0.8750); the headline Δ $/correct % within ~5pp
+> (+39.7% vs +34.7%). Subgroup-level numbers can diverge materially —
+> the live capture shows a baseline regression at 32k context that the
+> synthetic does not reproduce. **For procurement or roadmap decisions,
+> cite the authoritative live capture
+> [`opus47_live.md`](benchmarks/opus47_live.md), not the demo replay
+> [`context_rot_opus47.md`](benchmarks/context_rot_opus47.md).** The
 > calibration constants are documented in
 > [`generate_synthetic_outcomes.py`](benchmarks/generate_synthetic_outcomes.py).
 

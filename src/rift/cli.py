@@ -342,6 +342,29 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
             baseline_costs=[x.cost_usd for x in b.cases],
             challenger_costs=[x.cost_usd for x in c.cases],
         )
+    # Surface per-model API errors loudly before printing the matrix.
+    # Without this, a model that errored on every case (e.g. missing
+    # API key, all requests refused) shows up as "0.0000 mean" with no
+    # indication of why — and any drift cell against it is meaningless.
+    error_rows = [
+        (m, r.metadata.get("n_errors", 0), len(r.cases))
+        for m, r in runs.items()
+        if r.metadata.get("n_errors", 0) > 0
+    ]
+    if error_rows:
+        from rich.panel import Panel
+        lines = [
+            "  One or more models had API errors during this run. Their",
+            "  scores are biased downward (errored cases are counted as 0)",
+            "  and any drift cell against them is unreliable.",
+            "",
+        ]
+        for m, n_err, n_total in error_rows:
+            lines.append(f"    {m}: {n_err}/{n_total} cases errored")
+        console.print(Panel("\n".join(lines),
+                            title="[bold yellow]⚠ Run integrity warning[/bold yellow]",
+                            border_style="yellow"))
+
     print_matrix(comparisons)  # type: ignore[arg-type]
 
     # Per-model summary row.
@@ -350,14 +373,18 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
     tbl.add_column("Model", style="bold")
     tbl.add_column("Mean")
     tbl.add_column("n correct")
+    tbl.add_column("Errors")
     tbl.add_column("Spend")
     tbl.add_column("$/correct")
     for m, r in runs.items():
         n_correct = sum(1 for c in r.cases if c.score >= 0.999)
+        n_err = r.metadata.get("n_errors", 0)
+        err_cell = f"[red]{n_err}[/red]" if n_err else "0"
         tbl.add_row(
             m,
             f"{r.mean_score:.4f}",
             f"{n_correct}/{len(r.cases)}",
+            err_cell,
             f"${r.total_cost_usd:.4f}",
             f"${r.cost_per_correct():.4f}" if n_correct else "∞",
         )
