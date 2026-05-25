@@ -130,11 +130,16 @@ cases:
   cost CI is undefined when either run has zero correct cases
   (per-correct is infinite); in that case `cost_delta_ci_defined`
   is `False` and renderers must skip the line.
-- Effect sizes: binary tests report `cohens_h_marginal` (Cohen's h on
-  the marginal proportions) AND `cohens_g_paired` (paired-binary
-  effect on discordant cells). Both are required because h ignores
-  the paired structure McNemar uses — they can disagree (h=0 with
-  half the pairs flipped). Continuous tests report `hedges_g`.
+- Effect sizes: binary tests always populate `cohens_h_marginal`
+  (Cohen's h on the marginal proportions). `cohens_g_paired`
+  (Cohen's g on the discordant cells) is also populated whenever
+  there is at least one discordant pair; it is `None` when every
+  pair is concordant (test is uninformative). Both are surfaced
+  side-by-side because h ignores the paired structure McNemar uses:
+  the two measure different things and can carry different verdicts
+  on the same data (e.g. modest h with a strongly one-sided
+  discordant split, or non-negligible h with discordants nearly
+  balanced). Continuous tests report `hedges_g`.
 - `rift matrix` applies a Benjamini–Hochberg correction across ALL
   off-diagonal pairwise p-values before colouring "significant"
   cells. A 4-model matrix runs 12 tests; without correction, the

@@ -20,12 +20,13 @@ rift demo
 ```
 
 A 30-second guided walkthrough modelled on one real model upgrade
-(Opus 4.6 → 4.7): accuracy ticks up, but cost-per-correct rises ~40%
-from a silent tokenizer change. Replays a **synthetic reproduction**
-calibrated to the live 2026-04-21 capture
-([`benchmarks/opus47_live.md`](benchmarks/opus47_live.md)) — fully
-offline, reproducible, no keys. For the authoritative live numbers,
-see that file.
+(Opus 4.6 → 4.7): accuracy ticks up, but cost-per-correct rises +35%
+in the live run from a silent tokenizer change. The demo replays a
+**synthetic reproduction** calibrated to the live 2026-04-21 capture
+([`benchmarks/opus47_live.md`](benchmarks/opus47_live.md)) and will
+display roughly +40% — within the documented calibration tolerance.
+Fully offline, reproducible, no keys. For the authoritative live
+numbers, see that file.
 
 Forward the one-page memo to your VP:
 
