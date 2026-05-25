@@ -118,7 +118,9 @@ class TestPowerAnalysis:
         p = power_analysis(b, c)
         assert p["observed_power"] >= 0.95
         assert p["min_detectable_effect"] > 0
-        assert p["observed_effect_kind"] == "cohens_h"
+        # Same label as ``compare_runs`` uses, so consumers can match on one
+        # string regardless of which entry point produced the result.
+        assert p["observed_effect_kind"] == "cohens_h_marginal"
 
     def test_low_power_at_tiny_effect(self):
         b = [0.5, 0.5, 0.6, 0.5]

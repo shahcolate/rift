@@ -297,8 +297,11 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
 @click.option("--enterprise-multiplier", default=1.0, type=float)
 @click.option("--output-dir", default=None,
               help="Directory to save per-model run JSONs.")
+@click.option("--strip-io", is_flag=True, default=False,
+              help="When writing per-model JSONs, omit input_text and "
+                   "output fields. Use for proprietary suites.")
 def matrix(models, suite, concurrency, cache_dir, context_rot,
-           enterprise_multiplier, output_dir):
+           enterprise_multiplier, output_dir, strip_io):
     """Run every model in ``--models`` and print an NxN drift matrix.
 
     Useful for: "how do Opus 4.7, Sonnet 4.6, and GPT-4o disagree on
@@ -322,7 +325,7 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
         runs[m] = result
         if output_dir:
             out = Path(output_dir) / f"{m.replace('/', '_')}.json"
-            result.save(out)
+            result.save(out, strip_io=strip_io)
 
     comparisons: dict[tuple[str, str], object] = {}
     for base, chal in itertools.product(model_list, repeat=2):

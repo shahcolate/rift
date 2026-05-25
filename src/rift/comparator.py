@@ -349,7 +349,10 @@ def power_analysis(
 
     if _is_binary(b, c):
         eff = _cohens_h(float(b.mean()), float(c.mean()))
-        kind = "cohens_h"
+        # Match the label used by ``compare_runs`` so a reader who sees an
+        # effect_size_kind in a DriftResult and an observed_effect_kind in a
+        # power report knows they are the same statistic.
+        kind = "cohens_h_marginal"
         # Observed power: Pr(|Z| > z_α/2 | true effect = eff, n)
         # Test statistic ≈ h*√n under H1.
         ncp = abs(eff) * np.sqrt(n)
