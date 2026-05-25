@@ -19,10 +19,13 @@ pip install rift-eval
 rift demo
 ```
 
-A 30-second guided walkthrough of one real upgrade: accuracy ticks
-up, but cost-per-correct rises ~40% from a silent tokenizer change.
-Replays the committed `benchmarks/context_rot_outcomes.yaml` —
-fully offline, reproducible, no keys.
+A 30-second guided walkthrough modelled on one real model upgrade
+(Opus 4.6 → 4.7): accuracy ticks up, but cost-per-correct rises ~40%
+from a silent tokenizer change. Replays a **synthetic reproduction**
+calibrated to the live 2026-04-21 capture
+([`benchmarks/opus47_live.md`](benchmarks/opus47_live.md)) — fully
+offline, reproducible, no keys. For the authoritative live numbers,
+see that file.
 
 Forward the one-page memo to your VP:
 
