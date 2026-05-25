@@ -1,5 +1,12 @@
 # gpt-5.5 quietly took the cheap-per-correct crown from Gemini 3.5 Flash
 
+> **Provenance.** Numbers below are from a **live API run on 2026-05-21**
+> against the production OpenAI, Anthropic, and Google endpoints (n=44
+> paired prompts × 3 models = 132 completions, total spend $0.65).
+> Per-model completion JSONs are committed under `extraction/`,
+> `open_ended_qa/`, and `reasoning/`. The bundled `rift demo` is a
+> separate, offline synthetic story and does NOT cite these numbers.
+
 ## Executive summary
 
 I extended the earlier [Opus 4.7 vs Gemini 3.5 Flash

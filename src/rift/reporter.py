@@ -13,7 +13,8 @@ from .runner import RunResult
 
 
 _EFFECT_KIND_LABELS = {
-    "cohens_h": "Cohen's h",
+    "cohens_h_marginal": "Cohen's h (marginal)",
+    "cohens_h": "Cohen's h (marginal)",   # legacy alias, kept for compat
     "hedges_g": "Hedges' g",
     "smd": "SMD",
     "none": "n/a",
@@ -21,11 +22,16 @@ _EFFECT_KIND_LABELS = {
 
 
 def _fmt_effect(drift) -> str:
-    """Format an effect-size cell: value, kind, and magnitude bucket."""
+    """Format an effect-size cell: value, kind, magnitude, and (for paired
+    binary) the paired Cohen's g on discordant pairs in parentheses."""
     if drift.effect_size_kind == "none":
         return "n/a"
     label = _EFFECT_KIND_LABELS.get(drift.effect_size_kind, drift.effect_size_kind)
-    return f"{drift.effect_size:+.3f} ({label}, {drift.effect_size_magnitude})"
+    base = f"{drift.effect_size:+.3f} ({label}, {drift.effect_size_magnitude})"
+    g = getattr(drift, "cohens_g_paired", None)
+    if g is not None:
+        base += f"  ·  paired g = {g:+.3f}"
+    return base
 
 
 def _fmt_cost(x: float) -> str:
@@ -97,6 +103,11 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
             )
         else:
             lines.append("  Δ $/correct:        = $0.0000")
+        if getattr(drift, "cost_delta_ci_defined", False):
+            lines.append(
+                f"  95% CI Δ $/correct: "
+                f"[{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}]"
+            )
 
     console.print(Panel("\n".join(lines), title="[bold]Rift Drift Report[/bold]", border_style=border))
 
@@ -172,6 +183,11 @@ def print_cost_panel(drift: DriftResult, console: Console | None = None) -> None
         )
     else:
         lines.append(f"  Δ $/correct:             = $0.0000{pct_str}")
+    if getattr(drift, "cost_delta_ci_defined", False):
+        lines.append(
+            f"  95% CI on Δ $/correct:   "
+            f"[{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}]"
+        )
     console.print(Panel("\n".join(lines),
                         title="[bold]Cost-per-correct[/bold]",
                         border_style=border))
@@ -232,11 +248,31 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str,
     console.print(table)
 
 
-def print_matrix(results: dict[tuple[str, str], DriftResult]) -> None:
-    """Render an NxN model-vs-model matrix of drifts."""
+def print_matrix(results: dict[tuple[str, str], DriftResult],
+                  alpha: float = 0.05) -> None:
+    """Render an NxN model-vs-model matrix of drifts.
+
+    Applies a Benjamini–Hochberg correction across ALL pairwise cells
+    (N×(N−1) comparisons) before highlighting "significant" cells. Cells
+    show raw p AND BH q; significance colouring uses q. Without this
+    correction, a 4-model matrix runs 12 tests at α=0.05 and is expected
+    to flag 0.6 cells under all-null even when nothing has changed.
+    """
+    from .comparator import benjamini_hochberg
     console = Console()
     models = sorted({m for pair in results for m in pair})
-    table = Table(title="Model Drift Matrix  (cells: Δ mean  /  p  /  Δ$-per-correct)")
+
+    # Apply BH across all the off-diagonal pairwise p-values at once.
+    pair_keys = [(b, c) for b in models for c in models
+                 if b != c and (b, c) in results]
+    p_values = [results[k].p_value for k in pair_keys]
+    q_values, rejected = benjamini_hochberg(p_values, alpha=alpha)
+    q_lookup = dict(zip(pair_keys, q_values))
+    sig_lookup = dict(zip(pair_keys, rejected))
+
+    title = (f"Model Drift Matrix  ({len(pair_keys)} pairs, BH-corrected "
+             f"at α={alpha}; cells: Δ mean / p / q / Δ$-per-correct)")
+    table = Table(title=title)
     table.add_column("baseline ↓ / challenger →", style="bold")
     for m in models:
         table.add_column(m, justify="center")
@@ -252,11 +288,13 @@ def print_matrix(results: dict[tuple[str, str], DriftResult]) -> None:
                 continue
             delta = d.delta
             p = d.p_value
+            q = q_lookup.get((base, chal), 1.0)
+            sig = sig_lookup.get((base, chal), False)
             cost = d.cost_normalized_delta_usd
-            color = "red" if delta < 0 and d.significant else (
-                "green" if delta > 0 and d.significant else "white"
+            color = "red" if delta < 0 and sig else (
+                "green" if delta > 0 and sig else "white"
             )
-            cell = f"[{color}]{delta:+.3f}[/{color}]\np={p:.3f}"
+            cell = f"[{color}]{delta:+.3f}[/{color}]\np={p:.3f}\nq={q:.3f}"
             if cost:
                 cell += f"\nΔ$/c={cost:+.4f}"
             row.append(cell)
@@ -431,6 +469,12 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
             f"| $/correct   | {_fmt_cost(drift.baseline_cost_per_correct)} | {_fmt_cost(drift.challenger_cost_per_correct)} |",
             f"| Δ $/correct | — | {drift.cost_normalized_delta_usd:+.4f} |",
         ]
+        if getattr(drift, "cost_delta_ci_defined", False):
+            lines.append(
+                f"| 95% CI on Δ $/correct | — | "
+                f"[{drift.cost_delta_ci_lower:+.4f}, "
+                f"{drift.cost_delta_ci_upper:+.4f}] |"
+            )
 
     if drift.subgroups:
         from .comparator import benjamini_hochberg

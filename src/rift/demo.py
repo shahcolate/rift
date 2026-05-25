@@ -1032,6 +1032,7 @@ def _render_html(script: DemoScript, base_run: RunResult,
     tokens</b> ({base_run.total_input_tokens:,} →
     {chal_run.total_input_tokens:,}). At list-price parity, this is a
     silent per-prompt cost increase on migration.
+    {f'<br><span class="mono" style="font-size:12px">95% CI on Δ $/correct: [{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}] (paired bootstrap, n={drift.n_cases})</span>' if getattr(drift, 'cost_delta_ci_defined', False) else ''}
   </div>
 </section>
 

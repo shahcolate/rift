@@ -75,9 +75,13 @@ def _maybe_expand(suite_config, context_rot: bool):
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
+@click.option("--strip-io", is_flag=True, default=False,
+              help="When writing --output, omit per-case input_text and "
+                   "output fields. Use for proprietary suites whose prompts "
+                   "or completions should not leave your machine.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power, judge_model):
+            refusal, calibration, power, judge_model, strip_io):
     """Compare two models on an eval suite."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
@@ -156,9 +160,11 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 
         results = {
             "drift": asdict(drift),
-            "baseline": baseline_result.to_dict(),
-            "challenger": challenger_result.to_dict(),
+            "baseline": baseline_result.to_dict(strip_io=strip_io),
+            "challenger": challenger_result.to_dict(strip_io=strip_io),
         }
+        if strip_io:
+            results["_strip_io"] = True
         if refusal_analysis is not None:
             results["refusal"] = asdict(refusal_analysis)
         if calibration_analysis is not None:
@@ -193,8 +199,11 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
+@click.option("--strip-io", is_flag=True, default=False,
+              help="Omit per-case input_text and output from the saved "
+                   "JSON. Use for proprietary suites.")
 def run(model, suite, concurrency, output, cache_dir, context_rot,
-        enterprise_multiplier, judge_model):
+        enterprise_multiplier, judge_model, strip_io):
     """Run a single model against an eval suite and save results."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
@@ -212,7 +221,7 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
                   enterprise_multiplier=enterprise_multiplier)
     )
 
-    result.save(output)
+    result.save(output, strip_io=strip_io)
     console.print(f"\nMean score: [bold]{result.mean_score:.4f}[/bold]")
     console.print(f"Spend: [bold]${result.total_cost_usd:.4f}[/bold]  "
                   f"$/correct: [bold]${result.cost_per_correct():.4f}[/bold]")
@@ -526,11 +535,24 @@ def discover(baseline, challenger, seed_suite, proposer_model,
         f"verification ${result.verification_spend_usd:.4f}, "
         f"[bold]total ${result.proposer_spend_usd + result.verification_spend_usd:.4f}[/bold]"
     )
-    console.print(
-        "\n[dim]Note: cases were selected on divergence; "
-        "achieved_power is the sensitivity of THIS suite, not an "
-        "unbiased population estimate.[/dim]"
-    )
+    from rich.panel import Panel
+    console.print()
+    console.print(Panel(
+        "  [bold]Cases here were selected on divergence between [/bold]"
+        f"[cyan]{baseline}[/cyan][bold] and [/bold][cyan]{challenger}[/cyan][bold].[/bold]\n"
+        "\n"
+        f"  The reported [bold]achieved power = {result.achieved_power:.2f}[/bold]"
+        " is the sensitivity of THIS\n"
+        "  suite to the specific divergences we found — NOT an unbiased\n"
+        "  estimate of how often the two models disagree on arbitrary user\n"
+        "  prompts. If you cite this number for procurement or roadmap\n"
+        "  decisions, qualify it as 'power conditional on the discovered\n"
+        "  adversarial suite'. Re-run on a random-prompt suite (e.g. one of\n"
+        "  the stock suites under ``suites/``) for an unbiased population\n"
+        "  estimate.",
+        title="[bold yellow]⚠ Selection-bias caveat — read before sharing this number[/bold yellow]",
+        border_style="yellow",
+    ))
     console.print(f"\nSuite saved to [green]{output}[/green]")
     console.print(
         f"Next step: [bold]rift compare --baseline {baseline} "

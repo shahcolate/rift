@@ -4,12 +4,23 @@
 approximation of what a context-rot run *might* look like, derived
 from a documented prior model. It exists so reviewers can:
 
-1. Reproduce the published report byte-for-byte without API keys.
+1. Reproduce a report with the same *shape* as the published one
+   without API keys (offline demos, CI, contributor laptops).
 2. Audit the assumptions behind every number (they are in this file).
 3. Replace the synthetic outcomes with real ones by running
    ``python benchmarks/run_context_rot.py --mode live``.
 
-The prior model has three parameters per model:
+**Important honesty disclosure.** The parameters below are *not* an
+independent measurement of these models. They are calibrated so the
+synthetic outcomes file reproduces the *headline numbers* of a real
+live-API capture from 2026-04-21 — accuracy means within ±1pp and
+$/correct within ±15%. The authoritative live report is at
+``benchmarks/opus47_live.md``; the analysis at
+``benchmarks/context_rot_opus47_analysis.md`` describes the original
+live methodology. If you cite a number from this synthetic file
+without flagging the provenance, you are misrepresenting the data.
+
+The prior model has four parameters per model:
 
 * ``base_accuracy`` — probability of correctness at zero distractor
   context, averaged over the eight base cases.
@@ -17,12 +28,20 @@ The prior model has three parameters per model:
   increase in distractor length. 0k is treated as 1k for the log.
 * ``position_sensitivity`` — extra penalty when the needle is in the
   middle of the context (lost-in-the-middle effect).
+* ``input_token_inflation`` — multiplicative factor on input-token
+  counts versus the family's tokenizer baseline (1.0). For Opus 4.7
+  this is set to 1.45× to reproduce the 44.7% input-token inflation
+  measured on the same 32 prompts in the live 2026-04-21 run. This
+  is a *calibration constant*, not an independent measurement; treat
+  it as such if you cite it.
 
-These are *intentionally* conservative and roughly consistent with
-public context-length benchmarks as of Q1 2026 (RULER, HELM-long,
-Needle-in-a-Haystack variants). They should not be interpreted as
-Anthropic's internal numbers, and they are not a claim about any
-specific model. The whole point of Rift is that you run it yourself.
+The accuracy/degradation/position parameters are roughly consistent
+with public context-length benchmarks as of Q1 2026 (RULER, HELM-long,
+Needle-in-a-Haystack variants) but were tuned to make the synthetic
+file's accuracy means land near the live capture. They should not be
+interpreted as Anthropic's internal numbers, and they are not a claim
+about any specific model. The whole point of Rift is that you run it
+yourself.
 """
 
 from __future__ import annotations

@@ -1,5 +1,14 @@
 # Opus 4.7 costs 45% more than 4.6 for the same prompt
 
+> **Provenance.** Numbers in this writeup are from a single 2026-04-21
+> live-API run on n=32 paired prompts (full report:
+> [`opus47_live.md`](opus47_live.md), $11.56 total spend, 0 errors).
+> The bundled `rift demo` replays a *synthetic reproduction* of this
+> run from [`context_rot_outcomes.yaml`](context_rot_outcomes.yaml) so
+> contributors can rerun offline; the synthetic file is calibrated to
+> hit these headline numbers and is *not* an independent measurement.
+> Run your own paired benchmark before making procurement decisions.
+
 ## Executive summary
 
 I ran [Rift](https://github.com/shahcolate/rift) against
