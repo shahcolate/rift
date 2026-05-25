@@ -12,13 +12,24 @@ from a documented prior model. It exists so reviewers can:
 
 **Important honesty disclosure.** The parameters below are *not* an
 independent measurement of these models. They are calibrated so the
-synthetic outcomes file reproduces the *headline numbers* of a real
-live-API capture from 2026-04-21 — accuracy means within ±1pp and
-$/correct within ±15%. The authoritative live report is at
-``benchmarks/opus47_live.md``; the analysis at
-``benchmarks/context_rot_opus47_analysis.md`` describes the original
-live methodology. If you cite a number from this synthetic file
+synthetic outcomes file approximately reproduces the *top-level headline
+numbers* of a real live-API capture from 2026-04-21. Measured fit
+(synthetic vs. live) as of HEAD:
+
+* per-model $/correct levels: ±10% (baseline +3.7%, challenger +7.6%);
+* top-level accuracy: ~3pp (baseline 0.8438 vs 0.8125; challenger exact);
+* headline Δ $/correct %: ~5pp absolute (+39.7% vs +34.7%);
+* subgroup-level numbers: can diverge materially — e.g. the live capture
+  shows a baseline accuracy regression at 32k distractor context that
+  the synthetic does not reproduce; the synthetic 32k $/correct delta
+  is +74% higher than the live one.
+
+The authoritative live report is at ``benchmarks/opus47_live.md``; the
+analysis at ``benchmarks/context_rot_opus47_analysis.md`` describes the
+original live methodology. If you cite a number from this synthetic file
 without flagging the provenance, you are misrepresenting the data.
+Subgroup numbers in particular should be cited from the live file, not
+this synthetic replay.
 
 The prior model has four parameters per model:
 
