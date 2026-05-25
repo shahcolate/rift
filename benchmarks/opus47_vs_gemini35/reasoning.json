@@ -21,7 +21,7 @@
     "challenger_cost_per_correct": 0.005626,
     "cost_normalized_delta_usd": 0.000456,
     "effect_size": 0.0,
-    "effect_size_kind": "cohens_h",
+    "effect_size_kind": "cohens_h_marginal",
     "effect_size_magnitude": "negligible",
     "subgroups": {}
   },
@@ -407,7 +407,7 @@
   },
   "power": {
     "observed_effect": 0.0,
-    "observed_effect_kind": "cohens_h",
+    "observed_effect_kind": "cohens_h_marginal",
     "observed_power": 0.05,
     "min_detectable_effect": 0.8859,
     "n_for_target": null

@@ -14,7 +14,6 @@ from .runner import RunResult
 
 _EFFECT_KIND_LABELS = {
     "cohens_h_marginal": "Cohen's h (marginal)",
-    "cohens_h": "Cohen's h (marginal)",   # legacy alias, kept for compat
     "hedges_g": "Hedges' g",
     "smd": "SMD",
     "none": "n/a",

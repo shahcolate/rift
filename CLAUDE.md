@@ -122,11 +122,42 @@ cases:
   McNemar's exact test (binomial on discordant pairs); continuous
   scores use paired t-test + paired bootstrap CI. The chosen test is
   stored in `DriftResult.test_used`.
+- Every drift claim ships with a confidence interval. Accuracy CIs
+  come from `_bootstrap_ci`; the `$/correct` delta CI comes from
+  `_bootstrap_cost_per_correct_delta_ci` (paired bootstrap on
+  `(score, cost)` tuples, seed=42). Both populate `DriftResult`
+  fields — do not surface a delta in a report without its CI. The
+  cost CI is undefined when either run has zero correct cases
+  (per-correct is infinite); in that case `cost_delta_ci_defined`
+  is `False` and renderers must skip the line.
+- Effect sizes: binary tests always populate `cohens_h_marginal`
+  (Cohen's h on the marginal proportions). `cohens_g_paired`
+  (Cohen's g on the discordant cells) is also populated whenever
+  there is at least one discordant pair; it is `None` when every
+  pair is concordant (test is uninformative). Both are surfaced
+  side-by-side because h ignores the paired structure McNemar uses:
+  the two measure different things and can carry different verdicts
+  on the same data (e.g. modest h with a strongly one-sided
+  discordant split, or non-negligible h with discordants nearly
+  balanced). Continuous tests report `hedges_g`.
+- `rift matrix` applies a Benjamini–Hochberg correction across ALL
+  off-diagonal pairwise p-values before colouring "significant"
+  cells. A 4-model matrix runs 12 tests; without correction, the
+  expected false-positive count at α=0.05 under all-null is 0.6.
+  Both raw `p` and BH `q` are shown in each cell.
+- Saved JSONs honour `--strip-io` on `compare`, `run`, and `matrix`:
+  when set, per-case `input_text` and `output` are emptied. Use this
+  for proprietary suites. The flag is a publishing safety, not a
+  privacy primitive — secrets in `tags` or `expected` still ship.
 - Exit code 0 = no significant drift; exit code 1 = significant
   regression detected (for CI/CD integration).
 - Benchmarks live under `benchmarks/`. Any benchmark worth publishing
   should run reproducibly in `--mode record` against a committed
-  outcomes file.
+  outcomes file. **`opus47_live.md` is the authoritative live capture;
+  `context_rot_opus47.md` is a synthetic replay calibrated to it.**
+  Never quote a number from the synthetic file without flagging the
+  provenance — the `run_context_rot.py --mode record` path emits a
+  warning at the top of every regenerated report.
 
 ## Environment Variables
 
