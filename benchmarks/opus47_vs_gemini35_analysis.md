@@ -99,8 +99,8 @@ including input-heavy extraction.
 Gemini's `thinking_level` pinned to `medium` (its own default) for
 paired determinism. Total live spend across the three comparison runs,
 recomputed at the current Opus price: **~$0.33** (it was ~$0.55 at the
-old $15/$75 rate); ~$0.8 across all four runs including the discovery
-loop.
+old $15/$75 rate). The discovery loop in Finding 4 adds further
+proposer + verification spend on top.
 
 ---
 
