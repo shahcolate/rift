@@ -46,15 +46,15 @@ rift demo --paced                      # press Enter between acts (live)
 ```bash
 pip install rift-eval
 
-# Compare two models (with short aliases — opus-4-7, sonnet-4-6, etc.)
-rift compare --baseline opus-4-6 --challenger opus-4-7 --suite reasoning
+# Compare two models (with short aliases — opus-4-8, opus-4-7, sonnet-4-6, etc.)
+rift compare --baseline opus-4-7 --challenger opus-4-8 --suite reasoning
 
 # Stress-test reasoning under distractor context (0k/2k/8k/32k)
-rift compare --baseline opus-4-6 --challenger opus-4-7 \
+rift compare --baseline opus-4-7 --challenger opus-4-8 \
     --suite context_rot_reasoning --context-rot --subgroup distractor:
 
 # Compare 3+ models at once — prints an NxN drift matrix
-rift matrix --models gpt-5.5,opus-4-7,gemini-3-5-flash --suite reasoning
+rift matrix --models opus-4-8,opus-4-7,opus-4-6 --suite reasoning
 
 # Diff two saved runs
 rift diff results/before.json results/after.json
@@ -288,7 +288,7 @@ model family** different from both compared models when you can.
 | OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API. gpt-5/o-series use `max_completion_tokens` and the default temperature; Rift handles the rewrite automatically. |
 | Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
 
-Short aliases (`opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
+Short aliases (`opus-4-8`, `opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
 etc.) live in `MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor
 comparisons work out of the box:
 

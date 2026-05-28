@@ -24,6 +24,14 @@ class TestResolveModel:
         config = resolve_model("my-local-model")
         assert config.provider == "local"
 
+    def test_opus_4_8_alias(self):
+        # Opus 4.8 must resolve to the Anthropic provider, not fall
+        # through to the "local" catch-all (which it would without an
+        # explicit alias since the short form doesn't start with "claude").
+        config = resolve_model("opus-4-8")
+        assert config.provider == "anthropic"
+        assert config.model == "claude-opus-4-8"
+
 
 class TestSuiteConfig:
     def test_valid_suite(self):

@@ -39,6 +39,10 @@ class TokenPrice:
 
 PRICING: dict[str, TokenPrice] = {
     # Anthropic — Claude 4 family (list price, per 1M tokens)
+    # NOTE: 4.8 price is PROVISIONAL — inherited from the 4.6/4.7 family
+    # rate pending confirmation against Anthropic's published rates. Verify
+    # before citing any cost-drift numbers from a 4.8 comparison.
+    "claude-opus-4-8":          TokenPrice(15.00, 75.00),
     "claude-opus-4-7":          TokenPrice(15.00, 75.00),
     "claude-opus-4-6":          TokenPrice(15.00, 75.00),
     "claude-opus-4-20250514":   TokenPrice(15.00, 75.00),

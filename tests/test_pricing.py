@@ -17,6 +17,15 @@ class TestLookup:
         assert p is not None
         assert p.input_per_mtok == PRICING["claude-opus-4-7"].input_per_mtok
 
+    def test_opus_4_8_priced(self):
+        # 4.8 must have an explicit entry: the family-prefix fallback
+        # does NOT cover it (it doesn't start with 4-7/4-6/4-20250514),
+        # so a missing entry would silently price every case at $0.
+        p = lookup("claude-opus-4-8")
+        assert p is not None
+        assert p.input_per_mtok == 15.00
+        assert p.output_per_mtok == 75.00
+
     def test_unknown_model_returns_none(self):
         assert lookup("fake-model-9000") is None
 

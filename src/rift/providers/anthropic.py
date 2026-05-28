@@ -15,6 +15,7 @@ from . import BaseProvider, Completion
 # call site, while still preserving paired determinism: the dropped
 # param wasn't honored by the model anyway, so the comparison is fair.
 DEPRECATED_PARAMS: dict[str, set[str]] = {
+    "claude-opus-4-8": {"temperature", "top_p", "top_k"},
     "claude-opus-4-7": {"temperature", "top_p", "top_k"},
 }
 
