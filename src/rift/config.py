@@ -77,6 +77,7 @@ def load_suite(path_or_name: str) -> SuiteConfig:
 # opus-4-7 ...` to just work without making users memorize dated
 # variants, but we don't want a sprawling nickname registry.
 MODEL_ALIASES: dict[str, str] = {
+    "opus-4-8":   "claude-opus-4-8",
     "opus-4-7":   "claude-opus-4-7",
     "opus-4-6":   "claude-opus-4-6",
     "opus-4":     "claude-opus-4-20250514",
