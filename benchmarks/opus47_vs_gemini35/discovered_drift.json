@@ -25,14 +25,18 @@
       7,
       8
     ],
-    "baseline_cost_usd": 0.112,
+    "baseline_cost_usd": 0.0373,
     "challenger_cost_usd": 0.0811,
     "baseline_cost_per_correct": Infinity,
     "challenger_cost_per_correct": 0.009007,
     "cost_normalized_delta_usd": 0.0,
+    "cost_delta_ci_lower": 0.0,
+    "cost_delta_ci_upper": 0.0,
+    "cost_delta_ci_defined": false,
     "effect_size": 3.1416,
     "effect_size_kind": "cohens_h_marginal",
     "effect_size_magnitude": "large",
+    "cohens_g_paired": 1.0,
     "subgroups": {}
   },
   "baseline": {
@@ -49,7 +53,7 @@
         "latency_ms": 5229.0727879999395,
         "input_tokens": 177,
         "output_tokens": 326,
-        "cost_usd": 0.027105,
+        "cost_usd": 0.009035,
         "tags": [
           "discovered",
           "info:1.00"
@@ -66,7 +70,7 @@
         "latency_ms": 1143.8838770000075,
         "input_tokens": 82,
         "output_tokens": 16,
-        "cost_usd": 0.00243,
+        "cost_usd": 0.00081,
         "tags": [
           "discovered",
           "info:1.00"
@@ -83,7 +87,7 @@
         "latency_ms": 2442.4559100002625,
         "input_tokens": 128,
         "output_tokens": 98,
-        "cost_usd": 0.00927,
+        "cost_usd": 0.00309,
         "tags": [
           "discovered",
           "info:1.00"
@@ -100,7 +104,7 @@
         "latency_ms": 3178.3547810000528,
         "input_tokens": 135,
         "output_tokens": 188,
-        "cost_usd": 0.016125,
+        "cost_usd": 0.0053750000000000004,
         "tags": [
           "discovered",
           "info:1.00"
@@ -117,7 +121,7 @@
         "latency_ms": 1414.656720000039,
         "input_tokens": 137,
         "output_tokens": 15,
-        "cost_usd": 0.0031799999999999997,
+        "cost_usd": 0.00106,
         "tags": [
           "discovered",
           "info:1.00"
@@ -134,7 +138,7 @@
         "latency_ms": 1334.4818000000487,
         "input_tokens": 161,
         "output_tokens": 16,
-        "cost_usd": 0.003615,
+        "cost_usd": 0.0012050000000000001,
         "tags": [
           "discovered",
           "info:1.00"
@@ -151,7 +155,7 @@
         "latency_ms": 5207.043295000403,
         "input_tokens": 225,
         "output_tokens": 353,
-        "cost_usd": 0.029849999999999998,
+        "cost_usd": 0.009949999999999999,
         "tags": [
           "discovered",
           "info:1.00"
@@ -168,7 +172,7 @@
         "latency_ms": 2160.670330999892,
         "input_tokens": 234,
         "output_tokens": 91,
-        "cost_usd": 0.010335,
+        "cost_usd": 0.003445,
         "tags": [
           "discovered",
           "info:1.00"
@@ -185,7 +189,7 @@
         "latency_ms": 2856.939318000059,
         "input_tokens": 88,
         "output_tokens": 117,
-        "cost_usd": 0.010095,
+        "cost_usd": 0.003365,
         "tags": [
           "discovered",
           "info:1.00"

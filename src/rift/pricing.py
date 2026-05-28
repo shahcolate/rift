@@ -12,8 +12,9 @@ Enterprise contracts typically negotiate a flat per-token rate with
 committed volume; we model this via an optional ``enterprise_multiplier``
 applied uniformly to both input and output prices.
 
-All numbers are published rates as of 2026-04. Update ``PRICING`` when
-rates change — do not hardcode elsewhere.
+All numbers are published rates as of 2026-05 (Opus 4.8 launch, which
+also cut the Opus 4.5-generation list price to $5/$25). Update
+``PRICING`` when rates change — do not hardcode elsewhere.
 """
 
 from __future__ import annotations
@@ -39,13 +40,13 @@ class TokenPrice:
 
 PRICING: dict[str, TokenPrice] = {
     # Anthropic — Claude 4 family (list price, per 1M tokens)
-    # NOTE: 4.8 price is PROVISIONAL — inherited from the 4.6/4.7 family
-    # rate pending confirmation against Anthropic's published rates. Verify
-    # before citing any cost-drift numbers from a 4.8 comparison.
-    "claude-opus-4-8":          TokenPrice(15.00, 75.00),
-    "claude-opus-4-7":          TokenPrice(15.00, 75.00),
-    "claude-opus-4-6":          TokenPrice(15.00, 75.00),
-    "claude-opus-4-20250514":   TokenPrice(15.00, 75.00),
+    # The Opus 4.5 generation (4.5/4.6/4.7/4.8) lists at $5 / $25 — a
+    # 3x cut from the original Opus 4 / 4.1 rate of $15 / $75, which the
+    # deprecated dated build below retains.
+    "claude-opus-4-8":          TokenPrice( 5.00, 25.00),
+    "claude-opus-4-7":          TokenPrice( 5.00, 25.00),
+    "claude-opus-4-6":          TokenPrice( 5.00, 25.00),
+    "claude-opus-4-20250514":   TokenPrice(15.00, 75.00),  # Opus 4 (deprecated)
     "claude-sonnet-4-6":        TokenPrice( 3.00, 15.00),
     "claude-sonnet-4-20250514": TokenPrice( 3.00, 15.00),
     "claude-haiku-4-5-20251001": TokenPrice(1.00,  5.00),

@@ -2,7 +2,11 @@
 
 > **Provenance.** Numbers in this writeup are from a single 2026-04-21
 > live-API run on n=32 paired prompts (full report:
-> [`opus47_live.md`](opus47_live.md), $11.56 total spend, 0 errors).
+> [`opus47_live.md`](opus47_live.md), 0 errors). Dollar figures are
+> recomputed at the current Opus 4.5-generation list price ($5/$25);
+> recomputed total spend $3.85. Both models are Opus, so every dollar
+> figure scaled by ⅓ from the original $15/$75 capture and every
+> percentage and significance result is unchanged.
 > The bundled `rift demo` replays a *synthetic reproduction* of this
 > run from [`context_rot_outcomes.yaml`](context_rot_outcomes.yaml) so
 > contributors can rerun offline; the synthetic file is calibrated to
@@ -28,7 +32,7 @@ calls). Two findings:
    **~45% per-prompt cost increase** on migration.
 
 The combined effect on `cost-per-correct-answer`: **+35% on
-Opus 4.7** (`$0.244` vs `$0.181`). The quality lift, even if real,
+Opus 4.7** (`$0.0815` vs `$0.0605`). The quality lift, even if real,
 does not pay for the tokenizer inflation on this suite.
 
 The headline isn't "is Opus 4.7 better." The headline is "your
@@ -44,8 +48,8 @@ making procurement decisions._
 
 | Model      | Mean       | Correct    | Errors | Spend     | Cost/correct      |
 |------------|------------|------------|--------|-----------|-------------------|
-| opus-4-6   | 0.812      | 26/32      | 0      | $4.72     | `$0.1815`         |
-| **opus-4-7** | 0.875 (ns) | 28/32 (ns) | **0**  | **$6.84** | **`$0.2444`**     |
+| opus-4-6   | 0.812      | 26/32      | 0      | $1.57     | `$0.0605`         |
+| **opus-4-7** | 0.875 (ns) | 28/32 (ns) | **0**  | **$2.28** | **`$0.0815`**     |
 
 - Drift on accuracy: +6.25pp, p=0.69 (McNemar's exact test on 6
   discordant pairs: 4 improved, 2 regressed). Not significant.
@@ -56,7 +60,7 @@ making procurement decisions._
 
 **Run details:** 32 cases (8 base reasoning prompts × 4 distractor
 regimes: 0k, 2k, 8k, 32k tokens). Real Anthropic API, 0 errors.
-Total spend: $11.56.
+Total spend (recomputed at $5/$25): $3.85.
 
 ---
 
@@ -145,7 +149,7 @@ pattern repeats on a larger run.
 
 ## Finding 2: the tokenizer changed. The price didn't.
 
-The headline cost number above — `$4.72` vs `$6.84` — is a **45%
+The headline cost number above — `$1.57` vs `$2.28` — is a **45%
 spend increase on the challenger despite list prices being
 identical per token**. From the cache:
 
@@ -188,7 +192,7 @@ inferred from the ratio shape, not confirmed.
   default-upgrade your model, you will hit your cap ~30%
   sooner than last year's budget suggests.
 - **`Cost-per-correct` is the right denominator.** On this
-  suite: `$0.1815` (4.6) → `$0.2444` (4.7), a **+35% cost per
+  suite: `$0.0605` (4.6) → `$0.0815` (4.7), a **+35% cost per
   fully correct answer** even accounting for 4.7's
   (non-significant) quality lift. The quality lift is not
   priced in; the token inflation is.
@@ -280,7 +284,9 @@ python benchmarks/run_context_rot.py --mode live \
 ```
 
 Raw report: [`opus47_live.md`](opus47_live.md). Total wall time
-~20 minutes at concurrency=1, total spend ~$12.
+~20 minutes at concurrency=1, total spend ~$3.85 at current Opus
+prices (the original 2026-04-21 run billed ~$12 at the old $15/$75
+rate).
 
 ---
 

@@ -66,7 +66,7 @@ rift compare --baseline opus-4-6 --challenger opus-4-7 \
 
 ## What You Get
 
-Output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases — numbers below are from the **live Anthropic API run on 2026-04-21** (authoritative capture: [`benchmarks/opus47_live.md`](benchmarks/opus47_live.md), n=32, paired, McNemar's exact, $11.56 total spend, 0 errors):
+Output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite context_rot_reasoning --context-rot --subgroup distractor:` on 32 cases — numbers below are from the **live Anthropic API run on 2026-04-21** (authoritative capture: [`benchmarks/opus47_live.md`](benchmarks/opus47_live.md), n=32, paired, McNemar's exact, $3.85 total spend, 0 errors; dollar figures reflect the current $5/$25 Opus 4.5-generation list price):
 
 ```
 ╭─────────────────────────────────────────────────╮
@@ -88,8 +88,8 @@ Output from `rift compare --baseline opus-4-6 --challenger opus-4-7 --suite cont
 │    Regressed cases:  2                          │
 │    Improved cases:   4                          │
 │                                                 │
-│    Spend:      $4.72  →  $6.84                  │
-│    $/correct:  $0.1815 →  $0.2444  (+35%)       │
+│    Spend:      $1.57  →  $2.28                  │
+│    $/correct:  $0.0605 →  $0.0815  (+35%)       │
 ╰─────────────────────────────────────────────────╯
 ```
 
@@ -148,8 +148,8 @@ scorer, same prompts, byte-identical inputs.
 |---|---|---|---|
 | Accuracy | 26/32 (81.2%) | 28/32 (87.5%) | +6.25pp, p=0.69 (**not significant**) |
 | Input tokens (byte-identical prompts) | 313,717 | 453,957 | **+44.7%** |
-| Total spend | $4.72 | $6.84 | +45% |
-| **$/correct** | $0.1815 | $0.2444 | **+35%** |
+| Total spend | $1.57 | $2.28 | +45% |
+| **$/correct** | $0.0605 | $0.0815 | **+35%** |
 
 Three takeaways a leader can act on today:
 
@@ -197,30 +197,36 @@ Raw report: [`benchmarks/context_rot_opus47.md`](benchmarks/context_rot_opus47.m
 
 Three frontier models, three suites (reasoning n=10, structured
 extraction n=29, open-ended QA n=5), same scorers, byte-identical
-prompts, single trial, temperature 0. 132 live completions, total
-live API spend: **$0.65** *(provenance: 2026-05-21 live capture, see
+prompts, single trial, temperature 0. 132 live completions; token
+counts from the 2026-05-21 live capture, Opus dollar figures
+recomputed at the current $5/$25 list price. Recomputed total
+spend: **$0.43** *(see
 [`benchmarks/3way_full/analysis.md`](benchmarks/3way_full/analysis.md))*.
 
 | Suite | gpt-5.5 $/c | Opus 4.7 $/c | Gemini Flash $/c | Verdict |
 |---|---|---|---|---|
-| reasoning | **$0.0026** | $0.0057 | $0.0056 | gpt-5.5, 2.2× cheaper, same accuracy (9/10 each) |
-| extraction | **$0.0027** | $0.0088 | $0.0061 | gpt-5.5, 2.3× cheaper than Gemini, same accuracy |
-| open_ended_qa | $0.0034 | $0.0169 | $0.0163 | Opus uniquely perfect (5/5, judge-scored) |
+| reasoning | $0.0026 | **$0.0019** | $0.0056 | Opus now cheapest, same accuracy (9/10 each) |
+| extraction | **$0.0027** | $0.0029 | $0.0061 | gpt-5.5 ≈ Opus (tie), both ~2× cheaper than Gemini |
+| open_ended_qa | **$0.0034** | $0.0056 | $0.0163 | Opus uniquely perfect (5/5); gpt-5.5 cheapest |
 
 Three takeaways a leader can act on:
 
-- **gpt-5.5 is the cheapest per correct on every suite — despite not
-  being the cheapest per token.** Per-Mtok list prices are
-  Gemini $1.50/$9, gpt-5.5 $5/$20, Opus $15/$75. gpt-5.5 wins
-  `$/correct` because its output is *terse* (2.0× Opus's output
-  tokens on reasoning vs Gemini's 11.7×). The bill is
+- **The Opus 4.5-generation price cut (to $5/$25) reopens the cost
+  race — the cheapest model is now suite-dependent.** Per-Mtok list
+  prices are Gemini $1.50/$9, gpt-5.5 $5/$20, Opus $5/$25. Opus and
+  gpt-5.5 now share an input price, so the bill is decided by output
+  volume: Opus is cheapest on reasoning (terse output, 471 tok vs
+  gpt-5.5's 953), tied on extraction, and gpt-5.5 keeps the edge only
+  on free-form QA where Opus is the verbose one. The bill is
   `output_tokens × output_price`, not `output_price`.
 - **The I:O-ratio mechanism from the prior 2-way writeup reproduces.**
   Gemini's thinking tokens (billed as output) still erase its
-  input-price discount on output-heavy workloads. Pricing decisions
-  on per-token list prices alone are still wrong; multiply by *your*
-  observed output volume.
+  input-price discount — and at the new Opus price Gemini is now the
+  *most expensive* per correct on the deterministic suites. Pricing
+  decisions on per-token list prices alone are still wrong; multiply
+  by *your* observed output volume.
 - **Opus retains a judge-scored quality edge on free-form generation**,
+  now at a 1.6× cost premium over gpt-5.5 (was 5× at the old price),
   with the same family-bias caveat as before (judge is Claude Sonnet
   4.6). The 3-way data weakens but doesn't refute the caveat — re-run
   with a non-Anthropic judge before treating the gap as settled.

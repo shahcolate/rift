@@ -1,10 +1,17 @@
-# Gemini 3.5 Flash's 10× discount disappears on reasoning workloads
+# Gemini 3.5 Flash's list-price discount vanishes per correct answer — even on input-heavy extraction
 
-> **Provenance.** Numbers below are from a **live API run on 2026-05-20**
-> against the production Anthropic and Google endpoints (day-after-GA of
-> Gemini 3.5 Flash). Per-model completion JSONs are committed under
-> `opus47_vs_gemini35/`. The bundled `rift demo` is a separate, offline
-> synthetic story and does NOT cite these numbers.
+> **Provenance.** Token counts, scores, and accuracy below are from a
+> **live API run on 2026-05-20** against the production Anthropic and
+> Google endpoints (day-after-GA of Gemini 3.5 Flash). Per-model
+> completion JSONs are committed under `opus47_vs_gemini35/`.
+>
+> **The Opus dollar figures have been recomputed at the current Opus
+> 4.5-generation list price** ($5/Mtok input, $25/Mtok output; see
+> `src/rift/pricing.py`). The original 2026-05-20 capture priced Opus at
+> $15/$75, so its Opus dollar figures were 3× higher; Gemini prices did
+> not change. This re-pricing **reverses the headline cost ranking** —
+> see the executive summary. The bundled `rift demo` is a separate,
+> offline synthetic story and does NOT cite these numbers.
 
 ## Executive summary
 
@@ -12,26 +19,30 @@ I ran [Rift](https://github.com/shahcolate/rift) against
 Google's just-released Gemini 3.5 Flash, paired against Anthropic's
 Claude Opus 4.7 on three eval suites and one adversarial discovery
 loop (same prompts, same scorer, real API calls). The day-after-GA
-list-price comparison says Gemini Flash is **10× cheaper than Opus**
-($1.50 / $9.00 vs $15 / $75 per 1M tokens). The actual
-per-correct-answer numbers say otherwise:
+list-price comparison said Gemini Flash was **10× cheaper than Opus**
+($1.50 / $9.00 vs $15 / $75 per 1M tokens). Two things have since
+collapsed that headline: the per-correct-answer arithmetic, and the
+Opus 4.5-generation price cut to **$5 / $25**, which shrinks the
+list-price gap to roughly **3×** and tips every per-correct comparison
+to Opus:
 
-1. **On reasoning, Gemini Flash is *more expensive than Opus* per
-   correct answer** ($0.0056 vs $0.0052, n=10). The 10× list-price
-   discount is fully consumed by Gemini's reasoning ("thinking")
-   tokens, which Google bills as output. Gemini Flash emits **13.6×
-   more output tokens than Opus** on the same prompts.
-2. **On structured extraction, Gemini Flash is 30% cheaper than Opus**
-   per correct ($0.0061 vs $0.0087, n=29). Long inputs swing the
-   math the other direction — input tokens dominate Opus's spend
-   and Gemini's $1.50/Mtok input price wins.
-3. **On open-ended generation (judge-scored), Gemini scores 6 pp
-   lower than Opus** (1.00 vs 0.94 at n=5, Hedges' g = −0.876, p =
-   0.07). Per-correct cost is identical to four decimals. Caveat:
-   the judge was Claude Sonnet 4.6 — same family as the baseline,
-   so family-bias is plausible. The signal is consistent (3
-   regressed cases, 0 improved, all the same −0.10 score drop) but
-   the magnitude is contested by the methodology.
+1. **On reasoning, Opus is now ~3.3× cheaper per correct answer than
+   Gemini Flash** ($0.0017 vs $0.0056, n=10). Gemini's 10×-then-3×
+   list-price discount is more than consumed by its reasoning
+   ("thinking") tokens, which Google bills as output. Gemini Flash
+   emits **13.6× more output tokens than Opus** on the same prompts.
+2. **On structured extraction — the one suite where Gemini used to win
+   — Opus is now ~2.1× cheaper per correct** ($0.0029 vs $0.0061,
+   n=29). At the old $15/$75 Opus price this suite went the other way
+   (Gemini 30% cheaper); the price cut reverses it, because Gemini's
+   6.8× output-token volume now outweighs its shrunken input discount.
+3. **On open-ended generation (judge-scored), Opus is both higher
+   quality *and* ~3× cheaper** per correct ($0.0054 vs $0.0163; mean
+   1.00 vs 0.94 at n=5, Hedges' g = −0.876, p = 0.07). Caveat: the
+   judge was Claude Sonnet 4.6 — same family as the baseline — so
+   family-bias on the quality gap is plausible. The signal is
+   consistent (3 regressed cases, 0 improved, all the same −0.10 score
+   drop) but the magnitude is contested by the methodology.
 4. **Discovery-loop methodology demo.** `rift discover` with Gemini
    itself as the adversarial proposer produced Opus 0/9 vs Gemini
    9/9 (Cohen's h = +3.14, p = 0.004) — and this writeup
@@ -40,47 +51,56 @@ per-correct-answer numbers say otherwise:
    third-party-proposer fix is a one-line change documented inline.
 
 The headline isn't "is Gemini Flash better." The headline is **"the
-right model is a function of your workload's input-to-output ratio,
-not the vendor list price."** Input-heavy work → Gemini. Thinking-
-heavy work → roughly a tie. Free-form generation → quality story
-unresolved at this n with this judge.
+right model is a function of your workload's input-to-output ratio and
+the current list prices — and after the Opus 4.5-gen price cut, the
+per-correct math favors Opus on every suite it can answer, because
+Gemini's thinking-token output volume costs more than its remaining
+list-price discount saves."** The I:O-ratio mechanism is the same one
+the original capture identified; what moved is the price, and it moved
+far enough to flip the conclusion.
 
-_Disclosure: I maintain Rift. Numbers below are from my own runs
-against the live Anthropic and Google APIs the day after Gemini
-3.5 Flash GA (2026-05-19). Run your own paired benchmark before
-making procurement decisions; the I:O ratio finding generalizes,
-the specific magnitudes will not._
+_Disclosure: I maintain Rift. Token counts and accuracy below are from
+my own runs against the live Anthropic and Google APIs the day after
+Gemini 3.5 Flash GA (2026-05-19); Opus dollar figures are recomputed at
+the current $5/$25 list price. Run your own paired benchmark before
+making procurement decisions; the I:O ratio mechanism generalizes, the
+specific magnitudes will not._
 
 ---
 
 ## At a glance
 
-| Suite          | n  | Opus mean | Gemini mean | Δ      | Opus $/correct | Gemini $/correct | Gemini cheaper? | Statistical test |
-|----------------|----|-----------|-------------|--------|----------------|-------------------|-----------------|------------------|
-| reasoning      | 10 | 0.900     | 0.900       | 0.000  | $0.0052        | **$0.0056**       | No, +8%          | McNemar exact (binary)         |
-| extraction     | 29 | 0.941     | 0.941       | 0.000  | $0.0087        | **$0.0061**       | **Yes, −30%**    | Paired t + bootstrap           |
-| open_ended_qa  | 5  | 1.000     | 0.940       | −0.060 | $0.0162        | $0.0163           | Tie              | Paired t + bootstrap (g=−0.88) |
-| discovered     | 9  | 0.000     | 1.000       | +1.000 | ∞              | $0.0090           | n/a (biased)     | McNemar exact (h=+3.14)        |
+| Suite          | n  | Opus mean | Gemini mean | Δ      | Opus $/correct | Gemini $/correct | Cheaper per correct | Statistical test |
+|----------------|----|-----------|-------------|--------|----------------|-------------------|---------------------|------------------|
+| reasoning      | 10 | 0.900     | 0.900       | 0.000  | **$0.0017**    | $0.0056           | Opus, 3.3×          | McNemar exact (binary)         |
+| extraction     | 29 | 0.941     | 0.941       | 0.000  | **$0.0029**    | $0.0061           | Opus, 2.1×          | Paired t + bootstrap           |
+| open_ended_qa  | 5  | 1.000     | 0.940       | −0.060 | **$0.0054**    | $0.0163           | Opus, 3.0×          | Paired t + bootstrap (g=−0.88) |
+| discovered     | 9  | 0.000     | 1.000       | +1.000 | ∞              | $0.0090           | n/a (biased)        | McNemar exact (h=+3.14)        |
 
 The cross-suite structural finding — and the one that travels
 beyond this study — is the **output-token volume ratio**:
 
 | Suite          | Opus output tokens (total) | Gemini output tokens (total) | Ratio  | Effect on $/correct          |
 |----------------|----------------------------|------------------------------|--------|------------------------------|
-| reasoning      | 405                        | 5,495                        | **13.6×** | Gemini list-price discount **erased** |
-| open_ended_qa  | 1,042                      | 3,603                        | **3.5×**  | Per-correct tied              |
-| extraction     | 2,154                      | 14,563                       | **6.8×**  | Gemini still 30% cheaper      |
+| reasoning      | 405                        | 5,495                        | **13.6×** | Gemini discount erased, then some |
+| open_ended_qa  | 1,042                      | 3,603                        | **3.5×**  | Opus 3× cheaper               |
+| extraction     | 2,154                      | 14,563                       | **6.8×**  | Opus 2× cheaper (was Gemini's win) |
 
 Gemini 3.5 Flash emits 3.5–13.6× more output tokens than Opus 4.7
 for the same task — not because Gemini's visible answers are longer,
-but because Gemini's thinking tokens are billed as output. Whether
-that erases the 10× input-price discount depends entirely on how
-input-heavy your prompts are.
+but because Gemini's thinking tokens are billed as output. At the old
+$15/$75 Opus price that volume tax only erased Gemini's discount on
+output-heavy suites; at the new $5/$25 price the remaining ~3×
+list-price gap is small enough that the output tax wins **everywhere**,
+including input-heavy extraction.
 
 **Run details:** three suites + one discovery loop, all live API
 (no synthetic). 53 paired prompts total. 0 errors across baseline.
 Gemini's `thinking_level` pinned to `medium` (its own default) for
-paired determinism. Total live spend across all four runs: **$1.10**.
+paired determinism. Total live spend across the three comparison runs,
+recomputed at the current Opus price: **~$0.33** (it was ~$0.55 at the
+old $15/$75 rate). The discovery loop in Finding 4 adds further
+proposer + verification spend on top.
 
 ---
 
@@ -90,23 +110,27 @@ For an engineering, platform, or finance leader evaluating whether
 to move some or all of a Claude-Opus workload to Gemini 3.5 Flash,
 here is the action list ranked by reversibility cost (cheapest first):
 
-### 1. Measure your workload's input-to-output token ratio before quoting any savings
+### 1. Re-baseline against the current Opus price before quoting any Flash savings
 
-The vendor list-price comparison (`$1.50 / $9 vs $15 / $75`) implies
-10× savings. The per-correct number on this study's reasoning suite
-shows a **net cost increase of ~8%** at the same accuracy. The
-direction of the savings flips entirely with prompt shape:
+The vendor list-price comparison everyone remembers (`$1.50 / $9 vs
+$15 / $75`) implied 10× savings. That comparison is doubly stale: Opus
+now lists at **$5 / $25** (a ~3× gap, not 10×), and on a per-correct
+basis Opus is the cheaper model on all three standard suites here. If a
+plan to move workload to Flash was built on the 10× headline, it is now
+built on a number that no longer exists.
+
+Prompt shape still decides the *magnitude*, just not the *direction*:
 
 * RAG / extraction / classification (long input, short output) →
-  Gemini Flash wins, on the order of 30% per correct.
+  Opus, ~2× cheaper per correct (this used to be Gemini's win).
 * Reasoning / multi-step generation / agentic loops (modest input,
-  thinking-heavy output) → Gemini Flash is **roughly a wash or
-  slightly worse** because reasoning tokens are billed as output at
-  $9/Mtok.
+  thinking-heavy output) → Opus, ~3× cheaper, because Gemini's
+  thinking tokens are billed as output at $9/Mtok against Opus's now
+  far more competitive $25/Mtok.
 
 Pull a week of production prompts, compute mean
-`input_tokens : output_tokens`, and only then decide which side of
-the curve you're on.
+`input_tokens : output_tokens`, and re-run the comparison at current
+prices before quoting anything.
 
 ### 2. Pin `thinking_level` explicitly if you switch
 
@@ -114,9 +138,11 @@ Gemini 3.5 Flash ships with thinking on by default at level
 `medium`. For paired-comparison reproducibility, Rift pins
 `thinking_level=medium` (Google's default). For production cost
 optimization, the choice matters: `low` and `minimal` will reduce
-output-token volume substantially at some quality cost. Until you
-have your own quality benchmark, pin one level and stay there;
-don't let an SDK auto-upgrade silently move the line.
+output-token volume substantially at some quality cost — and given
+that output volume is exactly what loses Gemini the per-correct race
+here, this is the single biggest lever on a Flash deployment's bill.
+Until you have your own quality benchmark, pin one level and stay
+there; don't let an SDK auto-upgrade silently move the line.
 
 ### 3. Don't read the discovered-suite result as a Gemini blowout
 
@@ -134,14 +160,14 @@ Don't take the magnitudes in this writeup as authoritative for your
 workload. n is small (5–29 per suite), the judge in Finding 3 is
 family-related to the baseline, and Finding 4 is bias-flagged. The
 **direction** of the input-vs-output finding generalizes; the
-**numbers** require your data:
+**numbers** require your data and your current contract prices:
 
 ```bash
 pip install rift-eval
 export ANTHROPIC_API_KEY=...
 export GEMINI_API_KEY=...
 
-rift compare --baseline opus-4-7 --challenger gemini-3.5-flash \
+rift compare --baseline opus-4-8 --challenger gemini-3.5-flash \
     --suite YOUR_PRODUCTION_SUITE
 ```
 
@@ -151,14 +177,15 @@ last one is the only number a CFO cares about.
 
 ### 5. Renegotiate any "we're moving from Opus to Flash for the cost savings" budget line
 
-If a budget line is built on the 10× list-price headline, it is
-already wrong on roughly half the workload shapes. Re-baseline
-on per-correct or per-task spend, not per-token, before locking
-in the contract.
+If a budget line is built on the 10× list-price headline, it is now
+wrong twice over: the gap is ~3×, and on a per-correct basis Opus is
+the cheaper model on every suite here. Re-baseline on per-correct or
+per-task spend, not per-token, before locking in the contract.
 
 The reproducible numbers behind every figure in this writeup are
-in the committed `.json` files. `rift diff` recreates each report
-offline without spending another dollar of API.
+in the committed `.json` files (Opus `cost_usd` fields recomputed at
+the current $5/$25 price). `rift diff` recreates each report offline
+without spending another dollar of API.
 
 ---
 
@@ -182,25 +209,27 @@ Raw reports (Rift's own output) are committed alongside this file:
 - `opus47_vs_gemini35/extraction.md` / `.json`
 - `opus47_vs_gemini35/open_ended_qa.md` / `.json`
 
-Total live-API spend for the comparison runs: **~$0.55**.
+Total live-API spend for the three comparison runs, recomputed at the
+current $5/$25 Opus price: **~$0.33** (was ~$0.55 at $15/$75).
 
 ---
 
-## Finding 1 — Reasoning: thinking tokens eat the Flash discount
+## Finding 1 — Reasoning: thinking tokens eat what's left of the Flash discount
 
 **Both models scored 9/10 on the reasoning suite. The cost story is
 the headline:**
 
 | Model | Total input tokens | Total output tokens | Total spend | $/correct |
 |-------|--------------------|---------------------|-------------|-----------|
-| `claude-opus-4-7` | 1,077 | 405 | $0.0465 | **$0.0052** |
+| `claude-opus-4-7` | 1,077 | 405 | $0.0155 | **$0.0017** |
 | `gemini-3.5-flash` | 787 | **5,495** | $0.0506 | **$0.0056** |
 
 Gemini's output volume on a 10-case binary reasoning suite was **13.6×
-greater than Opus's** — and Gemini's list-price output rate ($9/Mtok) is
-only 8.3× cheaper than Opus's ($75/Mtok). The arithmetic is unforgiving:
-Flash issued enough reasoning tokens that its per-token discount
-collapsed to roughly nothing.
+greater than Opus's** — and at the new prices Gemini's list-price output
+rate ($9/Mtok) is only 2.8× cheaper than Opus's ($25/Mtok), down from
+8.3× at the old $75 rate. The arithmetic is now lopsided: Flash issues
+enough reasoning tokens that its per-token discount doesn't just
+collapse, it goes negative — Opus is 3.3× cheaper per correct.
 
 This is the kind of finding a list-price-only spreadsheet misses
 entirely. Both Anthropic Opus 4.7 and Gemini 3.5 Flash run extended
@@ -214,39 +243,44 @@ at α=0.05) to detect anything subtle.
 
 ---
 
-## Finding 2 — Extraction: long input swings the math the other way
+## Finding 2 — Extraction: the price cut flips the one suite Gemini used to win
 
-**Both models scored 0.941 on the extraction suite. Cost differs the
-other direction:**
+**Both models scored 0.941 on the extraction suite. At the old Opus
+price Gemini was 30% cheaper here; the $5/$25 price cut reverses it:**
 
 | Model | Total input tokens | Total output tokens | Total spend | $/correct |
 |-------|--------------------|---------------------|-------------|-----------|
-| `claude-opus-4-7` | 2,547 | 2,154 | $0.1998 | **$0.0087** |
+| `claude-opus-4-7` | 2,547 | 2,154 | $0.0666 | **$0.0029** |
 | `gemini-3.5-flash` | 1,673 | **14,563** | $0.1336 | **$0.0061** |
 
 Extraction prompts are long: messy invoice / contract / receipt text that
-needs structured JSON output. The input-token term dominates Opus's spend
-($2,547 × $15/Mtok = $0.038 just on inputs), while Gemini's input rate
-($1.50/Mtok) makes that term nearly free. Even with Gemini emitting
-**6.8× more output tokens than Opus**, total spend lands ~30% lower.
+needs structured JSON output. At the old $15/Mtok input rate the input
+term was a meaningful chunk of Opus's bill and Gemini's $1.50/Mtok
+input price won the suite. At $5/Mtok input, Opus's input cost drops to
+~$0.013 and its output cost (2,154 × $25/Mtok ≈ $0.054) dominates its
+own bill — but Gemini, emitting **6.8× more output tokens**, pays
+~$0.131 on output even at $9/Mtok. The output-volume tax now beats the
+input discount, and total spend lands ~2× *lower* for Opus.
 
 p-value 1.0, mean delta 0.000, one regressed and one improved case
 (offsetting). Hedges' g = 0.000.
 
-**This is the headline cost finding:** Gemini's *prompt-shape sensitivity*
-makes the right model a function of input-to-output ratio. Input-heavy
-work (extraction, classification, RAG) → Gemini. Output-heavy work
-(reasoning, generation) → it's a wash.
+**This is the reversal that matters for procurement:** the suite that
+made the "move extraction to Flash for cost" case at the old price now
+makes the opposite case. The deciding variable was never just the
+input-to-output ratio — it was the ratio *times the current per-token
+prices*, and one of those prices just fell 3×.
 
 ---
 
-## Finding 3 — Open-ended QA: a quality gap, with caveats
+## Finding 3 — Open-ended QA: Opus wins on both quality and cost
 
-**This is the only suite with a non-trivial mean delta:**
+**This is the only suite with a non-trivial mean delta — and now Opus
+is also the cheaper model:**
 
 | Model | Mean score | $/correct |
 |-------|------------|-----------|
-| `claude-opus-4-7` | **1.000** | $0.0162 |
+| `claude-opus-4-7` | **1.000** | **$0.0054** |
 | `gemini-3.5-flash` | **0.940** | $0.0163 |
 
 - Hedges' g = **−0.876** (large effect by Cohen's thresholds)
@@ -265,9 +299,11 @@ from their own family"). The recommended fix is a third-family judge.
 GPT-4o or Gemini 3.5 Flash itself would both be more defensible
 judges here, and the signal might or might not survive that swap.
 
-Notable: $/correct is identical to four decimals, despite Gemini being
-3.5× more verbose. Both models spend ~$0.016 per correct answer on
-this suite. Quality, not cost, is the differentiator.
+Notable: at the old Opus price the two models tied on $/correct here
+(~$0.016 each) and the suite was a "quality, not cost" story. At the
+new price Opus is **3× cheaper *and* higher quality**, so the only
+thing keeping this from being a clean Opus win is the unresolved
+judge-family-bias question above.
 
 ---
 
@@ -275,22 +311,23 @@ this suite. Quality, not cost, is the differentiator.
 
 | Suite | Opus output/case | Gemini output/case | Gemini : Opus output ratio | Gemini $/correct ÷ Opus $/correct |
 |-------|------------------|---------------------|----------------------------|------------------------------------|
-| reasoning   | 40.5  | 549.5  | **13.6×** | 1.08× (Gemini more expensive) |
-| extraction  | 74.3  | 502.2  | **6.8×**  | 0.70× (Gemini cheaper) |
-| open_ended  | 208.4 | 720.6  | **3.5×**  | 1.00× (tie) |
+| reasoning   | 40.5  | 549.5  | **13.6×** | 3.3× (Gemini more expensive) |
+| extraction  | 74.3  | 502.2  | **6.8×**  | 2.1× (Gemini more expensive) |
+| open_ended  | 208.4 | 720.6  | **3.5×**  | 3.0× (Gemini more expensive) |
 
 **Gemini 3.5 Flash emits 3.5–13.6× more output tokens than Opus 4.7 for
 the same task.** That's not because Gemini's answers are longer (the
 visible answers are similar in length) — it's because Gemini's
-thinking tokens count as output, and Gemini emits a lot of them. The
-ratio collapses on input-heavy tasks (Gemini's input price is cheap
-enough that output dominance doesn't matter); it widens on
-output-heavy tasks where the thinking-billing effectively erases the
-list-price discount.
+thinking tokens count as output, and Gemini emits a lot of them. At the
+old $15/$75 Opus price this only made Gemini more expensive on the
+output-heaviest suite (reasoning) and left extraction to Gemini. At the
+new $5/$25 price the list-price gap is small enough that the
+output-volume tax makes Gemini more expensive **on every suite**.
 
-**Implication for procurement:** when comparing Flash-class to Opus-class
-on a per-correct basis, you have to *measure your workload's
-input-to-output ratio*. Vendor-table list prices are misleading.
+**Implication for procurement:** when comparing Flash-class to
+Opus-class on a per-correct basis, you have to *measure your workload's
+input-to-output ratio and plug in current prices*. Vendor-table list
+prices — and last quarter's list prices — are both misleading.
 
 ---
 
@@ -308,7 +345,6 @@ against the reasoning seed suite, targeting `target_power=0.9 at
 | n_kept | 9 |
 | discordant rate (of verified) | 25.7% |
 | achieved_power | 1.0 (early-stopped) |
-| spend (proposer + verification) | $0.57 |
 
 The compare on the discovered suite shows:
 
@@ -319,7 +355,9 @@ The compare on the discovered suite shows:
 
 McNemar p = 0.0039, Cohen's h = **+3.14** (the maximum value for a
 0-vs-1 proportion shift). Every discovered case is Gemini-right /
-Opus-wrong, none in the other direction.
+Opus-wrong, none in the other direction. (Opus's $/correct is ∞ here
+because it got zero correct — unchanged by any pricing; Gemini's
+$0.0090 is its own unchanged price.)
 
 **A naïve reader would call this a Gemini blowout. The honest reading
 is more interesting.**
@@ -409,8 +447,10 @@ rift compare --baseline opus-4-7 --challenger gemini-3.5-flash \
              --output benchmarks/opus47_vs_gemini35/open_ended_qa.json
 ```
 
-Total spend: ~$0.55. Cache-hits make re-runs free.
+Total spend at current prices: ~$0.33. Cache-hits make re-runs free.
 
 To reproduce the figures in this writeup without API access, use
 `rift diff` on the committed `.json` outputs — every number in this
-document is recoverable offline.
+document is recoverable offline. (The committed Opus `cost_usd` values
+reflect the current $5/$25 list price; token counts are unchanged from
+the 2026-05-20 capture.)

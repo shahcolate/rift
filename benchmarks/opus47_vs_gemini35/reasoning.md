@@ -14,7 +14,7 @@
 | Delta | +0.0000 (+0.0%) |
 | p-value | 1.000000 |
 | 95% CI | [+0.0000, +0.0000] |
-| Effect size | +0.000 (Cohen's h, negligible) |
+| Effect size | +0.000 (Cohen's h (marginal), negligible) |
 | Regressed cases | 0 / 10 |
 | Improved cases | 0 / 10 |
 
@@ -22,6 +22,7 @@
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $0.0465 | $0.0506 |
-| $/correct   | $0.0052 | $0.0056 |
-| Δ $/correct | — | +0.0005 |
+| Total spend | $0.0155 | $0.0506 |
+| $/correct   | $0.0017 | $0.0056 |
+| Δ $/correct | — | +0.0039 |
+| 95% CI on Δ $/correct | — | [+0.0021, +0.0068] |

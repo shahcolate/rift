@@ -170,7 +170,7 @@ class TestCostAttribution:
             + attr.price_change_component_usd
         )
         assert summed == pytest.approx(attr.delta_usd, abs=1e-6)
-        # Sonnet ($15/Mtok out) → Opus ($75/Mtok out): the price jump
+        # Sonnet ($15/Mtok out) → Opus ($25/Mtok out): the price jump
         # alone dominates and must be positive.
         assert attr.price_change_component_usd > 0
 

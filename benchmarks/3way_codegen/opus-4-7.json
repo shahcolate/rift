@@ -95,7 +95,7 @@
       "latency_ms": 2431.9875000510365,
       "input_tokens": 121,
       "output_tokens": 126,
-      "cost_usd": 0.011265,
+      "cost_usd": 0.003755,
       "tags": [
         "basic",
         "loops"
@@ -152,7 +152,7 @@
       "latency_ms": 1969.0612500999123,
       "input_tokens": 90,
       "output_tokens": 57,
-      "cost_usd": 0.005625,
+      "cost_usd": 0.001875,
       "tags": [
         "basic",
         "strings"
@@ -266,7 +266,7 @@
       "latency_ms": 2240.0109579320997,
       "input_tokens": 113,
       "output_tokens": 66,
-      "cost_usd": 0.006645,
+      "cost_usd": 0.002215,
       "tags": [
         "recursion"
       ],
@@ -344,7 +344,7 @@
       "latency_ms": 1917.437540832907,
       "input_tokens": 103,
       "output_tokens": 75,
-      "cost_usd": 0.007169999999999999,
+      "cost_usd": 0.0023899999999999998,
       "tags": [
         "algorithms",
         "hash_map"
@@ -468,7 +468,7 @@
       "latency_ms": 3149.63712496683,
       "input_tokens": 72,
       "output_tokens": 145,
-      "cost_usd": 0.011954999999999999,
+      "cost_usd": 0.003985,
       "tags": [
         "algorithms",
         "sorting"

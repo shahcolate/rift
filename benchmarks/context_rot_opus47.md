@@ -8,8 +8,8 @@ _Suite: `context_rot_reasoning__context_rot` · 32 cases (8 base × 4 distractor
 
 | Model | Mean | Correct | Errors | Spend | $/correct |
 |-------|------|---------|--------|-------|-----------|
-| `opus-4-7` | 0.875 | 28/32 | 0 | $7.3633 | $0.2630 |
-| `opus-4-6` | 0.844 | 27/32 | 0 | $5.0823 | $0.1882 |
+| `opus-4-7` | 0.875 | 28/32 | 0 | $2.4544 | $0.0877 |
+| `opus-4-6` | 0.844 | 27/32 | 0 | $1.6941 | $0.0627 |
 | `sonnet-4-6` | 0.750 | 24/32 | 0 | $1.0165 | $0.0424 |
 | `gpt-4o` | 0.531 | 17/32 | 0 | $0.8466 | $0.0498 |
 
@@ -50,7 +50,7 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 | Delta | +0.0312 (+3.7%) |
 | p-value | 1.000000 |
 | 95% CI | [-0.1562, +0.2188] |
-| Effect size | +0.090 (Cohen's h, negligible) |
+| Effect size | +0.090 (Cohen's h (marginal), negligible)  ·  paired g = +0.111 |
 | Regressed cases | 4 / 32 |
 | Improved cases | 5 / 32 |
 
@@ -58,18 +58,19 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $5.08 | $7.36 |
-| $/correct   | $0.1882 | $0.2630 |
-| Δ $/correct | — | +0.0747 |
+| Total spend | $1.69 | $2.45 |
+| $/correct   | $0.0627 | $0.0877 |
+| Δ $/correct | — | +0.0249 |
+| 95% CI on Δ $/correct | — | [+0.0075, +0.0479] |
 
 ## By Subgroup
 
 | Subgroup | n | Baseline | Challenger | Δ | Effect | p | q (BH) | 95% CI | Δ $/correct |
 |----------|---|----------|------------|---|--------|---|--------|--------|-------------|
-| distractor:0k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h, negligible) | 1.0000 | 1.0000 | [-0.250, +0.375] | +0.0005 |
-| distractor:2k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h, negligible) | 1.0000 | 1.0000 | [-0.375, +0.250] | +0.0159 |
-| distractor:32k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h, negligible) | 1.0000 | 1.0000 | [-0.375, +0.253] | +0.2473 |
-| distractor:8k | 8 | 0.750 | 0.875 | +0.125 | +0.325 (Cohen's h, small) | 1.0000 | 1.0000 | [-0.375, +0.500] | +0.0391 |
+| distractor:0k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h (marginal), negligible)  ·  paired g = +0.000 | 1.0000 | 1.0000 | [-0.250, +0.375] | +0.0002 |
+| distractor:2k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h (marginal), negligible)  ·  paired g = +0.000 | 1.0000 | 1.0000 | [-0.375, +0.250] | +0.0053 |
+| distractor:32k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h (marginal), negligible)  ·  paired g = +0.000 | 1.0000 | 1.0000 | [-0.375, +0.253] | +0.0824 |
+| distractor:8k | 8 | 0.750 | 0.875 | +0.125 | +0.325 (Cohen's h (marginal), small)  ·  paired g = +0.333 | 1.0000 | 1.0000 | [-0.375, +0.500] | +0.0130 |
 
 ## Regressed Cases
 
@@ -99,7 +100,7 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 | Delta | -0.0938 (-11.1%) |
 | p-value | 0.453125 |
 | 95% CI | [-0.2812, +0.0625] |
-| Effect size | -0.234 (Cohen's h, small) |
+| Effect size | -0.234 (Cohen's h (marginal), small)  ·  paired g = -0.429 |
 | Regressed cases | 5 / 32 |
 | Improved cases | 2 / 32 |
 
@@ -107,18 +108,19 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $5.08 | $1.02 |
-| $/correct   | $0.1882 | $0.0424 |
-| Δ $/correct | — | -0.1459 |
+| Total spend | $1.69 | $1.02 |
+| $/correct   | $0.0627 | $0.0424 |
+| Δ $/correct | — | -0.0204 |
+| 95% CI on Δ $/correct | — | [-0.0365, -0.0074] |
 
 ## By Subgroup
 
 | Subgroup | n | Baseline | Challenger | Δ | Effect | p | q (BH) | 95% CI | Δ $/correct |
 |----------|---|----------|------------|---|--------|---|--------|--------|-------------|
-| distractor:0k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h, negligible) | 1.0000 | 1.0000 | [-0.375, +0.375] | -0.0012 |
-| distractor:2k | 8 | 0.875 | 0.750 | -0.125 | -0.325 (Cohen's h, small) | 1.0000 | 1.0000 | [-0.375, +0.000] | -0.0274 |
-| distractor:32k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h, negligible) | 1.0000 | 1.0000 | [-0.375, +0.253] | -0.4401 |
-| distractor:8k | 8 | 0.750 | 0.500 | -0.250 | -0.524 (Cohen's h, medium) | 0.5000 | 1.0000 | [-0.625, +0.000] | -0.1132 |
+| distractor:0k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h (marginal), negligible)  ·  paired g = +0.000 | 1.0000 | 1.0000 | [-0.375, +0.375] | -0.0002 |
+| distractor:2k | 8 | 0.875 | 0.750 | -0.125 | -0.325 (Cohen's h (marginal), small)  ·  paired g = -1.000 | 1.0000 | 1.0000 | [-0.375, +0.000] | -0.0036 |
+| distractor:32k | 8 | 0.875 | 0.875 | +0.000 | +0.000 (Cohen's h (marginal), negligible)  ·  paired g = +0.000 | 1.0000 | 1.0000 | [-0.375, +0.253] | -0.0733 |
+| distractor:8k | 8 | 0.750 | 0.500 | -0.250 | -0.524 (Cohen's h (marginal), medium)  ·  paired g = -1.000 | 0.5000 | 1.0000 | [-0.625, +0.000] | -0.0054 |
 
 ## Regressed Cases
 
@@ -149,7 +151,7 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 | Delta | -0.3125 (-37.0%) |
 | p-value | 0.006348 |
 | 95% CI | [-0.5000, -0.1250] |
-| Effect size | -0.696 (Cohen's h, medium) |
+| Effect size | -0.696 (Cohen's h (marginal), medium)  ·  paired g = -0.833 |
 | Regressed cases | 11 / 32 |
 | Improved cases | 1 / 32 |
 
@@ -157,18 +159,19 @@ Does output inflate along with input, or is the inflation input-only? A uniform 
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $5.08 | $0.8466 |
-| $/correct   | $0.1882 | $0.0498 |
-| Δ $/correct | — | -0.1384 |
+| Total spend | $1.69 | $0.8466 |
+| $/correct   | $0.0627 | $0.0498 |
+| Δ $/correct | — | -0.0129 |
+| 95% CI on Δ $/correct | — | [-0.0262, +0.0123] |
 
 ## By Subgroup
 
 | Subgroup | n | Baseline | Challenger | Δ | Effect | p | q (BH) | 95% CI | Δ $/correct |
 |----------|---|----------|------------|---|--------|---|--------|--------|-------------|
-| distractor:0k | 8 | 0.875 | 0.750 | -0.125 | -0.325 (Cohen's h, small) | 1.0000 | 1.0000 | [-0.375, +0.000] | -0.0012 |
-| distractor:2k | 8 | 0.875 | 0.625 | -0.250 | -0.595 (Cohen's h, medium) | 0.5000 | 0.8333 | [-0.625, +0.000] | -0.0275 |
-| distractor:32k | 8 | 0.875 | 0.250 | -0.625 | -1.372 (Cohen's h, large) | 0.0625 | 0.2500 | [-0.875, -0.250] | -0.2293 |
-| distractor:8k | 8 | 0.750 | 0.500 | -0.250 | -0.524 (Cohen's h, medium) | 0.6250 | 0.8333 | [-0.750, +0.250] | -0.1213 |
+| distractor:0k | 8 | 0.875 | 0.750 | -0.125 | -0.325 (Cohen's h (marginal), small)  ·  paired g = -1.000 | 1.0000 | 1.0000 | [-0.375, +0.000] | -0.0002 |
+| distractor:2k | 8 | 0.875 | 0.625 | -0.250 | -0.595 (Cohen's h (marginal), medium)  ·  paired g = -1.000 | 0.5000 | 0.8333 | [-0.625, +0.000] | -0.0036 |
+| distractor:32k | 8 | 0.875 | 0.250 | -0.625 | -1.372 (Cohen's h (marginal), large)  ·  paired g = -1.000 | 0.0625 | 0.2500 | [-0.875, -0.250] | +0.1375 |
+| distractor:8k | 8 | 0.750 | 0.500 | -0.250 | -0.524 (Cohen's h (marginal), medium)  ·  paired g = -0.500 | 0.6250 | 0.8333 | [-0.750, +0.250] | -0.0135 |
 
 ## Regressed Cases
 
