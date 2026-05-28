@@ -22,9 +22,10 @@
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $0.0812 | $0.0326 |
-| $/correct   | $0.0162 | $0.0163 |
-| Δ $/correct | — | +0.0001 |
+| Total spend | $0.0271 | $0.0326 |
+| $/correct   | $0.0054 | $0.0163 |
+| Δ $/correct | — | +0.0109 |
+| 95% CI on Δ $/correct | — | [+0.0020, +0.0301] |
 
 ## Regressed Cases
 

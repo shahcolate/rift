@@ -19,14 +19,18 @@
       2
     ],
     "improved_cases": [],
-    "baseline_cost_usd": 0.0812,
+    "baseline_cost_usd": 0.0271,
     "challenger_cost_usd": 0.0326,
-    "baseline_cost_per_correct": 0.016236,
+    "baseline_cost_per_correct": 0.005412,
     "challenger_cost_per_correct": 0.016294,
-    "cost_normalized_delta_usd": 5.8e-05,
+    "cost_normalized_delta_usd": 0.010882,
+    "cost_delta_ci_lower": 0.002023,
+    "cost_delta_ci_upper": 0.030087,
+    "cost_delta_ci_defined": true,
     "effect_size": -0.8764,
     "effect_size_kind": "hedges_g",
     "effect_size_magnitude": "large",
+    "cohens_g_paired": null,
     "subgroups": {}
   },
   "baseline": {
@@ -43,7 +47,7 @@
         "latency_ms": 3009.43912799994,
         "input_tokens": 38,
         "output_tokens": 116,
-        "cost_usd": 0.009269999999999999,
+        "cost_usd": 0.00309,
         "tags": [
           "history"
         ],
@@ -59,7 +63,7 @@
         "latency_ms": 5614.584422999997,
         "input_tokens": 49,
         "output_tokens": 234,
-        "cost_usd": 0.018285,
+        "cost_usd": 0.006095,
         "tags": [
           "science"
         ],
@@ -75,7 +79,7 @@
         "latency_ms": 4411.178018999863,
         "input_tokens": 49,
         "output_tokens": 208,
-        "cost_usd": 0.016335,
+        "cost_usd": 0.005445,
         "tags": [
           "literature"
         ],
@@ -93,7 +97,7 @@
         "latency_ms": 5963.505512999973,
         "input_tokens": 35,
         "output_tokens": 418,
-        "cost_usd": 0.031875,
+        "cost_usd": 0.010624999999999999,
         "tags": [
           "code",
           "rubric"
@@ -110,7 +114,7 @@
         "latency_ms": 2311.0186330000033,
         "input_tokens": 31,
         "output_tokens": 66,
-        "cost_usd": 0.0054150000000000005,
+        "cost_usd": 0.001805,
         "tags": [
           "science"
         ],

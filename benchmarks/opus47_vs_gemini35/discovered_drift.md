@@ -14,7 +14,7 @@
 | Delta | +1.0000 (+0.0%) |
 | p-value | 0.003906 |
 | 95% CI | [+1.0000, +1.0000] |
-| Effect size | +3.142 (Cohen's h, large) |
+| Effect size | +3.142 (Cohen's h (marginal), large)  ·  paired g = +1.000 |
 | Regressed cases | 0 / 9 |
 | Improved cases | 9 / 9 |
 
@@ -22,6 +22,6 @@
 
 | Metric | Baseline | Challenger |
 |--------|----------|------------|
-| Total spend | $0.1120 | $0.0811 |
+| Total spend | $0.0373 | $0.0811 |
 | $/correct   | ∞ | $0.0090 |
 | Δ $/correct | — | +0.0000 |

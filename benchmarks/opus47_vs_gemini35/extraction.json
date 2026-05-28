@@ -19,14 +19,18 @@
     "improved_cases": [
       21
     ],
-    "baseline_cost_usd": 0.1998,
+    "baseline_cost_usd": 0.0666,
     "challenger_cost_usd": 0.1336,
-    "baseline_cost_per_correct": 0.008685,
+    "baseline_cost_per_correct": 0.002895,
     "challenger_cost_per_correct": 0.006072,
-    "cost_normalized_delta_usd": -0.002613,
+    "cost_normalized_delta_usd": 0.003177,
+    "cost_delta_ci_lower": 0.002323,
+    "cost_delta_ci_upper": 0.004586,
+    "cost_delta_ci_defined": true,
     "effect_size": 0.0,
     "effect_size_kind": "hedges_g",
     "effect_size_magnitude": "negligible",
+    "cohens_g_paired": null,
     "subgroups": {}
   },
   "baseline": {
@@ -48,7 +52,7 @@
         "latency_ms": 1817.781316000037,
         "input_tokens": 83,
         "output_tokens": 65,
-        "cost_usd": 0.0061200000000000004,
+        "cost_usd": 0.00204,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -67,7 +71,7 @@
         "latency_ms": 2619.955085999891,
         "input_tokens": 98,
         "output_tokens": 73,
-        "cost_usd": 0.006945,
+        "cost_usd": 0.0023150000000000002,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -86,7 +90,7 @@
         "latency_ms": 3585.0454300000365,
         "input_tokens": 89,
         "output_tokens": 67,
-        "cost_usd": 0.00636,
+        "cost_usd": 0.00212,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -105,7 +109,7 @@
         "latency_ms": 1995.238517999951,
         "input_tokens": 107,
         "output_tokens": 71,
-        "cost_usd": 0.00693,
+        "cost_usd": 0.00231,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -124,7 +128,7 @@
         "latency_ms": 1805.56647100002,
         "input_tokens": 76,
         "output_tokens": 67,
-        "cost_usd": 0.006165,
+        "cost_usd": 0.002055,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -143,7 +147,7 @@
         "latency_ms": 1836.249012000053,
         "input_tokens": 90,
         "output_tokens": 82,
-        "cost_usd": 0.0075,
+        "cost_usd": 0.0025,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -162,7 +166,7 @@
         "latency_ms": 1880.8022350001465,
         "input_tokens": 98,
         "output_tokens": 89,
-        "cost_usd": 0.008145,
+        "cost_usd": 0.002715,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -181,7 +185,7 @@
         "latency_ms": 2025.855902000103,
         "input_tokens": 61,
         "output_tokens": 60,
-        "cost_usd": 0.005415,
+        "cost_usd": 0.001805,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -200,7 +204,7 @@
         "latency_ms": 2112.4662780000563,
         "input_tokens": 75,
         "output_tokens": 65,
-        "cost_usd": 0.006,
+        "cost_usd": 0.002,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -219,7 +223,7 @@
         "latency_ms": 2292.254474999936,
         "input_tokens": 97,
         "output_tokens": 86,
-        "cost_usd": 0.007905,
+        "cost_usd": 0.002635,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -238,7 +242,7 @@
         "latency_ms": 2823.9395010000408,
         "input_tokens": 98,
         "output_tokens": 75,
-        "cost_usd": 0.007095,
+        "cost_usd": 0.002365,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -257,7 +261,7 @@
         "latency_ms": 2110.5917180000233,
         "input_tokens": 98,
         "output_tokens": 76,
-        "cost_usd": 0.00717,
+        "cost_usd": 0.0023899999999999998,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -276,7 +280,7 @@
         "latency_ms": 1817.3194170001352,
         "input_tokens": 101,
         "output_tokens": 70,
-        "cost_usd": 0.006765,
+        "cost_usd": 0.002255,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -295,7 +299,7 @@
         "latency_ms": 2109.5641360000172,
         "input_tokens": 92,
         "output_tokens": 68,
-        "cost_usd": 0.0064800000000000005,
+        "cost_usd": 0.00216,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -314,7 +318,7 @@
         "latency_ms": 1747.97670199996,
         "input_tokens": 100,
         "output_tokens": 90,
-        "cost_usd": 0.00825,
+        "cost_usd": 0.00275,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -333,7 +337,7 @@
         "latency_ms": 2096.206102000224,
         "input_tokens": 107,
         "output_tokens": 89,
-        "cost_usd": 0.008280000000000001,
+        "cost_usd": 0.00276,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -352,7 +356,7 @@
         "latency_ms": 1955.6005739998454,
         "input_tokens": 100,
         "output_tokens": 89,
-        "cost_usd": 0.008175,
+        "cost_usd": 0.002725,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -371,7 +375,7 @@
         "latency_ms": 2029.384035000021,
         "input_tokens": 74,
         "output_tokens": 66,
-        "cost_usd": 0.00606,
+        "cost_usd": 0.00202,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -390,7 +394,7 @@
         "latency_ms": 1935.92783400004,
         "input_tokens": 77,
         "output_tokens": 68,
-        "cost_usd": 0.006255,
+        "cost_usd": 0.002085,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -409,7 +413,7 @@
         "latency_ms": 1559.280693999881,
         "input_tokens": 75,
         "output_tokens": 69,
-        "cost_usd": 0.0063,
+        "cost_usd": 0.0021,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -428,7 +432,7 @@
         "latency_ms": 2475.6201049999618,
         "input_tokens": 92,
         "output_tokens": 85,
-        "cost_usd": 0.007755,
+        "cost_usd": 0.002585,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -447,7 +451,7 @@
         "latency_ms": 2235.5725800000528,
         "input_tokens": 103,
         "output_tokens": 91,
-        "cost_usd": 0.00837,
+        "cost_usd": 0.00279,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -467,7 +471,7 @@
         "latency_ms": 2704.418639000096,
         "input_tokens": 75,
         "output_tokens": 79,
-        "cost_usd": 0.00705,
+        "cost_usd": 0.00235,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -487,7 +491,7 @@
         "latency_ms": 1687.2119170000133,
         "input_tokens": 66,
         "output_tokens": 68,
-        "cost_usd": 0.00609,
+        "cost_usd": 0.0020299999999999997,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -506,7 +510,7 @@
         "latency_ms": 1885.0222910000412,
         "input_tokens": 81,
         "output_tokens": 72,
-        "cost_usd": 0.006615,
+        "cost_usd": 0.002205,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -525,7 +529,7 @@
         "latency_ms": 1501.5359090000402,
         "input_tokens": 78,
         "output_tokens": 62,
-        "cost_usd": 0.00582,
+        "cost_usd": 0.0019399999999999999,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -544,7 +548,7 @@
         "latency_ms": 1664.2339749998882,
         "input_tokens": 81,
         "output_tokens": 70,
-        "cost_usd": 0.006465,
+        "cost_usd": 0.002155,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -563,7 +567,7 @@
         "latency_ms": 1803.186529999948,
         "input_tokens": 90,
         "output_tokens": 74,
-        "cost_usd": 0.0069,
+        "cost_usd": 0.0023,
         "tags": [],
         "error": null,
         "attempts": 1
@@ -582,7 +586,7 @@
         "latency_ms": 1738.8828220000505,
         "input_tokens": 85,
         "output_tokens": 68,
-        "cost_usd": 0.0063750000000000005,
+        "cost_usd": 0.0021249999999999997,
         "tags": [],
         "error": null,
         "attempts": 1

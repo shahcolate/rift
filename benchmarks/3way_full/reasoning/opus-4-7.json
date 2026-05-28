@@ -12,7 +12,7 @@
       "latency_ms": 1746.4555001351982,
       "input_tokens": 111,
       "output_tokens": 18,
-      "cost_usd": 0.0030150000000000003,
+      "cost_usd": 0.001005,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -26,7 +26,7 @@
       "latency_ms": 1791.9046247843653,
       "input_tokens": 135,
       "output_tokens": 21,
-      "cost_usd": 0.0036,
+      "cost_usd": 0.0012000000000000001,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -40,7 +40,7 @@
       "latency_ms": 2102.941625053063,
       "input_tokens": 90,
       "output_tokens": 15,
-      "cost_usd": 0.0024749999999999998,
+      "cost_usd": 0.000825,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -54,7 +54,7 @@
       "latency_ms": 1685.6075830291957,
       "input_tokens": 86,
       "output_tokens": 15,
-      "cost_usd": 0.0024149999999999996,
+      "cost_usd": 0.0008049999999999999,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -68,7 +68,7 @@
       "latency_ms": 1530.2514999639243,
       "input_tokens": 108,
       "output_tokens": 13,
-      "cost_usd": 0.002595,
+      "cost_usd": 0.000865,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -82,7 +82,7 @@
       "latency_ms": 1588.2565828505903,
       "input_tokens": 114,
       "output_tokens": 16,
-      "cost_usd": 0.00291,
+      "cost_usd": 0.0009699999999999999,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -96,7 +96,7 @@
       "latency_ms": 1976.8661670386791,
       "input_tokens": 97,
       "output_tokens": 15,
-      "cost_usd": 0.00258,
+      "cost_usd": 0.0008600000000000001,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -110,7 +110,7 @@
       "latency_ms": 5707.29162520729,
       "input_tokens": 142,
       "output_tokens": 328,
-      "cost_usd": 0.02673,
+      "cost_usd": 0.008910000000000001,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -124,7 +124,7 @@
       "latency_ms": 2080.9115839656442,
       "input_tokens": 96,
       "output_tokens": 14,
-      "cost_usd": 0.00249,
+      "cost_usd": 0.00083,
       "tags": [],
       "error": null,
       "attempts": 1
@@ -138,7 +138,7 @@
       "latency_ms": 1626.3880841434002,
       "input_tokens": 98,
       "output_tokens": 16,
-      "cost_usd": 0.0026699999999999996,
+      "cost_usd": 0.00089,
       "tags": [],
       "error": null,
       "attempts": 1

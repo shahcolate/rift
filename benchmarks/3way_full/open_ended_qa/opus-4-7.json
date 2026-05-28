@@ -12,7 +12,7 @@
       "latency_ms": 3012.8266671672463,
       "input_tokens": 38,
       "output_tokens": 130,
-      "cost_usd": 0.01032,
+      "cost_usd": 0.00344,
       "tags": [
         "history"
       ],
@@ -28,7 +28,7 @@
       "latency_ms": 6077.526000095531,
       "input_tokens": 49,
       "output_tokens": 257,
-      "cost_usd": 0.02001,
+      "cost_usd": 0.006670000000000001,
       "tags": [
         "science"
       ],
@@ -44,7 +44,7 @@
       "latency_ms": 4722.8010420221835,
       "input_tokens": 49,
       "output_tokens": 211,
-      "cost_usd": 0.01656,
+      "cost_usd": 0.005520000000000001,
       "tags": [
         "literature"
       ],
@@ -62,7 +62,7 @@
       "latency_ms": 6952.740457840264,
       "input_tokens": 35,
       "output_tokens": 408,
-      "cost_usd": 0.031125,
+      "cost_usd": 0.010375,
       "tags": [
         "code",
         "rubric"
@@ -79,7 +79,7 @@
       "latency_ms": 2798.2834158465266,
       "input_tokens": 31,
       "output_tokens": 77,
-      "cost_usd": 0.00624,
+      "cost_usd": 0.0020800000000000003,
       "tags": [
         "science"
       ],
