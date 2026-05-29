@@ -131,12 +131,38 @@ Three numbers carry the story:
 
 ## Worked studies
 
-Two paired runs against live APIs, one for each question in the
+Paired runs against live APIs, one for each question in the
 tagline. Run-level reports (markdown) and per-case completion JSONs
 are committed under `benchmarks/`; re-running offline from those
 captures requires the cache to be re-primed (the offline `rift demo`
 replays the same headline numbers from a calibrated synthetic file —
 see the reproducibility note above).
+
+### Did the upgrade regress? — Opus 4.7 → 4.8
+
+Live paired run against the Anthropic API on Opus 4.8 launch day
+(2026-05-29), 4.8 compared against 4.7 and 4.6 across six suites.
+**4.8 is a statistically indistinguishable sidegrade on five standard
+suites (reasoning, extraction, code generation, open-ended QA,
+summarization) — and slightly cheaper per correct.** But on
+long-context reasoning with injected distractors it regresses:
+
+| Signal | Opus 4.7 | Opus 4.8 | Δ |
+|---|---|---|---|
+| Accuracy (context-rot, n=32) | 87.5% (28/32) | 68.75% (22/32) | **−18.75pp, p=0.031 (significant)** |
+| Regressed / improved cases | — | — | **6 / 0** (paired g = −1.000) |
+| Total spend | $2.29 | $2.28 | ~flat |
+| **$/correct** | $0.0820 | $0.1036 | **+26%** |
+| Refusal rate | 0.0% | 0.0% | no over-refusal |
+
+The +26% cost-per-correct is *not* a price story — spend is flat to the
+cent. It rises because 4.8 gets fewer answers right for the same money.
+All six regressions are cases carrying injected "reference material"
+distractors: **4.8 is more distractible by irrelevant long context than
+4.7 was**, a regression a green standard-benchmark sheet would have
+hidden. Full writeup, per-suite matrices, and the
+"what-not-to-claim" caveats:
+[`benchmarks/3way_opus48/analysis.md`](benchmarks/3way_opus48/analysis.md).
 
 ### Did the upgrade regress? — Opus 4.6 → 4.7
 

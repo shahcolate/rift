@@ -1,0 +1,98 @@
+{
+  "model": "claude-opus-4-8",
+  "suite_name": "open_ended_qa",
+  "scoring_method": "llm_judge",
+  "cases": [
+    {
+      "case_index": 0,
+      "input_text": "In two sentences, what was the main reason the Apollo 11 mission\nwas significant?\n",
+      "expected": "Apollo 11 was the first crewed mission to land humans on the Moon\n(in July 1969). Its significance is primarily as the first time\nhumans set foot on a body other than Earth.\n",
+      "output": "The Apollo 11 mission was significant because it marked the first time humans landed and walked on the Moon, with Neil Armstrong and Buzz Aldrin setting foot on the lunar surface on July 20, 1969. This achievement fulfilled a national goal set by President Kennedy and represented a monumental milestone in human exploration and a pivotal moment in the Cold War space race between the United States and the Soviet Union.",
+      "score": 1.0,
+      "latency_ms": 3071.0642910562456,
+      "input_tokens": 33,
+      "output_tokens": 139,
+      "cost_usd": 0.00364,
+      "tags": [
+        "history"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 1,
+      "input_text": "Why does the sky appear blue during the day? Answer in one\nparagraph at the level of a curious 12-year-old.\n",
+      "expected": "Sunlight is made of many colors, and as it passes through the\natmosphere, the shorter blue wavelengths get scattered in all\ndirections by air molecules far more than the longer red\nwavelengths (Rayleigh scattering). So when you look up, blue\nlight is what's coming at your eyes from all over the sky.\n",
+      "output": "The sky looks blue because of the way sunlight bounces around in our atmosphere! Sunlight might look white, but it's actually made up of all the colors of the rainbow mixed together. When this light travels from the Sun and hits the tiny gas molecules in the air, the light gets scattered, or bounced off in all directions. Here's the cool part: blue light gets scattered way more than the other colors because it travels in shorter, smaller waves that bump into those molecules more easily. So as you look up at the sky, you're seeing all that blue light scattered across it from every direction, which is why the whole sky glows blue! And fun fact\u2014this is also why sunsets look red and orange: when the Sun is low, its light has to pass through more air to reach you, so most of the blue gets scattered away before it arrives, leaving the warmer colors behind.",
+      "score": 1.0,
+      "latency_ms": 5562.524457927793,
+      "input_tokens": 44,
+      "output_tokens": 269,
+      "cost_usd": 0.006945,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 2
+    },
+    {
+      "case_index": 2,
+      "input_text": "Summarize the plot of \"1984\" by George Orwell in three sentences,\navoiding spoilers about the ending.\n",
+      "expected": "Winston Smith works at the Ministry of Truth in a totalitarian\nsociety where the Party, led by Big Brother, surveils and\nrewrites history to control the population. Disillusioned, he\nbegins a forbidden love affair with Julia and is drawn toward\nwhat he believes is an underground resistance. The novel\nfollows his quiet rebellion against the Party's grip on\nthought, language, and even reality itself.\n",
+      "output": "In a dystopian future, Winston Smith lives under the oppressive rule of the Party and its omnipresent leader, Big Brother, in a society where independent thought is a crime and constant surveillance is the norm. Working at the Ministry of Truth, where he alters historical records to fit the Party's ever-changing narrative, Winston grows increasingly disillusioned and begins to secretly rebel against the regime. As he pursues a forbidden romance and seeks out others who might share his desire for freedom, Winston risks everything in a world where the Party demands absolute loyalty and control over both actions and minds.",
+      "score": 1.0,
+      "latency_ms": 4204.222459113225,
+      "input_tokens": 44,
+      "output_tokens": 197,
+      "cost_usd": 0.005144999999999999,
+      "tags": [
+        "literature"
+      ],
+      "error": null,
+      "attempts": 1
+    },
+    {
+      "case_index": 3,
+      "input_text": "Briefly explain what a recursive function is and give a simple\nexample in Python.\n",
+      "expected": {
+        "rubric": "The answer should: (1) define a recursive function as one\nthat calls itself, (2) mention that recursion needs a base\ncase to terminate, (3) provide a runnable Python example\n(factorial, Fibonacci, sum, or similar). Full marks if all\nthree are present; partial marks if missing one element.\n"
+      },
+      "output": "## Recursive Function\n\nA **recursive function** is a function that calls itself to solve a problem by breaking it down into smaller, similar subproblems. It needs two key parts:\n\n1. **Base case** \u2014 a condition that stops the recursion (prevents infinite loops).\n2. **Recursive case** \u2014 where the function calls itself with a smaller input.\n\n## Example: Factorial\n\nThe factorial of a number `n` (written `n!`) is the product of all integers from 1 to `n`.\n\n```python\ndef factorial(n):\n    # Base case\n    if n == 0 or n == 1:\n        return 1\n    # Recursive case\n    else:\n        return n * factorial(n - 1)\n\nprint(factorial(5))  # Output: 120\n```\n\n### How it works\n```\nfactorial(5)\n= 5 * factorial(4)\n= 5 * 4 * factorial(3)\n= 5 * 4 * 3 * factorial(2)\n= 5 * 4 * 3 * 2 * factorial(1)\n= 5 * 4 * 3 * 2 * 1\n= 120\n```\n\nEach call reduces the problem until it reaches the base case, then the results are multiplied back up.",
+      "score": 1.0,
+      "latency_ms": 4729.827959090471,
+      "input_tokens": 30,
+      "output_tokens": 376,
+      "cost_usd": 0.009550000000000001,
+      "tags": [
+        "code",
+        "rubric"
+      ],
+      "error": null,
+      "attempts": 2
+    },
+    {
+      "case_index": 4,
+      "input_text": "Write one sentence explaining the difference between weather\nand climate.\n",
+      "expected": "Weather is the short-term state of the atmosphere at a\nparticular place and time (e.g. today's rain), while climate\nis the long-term average of weather patterns over years or\ndecades.\n",
+      "output": "Weather refers to the short-term atmospheric conditions in a specific place and time (like today's rain or temperature), while climate describes the long-term average of weather patterns in a region over many years or decades.",
+      "score": 1.0,
+      "latency_ms": 2051.8594160676003,
+      "input_tokens": 26,
+      "output_tokens": 64,
+      "cost_usd": 0.00173,
+      "tags": [
+        "science"
+      ],
+      "error": null,
+      "attempts": 1
+    }
+  ],
+  "started_at": "2026-05-29T17:15:29Z",
+  "completed_at": "2026-05-29T17:15:40Z",
+  "metadata": {
+    "concurrency": 5,
+    "enterprise_multiplier": 1.0,
+    "n_errors": 0,
+    "judge_model": "claude-sonnet-4-6"
+  }
+}
