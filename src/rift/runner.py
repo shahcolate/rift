@@ -273,6 +273,7 @@ async def run_suite(
     concurrency: int = 5,
     cache_dir: str | None = None,
     enterprise_multiplier: float = 1.0,
+    show_progress: bool = True,
 ) -> RunResult:
     """Run every case in ``suite`` against ``model_config``.
 
@@ -297,6 +298,11 @@ async def run_suite(
     enterprise_multiplier : float
         Applied to list price when computing ``cost_usd``. Use e.g.
         ``0.65`` to model a 35%-discount Enterprise contract.
+    show_progress : bool
+        Render a per-case Rich progress bar (default). Set ``False`` to
+        run silently — used by the demo, which owns the screen with its
+        own ``console.status`` spinner and cannot have a second live
+        display active at the same time.
 
     Returns
     -------
@@ -410,21 +416,25 @@ async def run_suite(
             )
 
     results: list[CaseResult] = []
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold]{task.description}"),
-        BarColumn(),
-        TextColumn("{task.completed}/{task.total}"),
-    ) as progress:
-        task = progress.add_task(
-            f"Running {suite.name} on {model_config.model}",
-            total=len(suite.cases),
-        )
-        tasks = [run_case(i, case) for i, case in enumerate(suite.cases)]
+    tasks = [run_case(i, case) for i, case in enumerate(suite.cases)]
+    if show_progress:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+        ) as progress:
+            task = progress.add_task(
+                f"Running {suite.name} on {model_config.model}",
+                total=len(suite.cases),
+            )
+            for coro in asyncio.as_completed(tasks):
+                result = await coro
+                results.append(result)
+                progress.advance(task)
+    else:
         for coro in asyncio.as_completed(tasks):
-            result = await coro
-            results.append(result)
-            progress.advance(task)
+            results.append(await coro)
 
     results.sort(key=lambda r: r.case_index)
     if "p" in provider_holder:

@@ -168,10 +168,12 @@ def replay_recorded_run(baseline: str, challenger: str,
     prime_cache_from_recording(suite, chal_cfg.model, outcomes, cache_dir)
 
     async def _both():
+        # show_progress=False: the demo command wraps this call in a single
+        # console.status spinner, and two live Rich displays can't coexist.
         b = await run_suite(suite, base_cfg, concurrency=8,
-                            cache_dir=str(cache_dir))
+                            cache_dir=str(cache_dir), show_progress=False)
         c = await run_suite(suite, chal_cfg, concurrency=8,
-                            cache_dir=str(cache_dir))
+                            cache_dir=str(cache_dir), show_progress=False)
         return b, c
 
     base_run, chal_run = asyncio.run(_both())

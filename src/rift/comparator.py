@@ -69,7 +69,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy import stats
+
+# NOTE: ``scipy`` is imported lazily inside the functions that need it
+# (_mcnemar_exact, power_analysis, compare_runs) rather than at module
+# top. Importing scipy.stats costs ~0.5s, and pulling it in eagerly here
+# made every CLI invocation — including ``rift demo`` — pay that cost
+# before printing anything. See the functions below.
 
 
 @dataclass
@@ -147,6 +152,7 @@ def _mcnemar_exact(baseline: np.ndarray, challenger: np.ndarray) -> float:
     n_disc = n_regress + n_improve
     if n_disc == 0:
         return 1.0
+    from scipy import stats  # deferred — see module-top note
     return float(stats.binomtest(n_improve, n_disc, p=0.5).pvalue)
 
 
@@ -344,6 +350,7 @@ def power_analysis(
             "n_for_target": None,
         }
 
+    from scipy import stats  # deferred — see module-top note
     z_alpha = float(stats.norm.ppf(1.0 - alpha / 2.0))
     z_power = float(stats.norm.ppf(power))
 
@@ -418,6 +425,7 @@ def compare_runs(
         p_value = _mcnemar_exact(b, c)
         test_used = "mcnemar_exact"
     elif n >= 2 and float(np.std(diffs)) > 1e-10:
+        from scipy import stats  # deferred — see module-top note
         _, p = stats.ttest_rel(c, b)
         p_value = float(p)
         test_used = "paired_t+bootstrap"

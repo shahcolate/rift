@@ -621,7 +621,8 @@ def demo(scenario, auto, beat_multiplier, export_html, export_md,
     Use --export-html to produce a single-file executive memo PMs can
     forward; --export-svg to capture a screenshot for README embedding.
     """
-    script, base_run, chal_run, drift = load_scenario(scenario)
+    with console.status("[bold cyan]Preparing demo…", spinner="dots"):
+        script, base_run, chal_run, drift = load_scenario(scenario)
     run_demo(script, auto=auto, beat_multiplier=beat_multiplier,
              console=console, no_clear=no_clear)
 
