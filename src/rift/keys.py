@@ -33,7 +33,11 @@ def _parse_env(text: str) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
-        value = value.strip().strip('"').strip("'")
+        value = value.strip()
+        # Strip a single matched surrounding quote pair (not unbalanced
+        # quotes, which a real key could legitimately start or end with).
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
         if key:
             out[key] = value
     return out
@@ -62,11 +66,19 @@ def save_key(env_var: str, value: str) -> Path:
     a crash mid-write never leaves a half-written file.
     """
     ENV_DIR.mkdir(parents=True, exist_ok=True)
+    # The directory holds secrets — keep it owner-only even if it already
+    # existed at a laxer mode.
+    os.chmod(ENV_DIR, 0o700)
+
     lines: list[str] = []
     found = False
     if ENV_FILE.is_file():
         for line in ENV_FILE.read_text().splitlines():
-            if line.strip().startswith(f"{env_var}="):
+            # Match on the parsed key name, not a `startswith`, so an entry
+            # hand-written as ``KEY = value`` is updated in place rather than
+            # duplicated.
+            existing = line.split("=", 1)[0].strip() if "=" in line else None
+            if existing == env_var:
                 lines.append(f"{env_var}={value}")
                 found = True
             else:
@@ -74,11 +86,18 @@ def save_key(env_var: str, value: str) -> Path:
     if not found:
         lines.append(f"{env_var}={value}")
 
+    # Create the temp file 0600 from the start (O_EXCL + mode) so the secret
+    # is never briefly world-readable between write and chmod. 0o600 has no
+    # group/other bits, so it survives any umask.
     tmp = ENV_FILE.with_name(ENV_FILE.name + ".tmp")
-    tmp.write_text("\n".join(lines) + "\n")
-    os.chmod(tmp, 0o600)
-    tmp.replace(ENV_FILE)
-    os.chmod(ENV_FILE, 0o600)
+    try:
+        os.unlink(tmp)  # clear any stale temp from a crashed write
+    except OSError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp, ENV_FILE)  # atomic; final file inherits the 0600 temp
     return ENV_FILE
 
 

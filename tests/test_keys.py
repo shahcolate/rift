@@ -60,6 +60,23 @@ class TestEnvFile:
         parsed = keys._parse_env("# comment\n\nFOO=bar\nBAZ = \"q\" \n")
         assert parsed == {"FOO": "bar", "BAZ": "q"}
 
+    def test_parse_env_keeps_unbalanced_quote(self):
+        # A key legitimately ending in a quote must not lose it.
+        assert keys._parse_env('K=ab"') == {"K": 'ab"'}
+        assert keys._parse_env("K=sk-'live") == {"K": "sk-'live"}
+
+    def test_save_key_updates_spaced_entry_in_place(self, fake_home):
+        keys.ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
+        keys.ENV_FILE.write_text("ANTHROPIC_API_KEY = sk-old\n")
+        keys.save_key("ANTHROPIC_API_KEY", "sk-new")
+        text = keys.ENV_FILE.read_text()
+        assert text.count("ANTHROPIC_API_KEY") == 1  # updated, not duplicated
+        assert "sk-new" in text and "sk-old" not in text
+
+    def test_dir_is_user_only(self, fake_home):
+        keys.save_key("ANTHROPIC_API_KEY", "sk-x")
+        assert stat.S_IMODE(keys.ENV_DIR.stat().st_mode) == 0o700
+
 
 class TestEnsureProviderKeys:
     def test_present_key_does_not_raise(self, fake_home, monkeypatch):
