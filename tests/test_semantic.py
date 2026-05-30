@@ -114,6 +114,55 @@ class TestThreshold:
                                    "stock prices fell sharply"))
         assert high == 1.0 and low == 0.0
 
+    def test_out_of_range_threshold_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match=r"threshold must be in \[0, 1\]"):
+            SemanticScorer(embedding_model="stub",
+                           embedder_factory=lambda m: _StubEmbedder(),
+                           cache_dir=str(tmp_path), threshold=-0.2)
+        with pytest.raises(ValueError, match=r"threshold must be in \[0, 1\]"):
+            SemanticScorer(embedding_model="stub",
+                           embedder_factory=lambda m: _StubEmbedder(),
+                           cache_dir=str(tmp_path), threshold=1.5)
+
+
+class TestConcurrentCoalescing:
+    def test_parallel_same_text_embedded_once(self, tmp_path):
+        # Many cases sharing one reference, embedded concurrently, must issue
+        # exactly one embed call for that shared text (not one per case).
+        import asyncio as _aio
+
+        class SlowStub(_StubEmbedder):
+            async def embed(self, text):
+                await _aio.sleep(0.01)  # widen the race window
+                return await super().embed(text)
+
+        stub = SlowStub()
+        s = SemanticScorer(embedding_model="stub",
+                           embedder_factory=lambda m: stub,
+                           cache_dir=str(tmp_path))
+
+        async def run():
+            # 5 distinct outputs (none equal to the reference), all vs the
+            # SAME reference text.
+            outs = ["alpha", "beta", "gamma", "delta", "epsilon"]
+            await _aio.gather(*[
+                s.ascore(o, "stock prices fell sharply") for o in outs
+            ])
+
+        asyncio.run(run())
+        # 5 distinct outputs + 1 shared reference (coalesced to one call) = 6
+        # embeds, NOT 5 outputs + 5 concurrent reference re-embeds = 10.
+        assert stub.calls == 6
+
+
+class TestAuditLogKeying:
+    def test_same_output_different_expected_not_clobbered(self, tmp_path):
+        s, _ = _scorer(tmp_path)
+        asyncio.run(s.ascore("the cat sat on the mat", "a feline rested on the rug"))
+        asyncio.run(s.ascore("the cat sat on the mat", "stock prices fell sharply"))
+        # Two distinct (output, expected) pairs => two audit entries.
+        assert len(s.last_similarity) == 2
+
 
 class TestEmbeddingCache:
     def test_repeat_text_not_re_embedded(self, tmp_path):

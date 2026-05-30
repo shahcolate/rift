@@ -22,8 +22,11 @@ Like the LLM judge, three properties keep this defensible in a report:
 1. **The embedding model is named** — it is part of the methodology. The scorer
    carries ``embedding_model``; the runner stamps it into the run metadata.
 2. **Embeddings are cached** by ``(embedding_model, text)`` so re-running a
-   comparison is free, and the reference answer (embedded once) is reused across
-   every case and across the paired baseline/challenger runs.
+   comparison is free, and the reference answer is reused across every case and
+   across the paired baseline/challenger runs. Concurrent embeds of the same
+   text (cases sharing a reference, run in parallel) are coalesced into a single
+   API call via an in-flight future map, so a shared reference is embedded once
+   even on a cold cache.
 3. **The mapping is fixed** — ``max(0, cosine)``, no per-run tuning — so two runs
    over identical outputs produce identical scores.
 
@@ -217,7 +220,7 @@ class SemanticScorer:
     threshold
         If set, the cosine is thresholded to a binary 1.0/0.0 score (so the
         binary McNemar drift test applies). When ``None`` (default), the graded
-        ``max(0, cosine)`` score is returned.
+        ``max(0, cosine)`` score is returned. Must be in ``[0, 1]``.
     """
 
     def __init__(
@@ -237,7 +240,18 @@ class SemanticScorer:
         if cache_dir is None:
             cache_dir = os.environ.get("RIFT_CACHE_DIR") or ".rift/cache"
         self.cache_dir = Path(cache_dir)
+        if threshold is not None and not 0.0 <= threshold <= 1.0:
+            raise ValueError(
+                f"threshold must be in [0, 1], got {threshold!r}. The cosine "
+                f"score is clamped to [0, 1], so a threshold outside it is "
+                f"either always- or never-passing."
+            )
         self.threshold = threshold
+        # In-flight embedding coalescing: under the concurrent runner, many
+        # cases share a reference answer and would all miss the not-yet-written
+        # cache and embed the same text in parallel. A per-text future shared
+        # across awaiters collapses those into one call (and one charge).
+        self._inflight: dict[str, asyncio.Future[list[float]]] = {}
         # Per-case audit log (cosine before clamp/threshold), keyed by the
         # output text hash; useful for surfacing similarities in a report.
         self.last_similarity: dict[str, float] = {}
@@ -277,7 +291,9 @@ class SemanticScorer:
         out_vec = await self._embed_cached(output)
         exp_vec = await self._embed_cached(expected_str)
         cos = _cosine(out_vec, exp_vec)
-        self.last_similarity[self._text_hash(output)] = cos
+        # Key the audit log by (output, expected): two cases with the same
+        # output but different references must not clobber each other.
+        self.last_similarity[self._pair_hash(output, expected_str)] = cos
 
         if self.threshold is not None:
             return 1.0 if cos >= self.threshold else 0.0
@@ -300,12 +316,34 @@ class SemanticScorer:
         cached = self._read_cache(key)
         if cached is not None:
             return cached
-        vector = await self._get_embedder().embed(text)
-        self._write_cache(key, vector)
-        return vector
+        # Coalesce concurrent embeds of the same text: the first caller owns
+        # the API call; later callers (running cases in parallel) await the
+        # same future instead of issuing duplicate, billable calls.
+        inflight = self._inflight.get(key)
+        if inflight is not None:
+            return await inflight
+        loop = asyncio.get_event_loop()
+        fut: asyncio.Future[list[float]] = loop.create_future()
+        self._inflight[key] = fut
+        try:
+            vector = await self._get_embedder().embed(text)
+        except Exception as exc:
+            fut.set_exception(exc)
+            raise
+        else:
+            self._write_cache(key, vector)
+            fut.set_result(vector)
+            return vector
+        finally:
+            self._inflight.pop(key, None)
 
     def _text_hash(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+    def _pair_hash(self, output: str, expected: str) -> str:
+        return hashlib.sha256(
+            f"{output}\x00{expected}".encode()
+        ).hexdigest()[:16]
 
     def _cache_key(self, text: str) -> str:
         # embed_ prefix so embedding entries never collide with completion
