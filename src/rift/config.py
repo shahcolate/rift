@@ -28,12 +28,19 @@ class SuiteConfig(BaseModel):
     # unset, the runner falls back to $RIFT_JUDGE_MODEL or the
     # built-in default. Ignored for non-llm_judge scoring.
     judge_model: str | None = None
+    # Optional embedding-model override for semantic scoring. Locks the
+    # embedding model in the suite file for reproducibility, mirroring
+    # judge_model. When unset, the runner falls back to
+    # $RIFT_EMBEDDING_MODEL or the built-in default. Ignored for
+    # non-semantic scoring.
+    embedding_model: str | None = None
     cases: list[EvalCase]
 
     @field_validator("scoring")
     @classmethod
     def validate_scoring(cls, v: str) -> str:
-        valid = {"exact_match", "fuzzy_match", "exec_tests", "llm_judge", "custom"}
+        valid = {"exact_match", "fuzzy_match", "exec_tests", "llm_judge",
+                 "semantic", "custom"}
         if v not in valid:
             raise ValueError(f"scoring must be one of {valid}, got '{v}'")
         return v

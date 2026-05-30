@@ -1,0 +1,30 @@
+name: semantic_similarity
+description: >
+  Short factual questions whose correct answers admit many surface forms.
+  Scored with `semantic` (embedding cosine), so a paraphrase of the reference
+  answer scores high even when no words overlap — the case `fuzzy_match` and
+  `exact_match` handle poorly. Set the embedding model via `embedding_model:`
+  below or $RIFT_EMBEDDING_MODEL.
+scoring: semantic
+embedding_model: text-embedding-3-small
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      In one sentence, what is the primary function of the mitochondria in a cell?
+    expected: "Mitochondria generate most of the cell's energy by producing ATP."
+  - input: |
+      Briefly, why does the sky appear blue during the day?
+    expected: "Sunlight is scattered by the atmosphere, and blue light scatters more than other colors."
+  - input: |
+      In a sentence, what caused the 2008 global financial crisis?
+    expected: "The collapse of a housing bubble and widespread defaults on subprime mortgage-backed securities."
+  - input: |
+      Summarize in one sentence what photosynthesis does.
+    expected: "Plants convert sunlight, water, and carbon dioxide into glucose and oxygen."
+  - input: |
+      In one sentence, what is the role of a compiler in software development?
+    expected: "A compiler translates source code written in a high-level language into machine code the computer can execute."
+  - input: |
+      Briefly, what does the immune system do?
+    expected: "It defends the body against pathogens such as bacteria, viruses, and other foreign invaders."

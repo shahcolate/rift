@@ -332,6 +332,11 @@ async def run_suite(
             "judge_model": suite.judge_model,
             "cache_dir": str(cache_path),
         }
+    elif suite.scoring == "semantic":
+        scorer_kwargs = {
+            "embedding_model": suite.embedding_model,
+            "cache_dir": str(cache_path),
+        }
     scorer = get_scorer(suite.scoring, **scorer_kwargs)
     is_async_scorer = hasattr(scorer, "ascore")
     semaphore = asyncio.Semaphore(concurrency)
@@ -455,10 +460,12 @@ async def run_suite(
         "enterprise_multiplier": enterprise_multiplier,
         "n_errors": n_errors,
     }
-    # Stamp the judge model into metadata so a saved RunResult
-    # carries who graded it. Methodology, not decoration.
+    # Stamp the judge / embedding model into metadata so a saved
+    # RunResult carries who graded it. Methodology, not decoration.
     if is_async_scorer and hasattr(scorer, "judge_model"):
         metadata["judge_model"] = scorer.judge_model  # type: ignore[attr-defined]
+    if is_async_scorer and hasattr(scorer, "embedding_model"):
+        metadata["embedding_model"] = scorer.embedding_model  # type: ignore[attr-defined]
 
     return RunResult(
         model=model_config.model,

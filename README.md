@@ -294,7 +294,8 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | Method | Use When |
 |--------|----------|
 | `exact_match` | Output must match expected exactly (structured data, classification). Tolerates a trailing `Confidence: X` line so the same suite can drive calibration. |
-| `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). **Not** embedding-based — for that, see the roadmap. |
+| `fuzzy_match` | Character-sequence similarity via `difflib` (tolerates whitespace, capitalization, minor rewording). Lexical, **not** meaning-level — for that use `semantic`. |
+| `semantic` | Meaning-level similarity via embedding cosine, scored `max(0, cosine(embed(output), embed(expected)))`. Cheaper and lower-bias than an LLM judge for "is this the same idea?" Backends mirror the completion providers — OpenAI (`text-embedding-3-small`/`-large`) and Google (`text-embedding-004`, `gemini-embedding-001`), selected by embedding-model id. Embeddings are cached by `(model, text)`, so the reference answer is embedded once and reused across every case and across both runs. Set the model via `embedding_model:` in the suite or `$RIFT_EMBEDDING_MODEL`. |
 | `llm_judge` | Open-ended outputs (summaries, explanations, code) scored on a 0-1 scale by a separate judge model. Supports both **reference-answer** scoring (`expected: "..."`) and **rubric** scoring (`expected: {rubric: "..."}`). The judge model, judge prompt, and a one-sentence judge reasoning per case are all surfaced for auditability. See `suites/open_ended_qa.yaml` for a worked example. |
 | `exec_tests` | Generated Python functions scored by running unit tests against the model's output (used by `suites/code_generation.yaml`). Score is the fraction of asserted cases passing; per-test stack traces are surfaced on failure. |
 
@@ -520,7 +521,7 @@ release notes typically hand-wave around:
 - [x] `exec_tests` scorer for code generation suites
 - [x] Power-stratified auto-adversarial case discovery (`rift discover`)
 - [x] Reasoning faithfulness perturbations (biasing-hint articulation + CoT-dependence)
-- [ ] Embedding-based semantic scoring
+- [x] Embedding-based semantic scoring (OpenAI + Google backends)
 - [ ] User-defined `custom` scoring functions
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)

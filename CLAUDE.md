@@ -20,6 +20,7 @@ rift/
 │   ├── scoring/
 │   │   ├── exact_match.py
 │   │   ├── llm_judge.py
+│   │   ├── semantic.py      # Embedding-cosine scorer (OpenAI + Google backends)
 │   │   └── faithfulness_judge.py  # Articulation judge (did reasoning admit the cue?)
 │   ├── providers/
 │   │   ├── __init__.py      # Abstract BaseProvider + Completion dataclass
@@ -193,6 +194,9 @@ cases:
 - OPENAI_API_KEY — for OpenAI provider
 - GEMINI_API_KEY — for Google (Gemini) provider
 - RIFT_CACHE_DIR — override cache location (default: .rift/cache)
+- RIFT_JUDGE_MODEL — default judge model for `llm_judge` scoring
+- RIFT_EMBEDDING_MODEL — default embedding model for `semantic` scoring
+  (default: text-embedding-3-small; OpenAI or Google ids)
 
 Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
 (real env vars always win — `os.environ.setdefault`). `rift setup`
