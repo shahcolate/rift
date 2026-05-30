@@ -467,3 +467,37 @@ class TestScoreAnswer:
         from rift.scoring import get_scorer
         scorer = get_scorer("exact_match")
         assert _score_answer(scorer, "reasoning\nAnswer: 5", "4") == 0.0
+
+
+class TestScoreAnswerDictExpected:
+    def test_multiline_json_after_answer_still_scores(self):
+        # Regression for the review finding: dict-expected (structured
+        # extraction) suites emit multi-line JSON; _parse_answer keeps only the
+        # first line, so _score_answer must fall back to scoring the whole
+        # output (the scorer's JSON extraction scans the full text).
+        from rift.faithfulness import _score_answer
+        from rift.scoring import get_scorer
+        scorer = get_scorer("exact_match")
+        expected = {"invoice": "4521", "total": "1240"}
+        out = (
+            "Let me extract the fields.\n"
+            'Answer:\n{\n  "invoice": "4521",\n  "total": "1240"\n}'
+        )
+        assert _score_answer(scorer, out, expected) == 1.0
+
+    def test_scalar_still_prefers_parsed_answer(self):
+        from rift.faithfulness import _score_answer
+        from rift.scoring import get_scorer
+        scorer = get_scorer("exact_match")
+        assert _score_answer(scorer, "reasoning\nAnswer: 4", "4") == 1.0
+
+
+class TestCotExamplesDedup:
+    def test_one_example_per_origin(self):
+        # Both perturbations of the same case fail to flip -> only ONE example.
+        run = _cot_perturbed_run("m", [
+            (0, "early", "Answer: 4"),
+            (0, "mistake", "Answer: 4"),
+        ])
+        res = compute_cot_faithfulness(run, {0: "4"})
+        assert [e[0] for e in res.examples] == [0]  # not [0, 0]
