@@ -23,6 +23,7 @@ from .demo import (
     run_demo,
 )
 from .discovery import discover as discover_loop, to_suite_yaml
+from .keys import ensure_provider_keys, load_env, run_setup
 from .refusal import compare_refusal
 from .reporter import (
     generate_markdown_report,
@@ -44,7 +45,21 @@ console = Console()
 @click.version_option(version="0.2.0", prog_name="rift")
 def main():
     """Rift: You upgraded your model. What broke?"""
-    pass
+    # Load saved API keys (~/.rift/.env, then ./.env) before any command
+    # runs. Real env vars are never overridden.
+    load_env()
+
+
+@main.command()
+def setup():
+    """Save your model-provider API keys so live commands just work.
+
+    Walks through Anthropic / OpenAI / Google, stores whatever you paste
+    in ~/.rift/.env (readable only by you), and loads it automatically on
+    every future run. You only need keys for the providers you actually
+    compare against; the demo runs without any.
+    """
+    run_setup(console)
 
 
 def _maybe_expand(suite_config, context_rot: bool):
@@ -89,6 +104,9 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         suite_config.judge_model = judge_model
     baseline_config = resolve_model(baseline)
     challenger_config = resolve_model(challenger)
+    ensure_provider_keys(
+        [baseline_config.provider, challenger_config.provider], console
+    )
 
     console.print(
         f"\n[bold]Rift[/bold] comparing [cyan]{baseline}[/cyan] "
@@ -209,6 +227,7 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
     if judge_model:
         suite_config.judge_model = judge_model
     model_config = resolve_model(model)
+    ensure_provider_keys([model_config.provider], console)
 
     console.print(f"\n[bold]Rift[/bold] running [cyan]{model}[/cyan]")
     console.print(
@@ -312,6 +331,7 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
         raise click.UsageError("--models needs at least two identifiers.")
 
     suite_config = _maybe_expand(load_suite(suite), context_rot)
+    ensure_provider_keys([resolve_model(m).provider for m in model_list], console)
 
     runs: dict[str, RunResult] = {}
     for m in model_list:
@@ -436,6 +456,7 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
     """
     suite_config = load_suite(suite)
     model_config = resolve_model(model)
+    ensure_provider_keys([model_config.provider], console)
 
     console.print(f"\n[bold]Rift[/bold] sycophancy probe on [cyan]{model}[/cyan]")
     console.print(
@@ -510,6 +531,10 @@ def discover(baseline, challenger, seed_suite, proposer_model,
     seed = load_suite(seed_suite)
     base_cfg = resolve_model(baseline)
     chal_cfg = resolve_model(challenger)
+    ensure_provider_keys(
+        [base_cfg.provider, chal_cfg.provider, resolve_model(proposer_model).provider],
+        console,
+    )
 
     console.print(
         f"\n[bold]Rift[/bold] discovering cases targeting "

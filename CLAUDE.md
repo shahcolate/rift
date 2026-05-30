@@ -166,6 +166,15 @@ cases:
 - GEMINI_API_KEY — for Google (Gemini) provider
 - RIFT_CACHE_DIR — override cache location (default: .rift/cache)
 
+Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
+(real env vars always win — `os.environ.setdefault`). `rift setup`
+writes `~/.rift/.env` (mode 0600); see `keys.py`. Live commands
+(`compare`/`run`/`matrix`/`sycophancy`/`discover`) preflight the
+needed keys via `ensure_provider_keys` — interactive TTY prompts for a
+missing key, non-interactive raises `MissingAPIKeyError` (a
+`ClickException` → clean message, exit 1, never a traceback). The
+demo and cached/replay paths stay keyless (lazy provider init).
+
 ## Development Commands
 
 ```bash

@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion
+from . import BaseProvider, Completion, MissingAPIKeyError
 
 
 class OpenAIProvider(BaseProvider):
@@ -15,7 +15,7 @@ class OpenAIProvider(BaseProvider):
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY not set")
+            raise MissingAPIKeyError("openai")
         self.client = httpx.AsyncClient(
             base_url=api_base or "https://api.openai.com",
             headers={

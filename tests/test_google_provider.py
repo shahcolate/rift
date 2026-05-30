@@ -22,6 +22,7 @@ import json
 import httpx
 import pytest
 
+from rift.providers import MissingAPIKeyError
 from rift.providers.google import GoogleProvider
 
 
@@ -268,7 +269,7 @@ class TestResponseParsing:
 class TestEnvIntegration:
     def test_missing_api_key_raises(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+        with pytest.raises(MissingAPIKeyError, match="GEMINI_API_KEY"):
             GoogleProvider(model="gemini-3.5-flash")
 
     def test_env_var_picked_up(self, monkeypatch):
