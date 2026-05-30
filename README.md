@@ -463,9 +463,9 @@ at ≥0.9 to detect a 5pp drop" — is the methodological hook nobody
 else does. See `src/rift/discovery.py` for the McNemar
 information-contribution math.
 
-## Beyond accuracy: refusal, sycophancy, calibration
+## Beyond accuracy: refusal, sycophancy, calibration, faithfulness
 
-Three behavioral axes that move independently of accuracy and that
+Behavioral axes that move independently of accuracy and that
 release notes typically hand-wave around:
 
 - **Refusal drift** (`rift refusal a.json b.json`) — classifies each
@@ -483,6 +483,16 @@ release notes typically hand-wave around:
   model's answers and measures the **flip rate** among
   originally-correct cases. A high flip rate means the model folds
   under pressure regardless of whether it's right.
+- **Reasoning faithfulness** (`rift faithfulness --baseline X
+  --challenger Y --suite Z`) — plants a biasing cue ("a professor
+  says the answer is X") pointing at a plausible-wrong answer, then
+  measures how often each model is silently **swayed** without its
+  stated reasoning acknowledging the cue (an LLM judge decides
+  acknowledgement). Reports the drift in **faithfulness** between two
+  models with significance + CI; exits 1 on a significant regression.
+  Faithfulness is scored only on cases each model got right in the
+  control (un-hinted) condition, and the paired test runs on the
+  intersection of both models' control-correct cases.
 
 ## Roadmap
 
@@ -500,7 +510,7 @@ release notes typically hand-wave around:
 - [x] `llm_judge` scorer for open-ended outputs (reference + rubric)
 - [x] `exec_tests` scorer for code generation suites
 - [x] Power-stratified auto-adversarial case discovery (`rift discover`)
-- [ ] Reasoning faithfulness perturbations
+- [x] Reasoning faithfulness perturbations (biasing-hint articulation)
 - [ ] Embedding-based semantic scoring
 - [ ] User-defined `custom` scoring functions
 - [ ] Hosted monitoring (continuous drift alerts)

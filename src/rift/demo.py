@@ -21,7 +21,6 @@ import html
 import json
 import math
 import os
-import sys
 import tempfile
 import time
 from dataclasses import asdict, dataclass, field
@@ -295,10 +294,10 @@ def print_verdict_panel(card: VerdictCard, console: Console) -> None:
     lines = [
         f"  [bold]{card.headline}[/bold]",
         "",
-        f"  [bold]Recommendation[/bold]",
+        "  [bold]Recommendation[/bold]",
         f"  {card.recommendation}",
         "",
-        f"  [bold]Action items[/bold]",
+        "  [bold]Action items[/bold]",
     ]
     for item in card.action_items:
         lines.append(f"   • {item}")
@@ -306,7 +305,7 @@ def print_verdict_panel(card: VerdictCard, console: Console) -> None:
         "",
         f"  [dim]{card.confidence_note}[/dim]",
         "",
-        f"  [bold]Reproduce[/bold]",
+        "  [bold]Reproduce[/bold]",
         f"  [dim]{card.reproduce_cmd}[/dim]",
     ]
     console.print(Panel("\n".join(lines),

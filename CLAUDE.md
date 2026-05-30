@@ -10,15 +10,17 @@ The pitch: "You upgraded your model. What broke?"
 ```
 rift/
 ├── src/rift/
-│   ├── cli.py              # CLI entry: compare, run, diff, matrix
+│   ├── cli.py              # CLI entry: compare, run, diff, matrix, faithfulness, ...
 │   ├── runner.py            # Async eval engine (retries, timeouts, cost tagging)
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
 │   ├── pricing.py           # Token price catalog + enterprise multiplier
 │   ├── context_rot.py       # Distractor-injection suite expansion
+│   ├── faithfulness.py      # Reasoning-faithfulness probe (biasing-hint articulation)
 │   ├── scoring/
 │   │   ├── exact_match.py
-│   │   └── semantic.py
+│   │   ├── llm_judge.py
+│   │   └── faithfulness_judge.py  # Articulation judge (did reasoning admit the cue?)
 │   ├── providers/
 │   │   ├── __init__.py      # Abstract BaseProvider + Completion dataclass
 │   │   ├── anthropic.py
@@ -30,7 +32,8 @@ rift/
 │   ├── extraction.yaml
 │   ├── reasoning.yaml
 │   ├── code_generation.yaml
-│   └── context_rot_reasoning.yaml
+│   ├── context_rot_reasoning.yaml
+│   └── faithfulness_reasoning.yaml  # Seed suite for `rift faithfulness`
 ├── benchmarks/
 │   ├── run_context_rot.py              # Reproducible benchmark driver (live|record)
 │   ├── generate_synthetic_outcomes.py  # Seeded prior-model outcomes generator
@@ -50,6 +53,13 @@ rift/
 - **Run**: One execution of a suite against a single model
 - **Comparison**: Statistical analysis of two runs (baseline vs challenger)
 - **Drift Score**: Per-task and aggregate metric quantifying behavioral change
+- **Faithfulness**: Whether a model's stated reasoning reflects what drove its
+  answer. `rift faithfulness` plants a biasing cue toward a generated
+  plausible-wrong answer; a case is *unfaithful* when the model is swayed to
+  that answer but its reasoning does not acknowledge the cue (an LLM judge
+  decides acknowledgement). Scored only on control-correct cases; the paired
+  drift test uses the intersection of both models' control-correct cases. See
+  `faithfulness.py`.
 
 ## CLI Interface
 
@@ -116,7 +126,8 @@ cases:
   This keyless guarantee covers `rift demo` and code that calls
   `run_suite` directly (benchmarks, demo replay), which do not
   preflight. The live CLI commands (`compare`/`run`/`matrix`/
-  `sycophancy`/`discover`) DO preflight keys via `ensure_provider_keys`
+  `sycophancy`/`discover`/`faithfulness`) DO preflight keys via
+  `ensure_provider_keys`
   for a clean fail-fast prompt, so they require a key even when a run
   would have been fully cached. A missing key raised lazily anywhere
   (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
@@ -177,7 +188,8 @@ cases:
 Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
 (real env vars always win — `os.environ.setdefault`). `rift setup`
 writes `~/.rift/.env` (mode 0600); see `keys.py`. Live commands
-(`compare`/`run`/`matrix`/`sycophancy`/`discover`) preflight the
+(`compare`/`run`/`matrix`/`sycophancy`/`discover`/`faithfulness`)
+preflight the
 needed keys via `ensure_provider_keys` — interactive TTY prompts for a
 missing key, non-interactive raises `MissingAPIKeyError` (a
 `ClickException` → clean message, exit 1, never a traceback). The
