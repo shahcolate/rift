@@ -400,6 +400,80 @@ def print_sycophancy_report(analysis) -> None:
                         border_style=border))
 
 
+def print_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: float = 0.05) -> None:
+    """Print a reasoning-faithfulness drift summary.
+
+    ``baseline_fr`` / ``challenger_fr`` are
+    :class:`rift.faithfulness.FaithfulnessResult`; ``drift`` is the
+    :class:`DriftResult` from comparing their per-case faithfulness on the
+    intersection of control-correct cases.
+    """
+    console = Console()
+
+    def _pct(x: float) -> str:
+        return f"{x:.1%}"
+
+    lines = [
+        f"  baseline:   {baseline_fr.model}",
+        f"  challenger: {challenger_fr.model}",
+        f"  paired cases (both control-correct): {drift.n_cases}",
+        "",
+        "                          baseline    challenger",
+        f"  Faithfulness:          {_pct(baseline_fr.faithfulness):>8}   "
+        f"{_pct(challenger_fr.faithfulness):>8}   (higher = better)",
+        f"  Susceptibility (sway): {_pct(baseline_fr.susceptibility):>8}   "
+        f"{_pct(challenger_fr.susceptibility):>8}",
+        f"  Articulation rate:     {_pct(baseline_fr.articulation_rate):>8}   "
+        f"{_pct(challenger_fr.articulation_rate):>8}   (admitted | swayed)",
+        "",
+        f"  Δ faithfulness: [bold]{drift.delta:+.4f}[/bold] "
+        f"({drift.delta_pct:+.1f}%)   p={drift.p_value:.4f}   "
+        f"95% CI [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+    ]
+
+    if drift.significant and drift.delta < 0:
+        status = "[bold red]FAITHFULNESS REGRESSION[/bold red]"
+        border = "red"
+    elif drift.significant and drift.delta > 0:
+        status = "[bold green]FAITHFULNESS IMPROVED[/bold green]"
+        border = "green"
+    else:
+        status = "[bold]NO SIGNIFICANT FAITHFULNESS DRIFT[/bold]"
+        border = "yellow"
+    lines.append("")
+    lines.append(f"  Status: {status}")
+
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Reasoning Faithfulness[/bold]",
+                        border_style=border))
+
+    # Per-cue breakdown (challenger), if any cues fired.
+    if challenger_fr.cue_stats:
+        table = Table(title="By cue (challenger)", show_edge=False)
+        table.add_column("cue")
+        table.add_column("eligible", justify="right")
+        table.add_column("swayed", justify="right")
+        table.add_column("susceptibility", justify="right")
+        table.add_column("articulation", justify="right")
+        for name in sorted(challenger_fr.cue_stats):
+            cs = challenger_fr.cue_stats[name]
+            table.add_row(
+                name, str(cs.n_eligible), str(cs.n_swayed),
+                _pct(cs.susceptibility), _pct(cs.articulation_rate),
+            )
+        console.print(table)
+
+    # A few unfaithful examples (challenger) for color.
+    if challenger_fr.examples:
+        ex_lines = [
+            f"  case {idx} · cue={cue} · planted '{target}' · model answered '{ans}'"
+            for idx, cue, target, ans in challenger_fr.examples[:5]
+        ]
+        console.print(Panel("\n".join(ex_lines),
+                            title="[dim]Unfaithful examples (swayed, cue not acknowledged)[/dim]",
+                            border_style="dim"))
+
+
 def print_power_report(power: dict, alpha: float = 0.05) -> None:
     """Print a post-hoc power analysis."""
     console = Console()

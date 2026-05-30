@@ -30,6 +30,7 @@ from .reporter import (
     generate_markdown_report,
     print_calibration_report,
     print_drift_report,
+    print_faithfulness_report,
     print_matrix,
     print_power_report,
     print_refusal_report,
@@ -38,6 +39,14 @@ from .reporter import (
 )
 from .runner import RunResult, run_suite
 from .sycophancy import build_pushback_suite, compute_sycophancy
+from .faithfulness import (
+    build_faithfulness_suite,
+    build_wrong_answer_suite,
+    compute_faithfulness,
+    parse_hint_targets,
+)
+from .scoring import get_scorer
+from .scoring.faithfulness_judge import FaithfulnessJudge
 
 console = Console()
 
@@ -478,6 +487,127 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
     )
     analysis = compute_sycophancy(original, pushback)
     print_sycophancy_report(analysis)
+
+
+@main.command()
+@click.option("--baseline", required=True, help="Baseline model identifier")
+@click.option("--challenger", required=True, help="Challenger model identifier")
+@click.option("--suite", required=True, help="Eval suite name or path to YAML file")
+@click.option("--judge-model", default=None,
+              help="Model that judges whether reasoning acknowledged the cue. "
+                   "Best practice: a third model family. Defaults to "
+                   "$RIFT_JUDGE_MODEL or the built-in default.")
+@click.option("--proposer-model", default=None,
+              help="Model that invents a plausible-wrong target per case. "
+                   "Defaults to the challenger.")
+@click.option("--cues", default=None,
+              help="Comma-separated subset of cues to apply "
+                   "(suggested,authority,consensus). Default: all.")
+@click.option("--concurrency", default=5, help="Max concurrent API calls")
+@click.option("--alpha", default=0.05, help="Significance threshold")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+@click.option("--output", "-o", default=None, help="Save results to JSON")
+def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
+                 cues, concurrency, alpha, cache_dir, output):
+    """Measure reasoning-faithfulness drift between two models.
+
+    Plants a biasing cue ("a professor says the answer is X") pointing at a
+    plausible-wrong answer, then checks how often each model is silently swayed
+    WITHOUT its reasoning admitting the cue. Reports the drift in faithfulness
+    with significance + CI. Exit 1 on a significant regression.
+    """
+    base_suite = load_suite(suite)
+    if base_suite.scoring not in ("exact_match", "fuzzy_match"):
+        raise click.ClickException(
+            f"rift faithfulness supports exact_match or fuzzy_match suites; "
+            f"'{base_suite.name}' uses scoring='{base_suite.scoring}'."
+        )
+    base_cfg = resolve_model(baseline)
+    chal_cfg = resolve_model(challenger)
+    proposer_cfg = resolve_model(proposer_model) if proposer_model else chal_cfg
+    cue_list = [c.strip() for c in cues.split(",") if c.strip()] if cues else None
+
+    judge = FaithfulnessJudge(judge_model=judge_model, cache_dir=cache_dir)
+    judge_cfg = resolve_model(judge.judge_model)
+    ensure_provider_keys(
+        [base_cfg.provider, chal_cfg.provider, proposer_cfg.provider,
+         judge_cfg.provider],
+        console,
+    )
+
+    console.print(
+        f"\n[bold]Rift[/bold] faithfulness: [cyan]{baseline}[/cyan] vs "
+        f"[cyan]{challenger}[/cyan]"
+    )
+    console.print(
+        f"Suite: [yellow]{base_suite.name}[/yellow] "
+        f"({len(base_suite.cases)} cases)  judge: [yellow]{judge.judge_model}[/yellow]\n"
+    )
+
+    # 1. Generate a plausible-wrong target per case (cached completions).
+    wrong_suite = build_wrong_answer_suite(base_suite)
+    wrong_run = asyncio.run(
+        run_suite(wrong_suite, proposer_cfg, concurrency=concurrency,
+                  cache_dir=cache_dir)
+    )
+    hint_targets = parse_hint_targets(wrong_run)
+
+    # 2. Build the derived control+cue suite and run both models.
+    derived = build_faithfulness_suite(base_suite, hint_targets, cues=cue_list)
+    base_run = asyncio.run(
+        run_suite(derived, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+    chal_run = asyncio.run(
+        run_suite(derived, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+
+    # 3. Score control correctness with the suite's own scorer; judge articulation.
+    scorer = get_scorer(base_suite.scoring)
+
+    def _ack(question, cue_text, reasoning, answer, target) -> bool:
+        return asyncio.run(
+            judge.acknowledged(question, cue_text, reasoning, answer, target)
+        )
+
+    base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets)
+    chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets)
+    asyncio.run(judge.close())
+
+    # 4. Paired drift on the intersection of both models' control-correct cases.
+    shared = sorted(set(base_fr.per_case) & set(chal_fr.per_case))
+    if not shared:
+        console.print(
+            "\n[yellow]No cases were answered correctly by both models in the "
+            "control condition,[/yellow] so faithfulness drift is undefined. "
+            "Try a larger or easier suite, or check the models/suite."
+        )
+        return
+    drift = compare_runs(
+        baseline_scores=[base_fr.per_case[i] for i in shared],
+        challenger_scores=[chal_fr.per_case[i] for i in shared],
+        baseline_model=baseline,
+        challenger_model=challenger,
+        suite_name=f"{base_suite.name} (faithfulness)",
+        alpha=alpha,
+    )
+    print_faithfulness_report(base_fr, chal_fr, drift, alpha=alpha)
+
+    if output:
+        import json
+        from dataclasses import asdict
+        payload = {
+            "drift": asdict(drift),
+            "baseline": asdict(base_fr),
+            "challenger": asdict(chal_fr),
+            "hint_targets": hint_targets,
+        }
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(payload, f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
+
+    if drift.significant and drift.delta < 0:
+        sys.exit(1)
 
 
 @main.command()

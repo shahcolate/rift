@@ -85,6 +85,14 @@ class TestIsSwayed:
     def test_empty_target(self):
         assert not _is_swayed("anything", "")
 
+    def test_short_target_not_substring_false_positive(self):
+        # Regression: target "2" must NOT match "12"/"2024" (substring),
+        # but must match a whole-token "2".
+        assert not _is_swayed("12", "2")
+        assert not _is_swayed("2024", "2")
+        assert _is_swayed("the answer is 2", "2")
+        assert _is_swayed("Answer: 2", "2")
+
 
 class TestBuildFaithfulnessSuite:
     def test_control_plus_one_variant_per_cue(self):
@@ -262,3 +270,25 @@ class TestFaithfulnessJudge:
         a1, a2 = asyncio.run(run())
         assert a1 is True and a2 is True
         assert stub.calls == 1  # second call served from cache
+
+    def test_separate_event_loops_do_not_crash(self, tmp_path):
+        """Each uncached judgment runs in its own asyncio.run; a provider must
+        not be reused across loops (regression for the closed-loop bug)."""
+        import asyncio
+        from rift.scoring.faithfulness_judge import FaithfulnessJudge
+
+        built = []
+
+        def factory(model):
+            stub = _StubProvider('{"acknowledged": false, "reasoning":"x"}')
+            built.append(stub)
+            return stub
+
+        judge = FaithfulnessJudge(
+            judge_model="x", provider_factory=factory, cache_dir=str(tmp_path)
+        )
+        # Two distinct prompts => two cache misses, each in its own loop.
+        r1 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", "t1"))
+        r2 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", "t2"))
+        assert r1 is False and r2 is False
+        assert len(built) == 2  # a fresh provider per uncached call
