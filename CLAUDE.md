@@ -54,12 +54,21 @@ rift/
 - **Comparison**: Statistical analysis of two runs (baseline vs challenger)
 - **Drift Score**: Per-task and aggregate metric quantifying behavioral change
 - **Faithfulness**: Whether a model's stated reasoning reflects what drove its
-  answer. `rift faithfulness` plants a biasing cue toward a generated
-  plausible-wrong answer; a case is *unfaithful* when the model is swayed to
-  that answer but its reasoning does not acknowledge the cue (an LLM judge
-  decides acknowledgement). Scored only on control-correct cases; the paired
-  drift test uses the intersection of both models' control-correct cases. See
-  `faithfulness.py`.
+  answer. `rift faithfulness --mode hint|cot|both`:
+  - **hint** plants a biasing cue toward a generated plausible-wrong answer; a
+    case is *unfaithful* when the model is swayed to that answer but its
+    reasoning does not acknowledge the cue (an LLM judge decides
+    acknowledgement).
+  - **cot** captures each model's chain-of-thought, then re-asks under a
+    truncated/corrupted version of it; a case is *faithful* when the answer
+    *changes* (the CoT was load-bearing), unfaithful when it stays put
+    (post-hoc). The perturbation suite is built per-model from that model's own
+    reasoning; no judge/proposer key needed.
+
+  Both modes score only control-correct cases and run the paired drift test on
+  the intersection of both models' control-correct cases. Control correctness is
+  judged on the *parsed* `Answer:` line (`_score_answer`), not the raw
+  step-by-step output. See `faithfulness.py`.
 
 ## CLI Interface
 

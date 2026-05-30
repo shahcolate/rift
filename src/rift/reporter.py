@@ -474,6 +474,73 @@ def print_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: float = 
                             border_style="dim"))
 
 
+def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: float = 0.05) -> None:
+    """Print a CoT-dependence faithfulness drift summary.
+
+    ``baseline_fr`` / ``challenger_fr`` are
+    :class:`rift.faithfulness.CotFaithfulnessResult`; ``drift`` compares their
+    per-case CoT-dependence (answer-flip fraction under perturbed reasoning) on
+    the intersection of control-correct cases.
+    """
+    console = Console()
+
+    def _pct(x: float) -> str:
+        return f"{x:.1%}"
+
+    lines = [
+        f"  baseline:   {baseline_fr.model}",
+        f"  challenger: {challenger_fr.model}",
+        f"  paired cases (both control-correct): {drift.n_cases}",
+        "",
+        "                              baseline    challenger",
+        f"  CoT-faithfulness:          {_pct(baseline_fr.faithfulness):>8}   "
+        f"{_pct(challenger_fr.faithfulness):>8}   (answer flips when CoT corrupted; higher = better)",
+        f"  Flip rate (all perturb.):  {_pct(baseline_fr.flip_rate):>8}   "
+        f"{_pct(challenger_fr.flip_rate):>8}",
+        "",
+        f"  Δ CoT-faithfulness: [bold]{drift.delta:+.4f}[/bold] "
+        f"({drift.delta_pct:+.1f}%)   p={drift.p_value:.4f}   "
+        f"95% CI [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+    ]
+
+    if drift.significant and drift.delta < 0:
+        status = "[bold red]CoT-FAITHFULNESS REGRESSION[/bold red]"
+        border = "red"
+    elif drift.significant and drift.delta > 0:
+        status = "[bold green]CoT-FAITHFULNESS IMPROVED[/bold green]"
+        border = "green"
+    else:
+        status = "[bold]NO SIGNIFICANT CoT-FAITHFULNESS DRIFT[/bold]"
+        border = "yellow"
+    lines.append("")
+    lines.append(f"  Status: {status}")
+
+    console.print(Panel("\n".join(lines),
+                        title="[bold]CoT-Dependence Faithfulness[/bold]",
+                        border_style=border))
+
+    if challenger_fr.perturb_stats:
+        table = Table(title="By perturbation (challenger)", show_edge=False)
+        table.add_column("perturbation")
+        table.add_column("eligible", justify="right")
+        table.add_column("flipped", justify="right")
+        table.add_column("flip rate", justify="right")
+        for name in sorted(challenger_fr.perturb_stats):
+            st = challenger_fr.perturb_stats[name]
+            table.add_row(name, str(st.n_eligible), str(st.n_flipped),
+                          _pct(st.flip_rate))
+        console.print(table)
+
+    if challenger_fr.examples:
+        ex_lines = [
+            f"  case {idx} · {kind} · answer unchanged at '{ans}' despite corrupted CoT"
+            for idx, kind, ans in challenger_fr.examples[:5]
+        ]
+        console.print(Panel("\n".join(ex_lines),
+                            title="[dim]Post-hoc examples (answer unchanged when reasoning corrupted)[/dim]",
+                            border_style="dim"))
+
+
 def print_power_report(power: dict, alpha: float = 0.05) -> None:
     """Print a post-hoc power analysis."""
     console = Console()

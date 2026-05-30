@@ -29,6 +29,7 @@ from .refusal import compare_refusal
 from .reporter import (
     generate_markdown_report,
     print_calibration_report,
+    print_cot_faithfulness_report,
     print_drift_report,
     print_faithfulness_report,
     print_matrix,
@@ -40,8 +41,11 @@ from .reporter import (
 from .runner import RunResult, run_suite
 from .sycophancy import build_pushback_suite, compute_sycophancy
 from .faithfulness import (
+    build_control_suite,
+    build_cot_perturbation_suite,
     build_faithfulness_suite,
     build_wrong_answer_suite,
+    compute_cot_faithfulness,
     compute_faithfulness,
     parse_hint_targets,
 )
@@ -500,21 +504,37 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
 @click.option("--proposer-model", default=None,
               help="Model that invents a plausible-wrong target per case. "
                    "Defaults to the challenger.")
+@click.option("--mode", type=click.Choice(["hint", "cot", "both"]), default="hint",
+              help="hint: biasing-cue articulation (default). cot: chain-of-"
+                   "thought dependence (does corrupting the CoT change the "
+                   "answer?). both: run each and report separately.")
 @click.option("--cues", default=None,
-              help="Comma-separated subset of cues to apply "
+              help="hint mode: comma-separated subset of cues to apply "
                    "(suggested,authority,consensus). Default: all.")
+@click.option("--cot-perturbations", "cot_perturbations", default=None,
+              help="cot mode: comma-separated subset of perturbations "
+                   "(early,mistake). Default: all.")
 @click.option("--concurrency", default=5, help="Max concurrent API calls")
 @click.option("--alpha", default=0.05, help="Significance threshold")
 @click.option("--cache-dir", default=None, help="Cache directory for completions")
 @click.option("--output", "-o", default=None, help="Save results to JSON")
 def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
-                 cues, concurrency, alpha, cache_dir, output):
+                 mode, cues, cot_perturbations, concurrency, alpha, cache_dir,
+                 output):
     """Measure reasoning-faithfulness drift between two models.
 
-    Plants a biasing cue ("a professor says the answer is X") pointing at a
-    plausible-wrong answer, then checks how often each model is silently swayed
-    WITHOUT its reasoning admitting the cue. Reports the drift in faithfulness
-    with significance + CI. Exit 1 on a significant regression.
+    Two modes (run one or --mode both):
+
+    \b
+    hint  Plants a biasing cue ("a professor says the answer is X") pointing
+          at a plausible-wrong answer, then checks how often each model is
+          silently swayed WITHOUT its reasoning admitting the cue.
+    cot   Captures each model's chain-of-thought, then re-asks under a
+          truncated / corrupted version of it. A faithful model's answer
+          changes when its reasoning is corrupted; a post-hoc one's does not.
+
+    Reports the drift in faithfulness with significance + CI. Exit 1 on a
+    significant regression in any mode that ran.
     """
     base_suite = load_suite(suite)
     if base_suite.scoring not in ("exact_match", "fuzzy_match"):
@@ -526,25 +546,65 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
     chal_cfg = resolve_model(challenger)
     proposer_cfg = resolve_model(proposer_model) if proposer_model else chal_cfg
     cue_list = [c.strip() for c in cues.split(",") if c.strip()] if cues else None
+    cot_list = (
+        [c.strip() for c in cot_perturbations.split(",") if c.strip()]
+        if cot_perturbations else None
+    )
 
     judge = FaithfulnessJudge(judge_model=judge_model, cache_dir=cache_dir)
     judge_cfg = resolve_model(judge.judge_model)
-    ensure_provider_keys(
-        [base_cfg.provider, chal_cfg.provider, proposer_cfg.provider,
-         judge_cfg.provider],
-        console,
-    )
+    # hint mode needs the proposer + judge; cot mode needs neither. Preflight
+    # only the providers the chosen mode(s) will actually call.
+    needed = [base_cfg.provider, chal_cfg.provider]
+    if mode in ("hint", "both"):
+        needed += [proposer_cfg.provider, judge_cfg.provider]
+    ensure_provider_keys(needed, console)
 
     console.print(
-        f"\n[bold]Rift[/bold] faithfulness: [cyan]{baseline}[/cyan] vs "
-        f"[cyan]{challenger}[/cyan]"
+        f"\n[bold]Rift[/bold] faithfulness ([magenta]{mode}[/magenta]): "
+        f"[cyan]{baseline}[/cyan] vs [cyan]{challenger}[/cyan]"
     )
     console.print(
         f"Suite: [yellow]{base_suite.name}[/yellow] "
-        f"({len(base_suite.cases)} cases)  judge: [yellow]{judge.judge_model}[/yellow]\n"
+        f"({len(base_suite.cases)} cases)\n"
     )
 
-    # 1. Generate a plausible-wrong target per case (cached completions).
+    scorer = get_scorer(base_suite.scoring)
+    regressed = False
+    out_payload: dict = {}
+
+    if mode in ("hint", "both"):
+        regressed |= _run_hint_mode(
+            base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
+            baseline, challenger, cue_list, concurrency, alpha, cache_dir,
+            out_payload,
+        )
+    if mode in ("cot", "both"):
+        regressed |= _run_cot_mode(
+            base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
+            cot_list, concurrency, alpha, cache_dir, out_payload,
+        )
+
+    asyncio.run(judge.close())
+
+    if output:
+        import json
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(out_payload, f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
+
+    if regressed:
+        sys.exit(1)
+
+
+def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
+                   baseline, challenger, cue_list, concurrency, alpha, cache_dir,
+                   out_payload) -> bool:
+    """Hint-articulation mode. Returns True if a significant regression was found."""
+    from dataclasses import asdict
+
+    console.print(f"[dim]hint mode · judge: {judge.judge_model}[/dim]")
     wrong_suite = build_wrong_answer_suite(base_suite)
     wrong_run = asyncio.run(
         run_suite(wrong_suite, proposer_cfg, concurrency=concurrency,
@@ -552,7 +612,6 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
     )
     hint_targets = parse_hint_targets(wrong_run)
 
-    # 2. Build the derived control+cue suite and run both models.
     derived = build_faithfulness_suite(base_suite, hint_targets, cues=cue_list)
     base_run = asyncio.run(
         run_suite(derived, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
@@ -561,9 +620,6 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
         run_suite(derived, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
     )
 
-    # 3. Score control correctness with the suite's own scorer; judge articulation.
-    scorer = get_scorer(base_suite.scoring)
-
     def _ack(question, cue_text, reasoning, answer, target) -> bool:
         return asyncio.run(
             judge.acknowledged(question, cue_text, reasoning, answer, target)
@@ -571,43 +627,87 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
 
     base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets)
     chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets)
-    asyncio.run(judge.close())
 
-    # 4. Paired drift on the intersection of both models' control-correct cases.
     shared = sorted(set(base_fr.per_case) & set(chal_fr.per_case))
     if not shared:
         console.print(
-            "\n[yellow]No cases were answered correctly by both models in the "
-            "control condition,[/yellow] so faithfulness drift is undefined. "
-            "Try a larger or easier suite, or check the models/suite."
+            "\n[yellow]hint: no cases answered correctly by both models in "
+            "control,[/yellow] so faithfulness drift is undefined."
         )
-        return
+        return False
     drift = compare_runs(
         baseline_scores=[base_fr.per_case[i] for i in shared],
         challenger_scores=[chal_fr.per_case[i] for i in shared],
         baseline_model=baseline,
         challenger_model=challenger,
-        suite_name=f"{base_suite.name} (faithfulness)",
+        suite_name=f"{base_suite.name} (faithfulness/hint)",
         alpha=alpha,
     )
     print_faithfulness_report(base_fr, chal_fr, drift, alpha=alpha)
+    out_payload["hint"] = {
+        "drift": asdict(drift),
+        "baseline": asdict(base_fr),
+        "challenger": asdict(chal_fr),
+        "hint_targets": hint_targets,
+    }
+    return drift.significant and drift.delta < 0
 
-    if output:
-        import json
-        from dataclasses import asdict
-        payload = {
-            "drift": asdict(drift),
-            "baseline": asdict(base_fr),
-            "challenger": asdict(chal_fr),
-            "hint_targets": hint_targets,
-        }
-        Path(output).parent.mkdir(parents=True, exist_ok=True)
-        with open(output, "w") as f:
-            json.dump(payload, f, indent=2, default=str)
-        console.print(f"\nResults saved to [green]{output}[/green]")
 
-    if drift.significant and drift.delta < 0:
-        sys.exit(1)
+def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
+                  cot_list, concurrency, alpha, cache_dir, out_payload) -> bool:
+    """CoT-dependence mode. Returns True if a significant regression was found."""
+    from dataclasses import asdict
+
+    console.print("[dim]cot mode · no judge/proposer needed[/dim]")
+    # 1. Control run per model captures each model's own chain-of-thought.
+    control = build_control_suite(base_suite)
+    base_ctrl = asyncio.run(
+        run_suite(control, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+    chal_ctrl = asyncio.run(
+        run_suite(control, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+
+    # 2. Per-model perturbation suites, built from that model's own reasoning.
+    base_pert_suite, base_answers = build_cot_perturbation_suite(
+        base_suite, base_ctrl, scorer, perturbations=cot_list
+    )
+    chal_pert_suite, chal_answers = build_cot_perturbation_suite(
+        base_suite, chal_ctrl, scorer, perturbations=cot_list
+    )
+    base_pert = asyncio.run(
+        run_suite(base_pert_suite, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+    chal_pert = asyncio.run(
+        run_suite(chal_pert_suite, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
+    )
+
+    base_fr = compute_cot_faithfulness(base_pert, base_answers)
+    chal_fr = compute_cot_faithfulness(chal_pert, chal_answers)
+
+    shared = sorted(set(base_fr.per_case) & set(chal_fr.per_case))
+    if not shared:
+        console.print(
+            "\n[yellow]cot: no cases with usable reasoning answered correctly "
+            "by both models in control,[/yellow] so CoT-faithfulness drift is "
+            "undefined."
+        )
+        return False
+    drift = compare_runs(
+        baseline_scores=[base_fr.per_case[i] for i in shared],
+        challenger_scores=[chal_fr.per_case[i] for i in shared],
+        baseline_model=baseline,
+        challenger_model=challenger,
+        suite_name=f"{base_suite.name} (faithfulness/cot)",
+        alpha=alpha,
+    )
+    print_cot_faithfulness_report(base_fr, chal_fr, drift, alpha=alpha)
+    out_payload["cot"] = {
+        "drift": asdict(drift),
+        "baseline": asdict(base_fr),
+        "challenger": asdict(chal_fr),
+    }
+    return drift.significant and drift.delta < 0
 
 
 @main.command()
