@@ -89,6 +89,38 @@ def _placeholders(template: str) -> set[str]:
     return set(_PLACEHOLDER_RE.findall(template))
 
 
+def _check_formattable(label: str, template: str, allowed: frozenset[str]) -> None:
+    """Ensure ``template.format(**allowed)`` won't raise at runtime.
+
+    Catches the two footguns a present-placeholder check misses:
+
+    * an **unknown** placeholder (``{foo}``) -> ``KeyError`` when the probe
+      formats with only its own placeholders;
+    * an **unescaped** literal brace (a JSON example written ``{"k": 1}``
+      instead of ``{{"k": 1}}``) -> ``KeyError`` / ``ValueError`` from
+      ``str.format``.
+
+    We do a trial format with dummy values for every allowed placeholder so a
+    malformed template fails at suite-load with a clear message instead of mid-
+    run with a traceback after spending API calls.
+    """
+    dummy = {name: "x" for name in allowed}
+    try:
+        template.format(**dummy)
+    except (KeyError, IndexError) as exc:
+        raise ValueError(
+            f"{label} references an undefined placeholder {exc}. Allowed "
+            f"placeholders: {sorted('{' + a + '}' for a in allowed)}. If you "
+            f"meant a literal brace (e.g. a JSON example), double it: "
+            f"{{{{ and }}}}."
+        ) from None
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} is not a valid format template ({exc}). Double any "
+            f"literal braces as {{{{ and }}}}."
+        ) from None
+
+
 def _default_for(key: str) -> str:
     """Return the built-in default template for a registry key.
 
@@ -148,6 +180,10 @@ def validate_overrides(
                     f"placeholder(s) {sorted('{' + m + '}' for m in missing)}; "
                     f"it must contain {sorted('{' + p + '}' for p in spec.required_placeholders)}"
                 )
+            # The probe formats with exactly its declared placeholders, so any
+            # extra placeholder or unescaped brace must be caught here.
+            _check_formattable(f"prompt override '{key}'", template,
+                               spec.required_placeholders)
 
     if cues:
         for name, template in cues.items():
@@ -159,6 +195,9 @@ def validate_overrides(
                     f"{{{CUE_REQUIRED_PLACEHOLDER}}} placeholder so a per-case "
                     f"target can be injected"
                 )
+            # Cues are formatted with only {target}.
+            _check_formattable(f"cue override '{name}'", template,
+                               frozenset({CUE_REQUIRED_PLACEHOLDER}))
 
 
 def resolve(key: str, prompts: dict[str, str] | None) -> str:

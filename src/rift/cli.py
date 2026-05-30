@@ -622,9 +622,13 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
     )
     hint_targets = parse_hint_targets(wrong_run)
 
+    # Resolve cue templates once and reuse for both the suite build and the
+    # judge-side cue reconstruction in compute_faithfulness, so an overridden
+    # or newly-added cue is judged against the exact text the model saw.
+    cue_templates = resolve_cues(base_suite.cues)
     derived = build_faithfulness_suite(
         base_suite, hint_targets, cues=cue_list,
-        cue_templates=resolve_cues(base_suite.cues),
+        cue_templates=cue_templates,
         format_instruction=prompts_block.get("faithfulness_format_instruction"),
     )
     base_run = asyncio.run(
@@ -639,8 +643,10 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
             judge.acknowledged(question, cue_text, reasoning, answer, target)
         )
 
-    base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets)
-    chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets)
+    base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets,
+                                   cue_templates=cue_templates)
+    chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets,
+                                   cue_templates=cue_templates)
 
     shared = sorted(set(base_fr.per_case) & set(chal_fr.per_case))
     if not shared:

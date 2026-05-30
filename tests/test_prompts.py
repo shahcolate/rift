@@ -50,6 +50,34 @@ class TestValidateOverrides:
         # faithfulness_format_instruction is appended verbatim.
         prompts.validate_overrides({"faithfulness_format_instruction": "Answer please"}, None)
 
+    def test_unknown_placeholder_rejected(self):
+        # Has all required placeholders but an extra {foo} that .format() can't fill.
+        with pytest.raises(ValueError, match="undefined placeholder"):
+            prompts.validate_overrides(
+                {"judge_rubric": "{question} {target_block} {output} {foo}"}, None
+            )
+
+    def test_unescaped_brace_rejected(self):
+        # A JSON example with single (unescaped) braces would KeyError at format().
+        with pytest.raises(ValueError, match="undefined placeholder|valid format"):
+            prompts.validate_overrides(
+                {"judge_rubric": '{question} {target_block} {output} {"k": 1}'}, None
+            )
+
+    def test_default_templates_self_validate(self):
+        # The committed defaults (with escaped {{ }} JSON examples) must pass.
+        for key in prompts.PROMPT_REGISTRY:
+            prompts.validate_overrides({key: prompts._default_for(key)}, None)
+
+    def test_escaped_braces_in_custom_template_pass(self):
+        prompts.validate_overrides(
+            {"judge_rubric": '{question} {target_block} {output} {{"score": 1}}'}, None
+        )
+
+    def test_cue_with_extra_placeholder_rejected(self):
+        with pytest.raises(ValueError, match="undefined placeholder"):
+            prompts.validate_overrides(None, {"authority": "{target} and {bogus}"})
+
 
 class TestResolve:
     def test_resolve_returns_override(self):
@@ -176,6 +204,48 @@ class TestFaithfulnessBuilderOverrides:
             _base_suite(), wrong_answer_prompt="GIVE WRONG: {question}"
         )
         assert ws.cases[0].input.startswith("GIVE WRONG: 2+2?")
+
+    def test_compute_faithfulness_judges_against_override_cue_text(self):
+        # Regression: compute_faithfulness must reconstruct the cue text from
+        # the SAME (possibly overridden/extended) templates the suite used, not
+        # the global CUES default. Otherwise a new cue's judge {cue} is empty.
+        from rift.faithfulness import compute_faithfulness
+
+        class C:
+            def __init__(self, o, e, t):
+                self.output = o
+                self.expected = e
+                self.tags = t
+                self.input = "q"
+
+        class R:
+            def __init__(self, m, c):
+                self.model = m
+                self.cases = c
+
+        class _ExactScorer:
+            def score(self, output, expected):
+                from rift.faithfulness import _parse_answer
+                _, a = _parse_answer(output)
+                return 1.0 if a.strip() == str(expected).strip() else 0.0
+
+        # One control-correct case + a swayed variant on a NEW cue "novel".
+        run = R("m", [
+            C("Answer: 4", "4", ["faithfulness:control", "origin:0"]),
+            C("Answer: 5", "4", ["faithfulness:cue=novel", "origin:0"]),
+        ])
+        seen_cue_text = {}
+
+        def ack(question, cue_text, reasoning, answer, target):
+            seen_cue_text["v"] = cue_text
+            return False
+
+        templates = {"novel": "NOVEL-CUE the answer is {target}"}
+        res = compute_faithfulness(run, _ExactScorer(), ack, {0: "5"},
+                                   cue_templates=templates)
+        # The judge must have seen the real (new) cue text, not "".
+        assert seen_cue_text["v"] == "NOVEL-CUE the answer is 5"
+        assert res.per_case[0] == 0.0  # swayed + not acknowledged -> unfaithful
 
     def test_custom_cot_templates(self):
         from rift.faithfulness import build_cot_perturbation_suite
