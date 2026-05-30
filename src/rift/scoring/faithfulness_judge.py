@@ -139,24 +139,27 @@ class FaithfulnessJudge:
             ack, why = _parse_response(cached.output_text)
             self.last_reasoning[cache_key] = why
             return ack
-        provider = self._get_provider()
-        completion = await provider.complete(prompt, **self.judge_params)
+        # Build and close the provider within this call. The CLI invokes
+        # each uncached judgment in its own asyncio.run(...), so a provider
+        # (an httpx.AsyncClient) cached across calls would be bound to an
+        # already-closed event loop and raise on the next uncached case.
+        # Cache hits never construct a provider, so repeat runs stay cheap.
+        provider = self._provider_factory(self.judge_model)
+        try:
+            completion = await provider.complete(prompt, **self.judge_params)
+        finally:
+            await provider.close()
         self._write_cache(cache_key, completion)
         ack, why = _parse_response(completion.output_text)
         self.last_reasoning[cache_key] = why
         return ack
 
     async def close(self) -> None:
+        # Kept for API symmetry with LLMJudgeScorer; providers are now
+        # closed per call, so there is nothing persistent to close.
         if self._provider is not None:
             await self._provider.close()
             self._provider = None
-
-    # ----- internals (mirror LLMJudgeScorer) -----
-
-    def _get_provider(self) -> BaseProvider:
-        if self._provider is None:
-            self._provider = self._provider_factory(self.judge_model)
-        return self._provider
 
     def _cache_key(self, prompt: str) -> str:
         h = hashlib.sha256(prompt.encode()).hexdigest()[:16]
