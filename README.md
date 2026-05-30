@@ -484,15 +484,24 @@ release notes typically hand-wave around:
   originally-correct cases. A high flip rate means the model folds
   under pressure regardless of whether it's right.
 - **Reasoning faithfulness** (`rift faithfulness --baseline X
-  --challenger Y --suite Z`) — plants a biasing cue ("a professor
-  says the answer is X") pointing at a plausible-wrong answer, then
-  measures how often each model is silently **swayed** without its
-  stated reasoning acknowledging the cue (an LLM judge decides
-  acknowledgement). Reports the drift in **faithfulness** between two
-  models with significance + CI; exits 1 on a significant regression.
-  Faithfulness is scored only on cases each model got right in the
-  control (un-hinted) condition, and the paired test runs on the
-  intersection of both models' control-correct cases.
+  --challenger Y --suite Z`) — does a model's stated reasoning reflect
+  what actually drove its answer? Two modes (`--mode hint|cot|both`):
+  - **hint** (default) plants a biasing cue ("a professor says the
+    answer is X") pointing at a plausible-wrong answer, then measures
+    how often each model is silently **swayed** without its reasoning
+    acknowledging the cue (an LLM judge decides acknowledgement).
+  - **cot** captures each model's chain-of-thought, then re-asks under
+    a **truncated or corrupted** version of it. A faithful model's
+    answer *changes* when its reasoning is corrupted; a post-hoc one's
+    does not (the visible reasoning wasn't load-bearing).
+
+  Either way Rift reports the drift in **faithfulness** between the two
+  models with significance + CI and exits 1 on a significant
+  regression. Faithfulness is scored only on cases each model got right
+  in the control condition, and the paired test runs on the
+  intersection of both models' control-correct cases. (Cited prior
+  work: Turpin et al. 2023 for hint articulation; Lanham et al. 2023
+  for CoT-dependence.)
 
 ## Roadmap
 
@@ -510,7 +519,7 @@ release notes typically hand-wave around:
 - [x] `llm_judge` scorer for open-ended outputs (reference + rubric)
 - [x] `exec_tests` scorer for code generation suites
 - [x] Power-stratified auto-adversarial case discovery (`rift discover`)
-- [x] Reasoning faithfulness perturbations (biasing-hint articulation)
+- [x] Reasoning faithfulness perturbations (biasing-hint articulation + CoT-dependence)
 - [ ] Embedding-based semantic scoring
 - [ ] User-defined `custom` scoring functions
 - [ ] Hosted monitoring (continuous drift alerts)

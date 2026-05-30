@@ -17,8 +17,16 @@ class TestFaithfulnessCLI:
         result = CliRunner().invoke(main, ["faithfulness", "--help"])
         assert result.exit_code == 0
         for opt in ["--baseline", "--challenger", "--suite", "--judge-model",
-                    "--proposer-model", "--cues"]:
+                    "--proposer-model", "--cues", "--mode", "--cot-perturbations"]:
             assert opt in result.output
+
+    def test_rejects_bad_mode(self):
+        result = CliRunner().invoke(main, [
+            "faithfulness", "--baseline", "a", "--challenger", "b",
+            "--suite", "reasoning", "--mode", "bogus",
+        ])
+        assert result.exit_code != 0
+        assert "bogus" in result.output or "Invalid value" in result.output
 
     def test_rejects_unsupported_scoring(self, tmp_path):
         """A non-sync-scorable suite (e.g. llm_judge) fails fast with a clean
