@@ -131,28 +131,37 @@ def build_faithfulness_suite(
     base_suite: SuiteConfig,
     hint_targets: dict[int, str],
     cues: list[str] | None = None,
+    cue_templates: dict[str, str] | None = None,
+    format_instruction: str | None = None,
 ) -> SuiteConfig:
     """Build a derived suite: a control variant + one variant per cue per case.
 
     ``hint_targets`` maps base-case index -> planted wrong answer. Cases without
     a usable target get a control variant only (no cue can be injected).
 
+    ``cue_templates`` is the name->template map (defaults to :data:`CUES`); a
+    suite may override or extend it. ``cues`` selects which of those to apply
+    (defaults to all). ``format_instruction`` overrides
+    :data:`_FORMAT_INSTRUCTION`.
+
     Variants are tagged ``faithfulness:control`` / ``faithfulness:cue=<name>``
     and ``origin:<base_idx>`` so the runs stay paired and per-cue subgroup
     analysis works. ``expected`` is carried through unchanged so the suite's
     own scorer can judge control correctness.
     """
-    chosen = cues or list(CUES)
+    templates = cue_templates or CUES
+    fmt = format_instruction or _FORMAT_INSTRUCTION
+    chosen = cues or list(templates)
     for c in chosen:
-        if c not in CUES:
-            raise ValueError(f"unknown cue '{c}'; valid: {sorted(CUES)}")
+        if c not in templates:
+            raise ValueError(f"unknown cue '{c}'; valid: {sorted(templates)}")
 
     new_cases: list[EvalCase] = []
     for i, case in enumerate(base_suite.cases):
         q = case.input.rstrip()
         # Control: same question, just the answer-format instruction.
         new_cases.append(EvalCase(
-            input=f"{q}\n\n{_FORMAT_INSTRUCTION}",
+            input=f"{q}\n\n{fmt}",
             expected=case.expected,
             tags=list(case.tags) + ["faithfulness:control", f"origin:{i}"],
         ))
@@ -160,9 +169,9 @@ def build_faithfulness_suite(
         if not target:
             continue
         for cue_name in chosen:
-            cue_text = CUES[cue_name].format(target=target)
+            cue_text = templates[cue_name].format(target=target)
             new_cases.append(EvalCase(
-                input=f"{q}\n\n{cue_text}\n\n{_FORMAT_INSTRUCTION}",
+                input=f"{q}\n\n{cue_text}\n\n{fmt}",
                 expected=case.expected,
                 tags=list(case.tags)
                 + [f"faithfulness:cue={cue_name}", f"origin:{i}"],
@@ -182,16 +191,19 @@ def build_faithfulness_suite(
     )
 
 
-def build_wrong_answer_suite(base_suite: SuiteConfig) -> SuiteConfig:
+def build_wrong_answer_suite(base_suite: SuiteConfig,
+                             wrong_answer_prompt: str | None = None) -> SuiteConfig:
     """A tiny suite that asks a proposer model for a wrong answer per case.
 
     Run through the normal runner so the proposer completions are cached like
     any other. Output is parsed by :func:`parse_hint_targets`. ``expected`` is a
     placeholder (scoring is irrelevant here; we only read ``output``).
+    ``wrong_answer_prompt`` overrides :data:`_WRONG_ANSWER_PROMPT`.
     """
+    prompt = wrong_answer_prompt or _WRONG_ANSWER_PROMPT
     cases = [
         EvalCase(
-            input=_WRONG_ANSWER_PROMPT.format(question=c.input.rstrip()),
+            input=prompt.format(question=c.input.rstrip()),
             expected="",
             tags=[f"origin:{i}"],
         )
@@ -430,16 +442,19 @@ _COT_MISTAKE_TEMPLATE = (
 )
 
 
-def build_control_suite(base_suite: SuiteConfig) -> SuiteConfig:
+def build_control_suite(base_suite: SuiteConfig,
+                        format_instruction: str | None = None) -> SuiteConfig:
     """Build the control suite for the CoT probe: question + format only.
 
     Tagged ``faithfulness:control`` / ``origin:<i>``. Running this captures
     each model's natural chain-of-thought and answer per case, which the
-    perturbation suite is then derived from.
+    perturbation suite is then derived from. ``format_instruction`` overrides
+    :data:`_FORMAT_INSTRUCTION`.
     """
+    fmt = format_instruction or _FORMAT_INSTRUCTION
     cases = [
         EvalCase(
-            input=f"{c.input.rstrip()}\n\n{_FORMAT_INSTRUCTION}",
+            input=f"{c.input.rstrip()}\n\n{fmt}",
             expected=c.expected,
             tags=list(c.tags) + ["faithfulness:control", f"origin:{i}"],
         )
@@ -478,6 +493,8 @@ def build_cot_perturbation_suite(
     scorer,
     perturbations: list[str] | None = None,
     correctness_threshold: float = 0.999,
+    early_template: str | None = None,
+    mistake_template: str | None = None,
 ) -> tuple[SuiteConfig, dict[int, str]]:
     """Build a per-model CoT-perturbation suite from a model's control run.
 
@@ -486,8 +503,11 @@ def build_cot_perturbation_suite(
 
     Only cases the model got right in control (and that produced some
     reasoning to perturb) yield perturbation variants. Variants are tagged
-    ``faithfulness:cot=<kind>`` and ``origin:<i>``.
+    ``faithfulness:cot=<kind>`` and ``origin:<i>``. ``early_template`` /
+    ``mistake_template`` override the built-in perturbation templates.
     """
+    early_tpl = early_template or _COT_EARLY_TEMPLATE
+    mistake_tpl = mistake_template or _COT_MISTAKE_TEMPLATE
     chosen = perturbations or list(COT_PERTURBATIONS)
     for p in chosen:
         if p not in COT_PERTURBATIONS:
@@ -513,10 +533,10 @@ def build_cot_perturbation_suite(
                 partial = _truncate_reasoning(reasoning)
                 if not partial:
                     continue
-                prompt = _COT_EARLY_TEMPLATE.format(question=question, partial=partial)
+                prompt = early_tpl.format(question=question, partial=partial)
             else:  # mistake
                 corrupted = _inject_mistake(reasoning, answer)
-                prompt = _COT_MISTAKE_TEMPLATE.format(
+                prompt = mistake_tpl.format(
                     question=question, reasoning=corrupted
                 )
             new_cases.append(EvalCase(

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class EvalCase(BaseModel):
@@ -34,6 +34,13 @@ class SuiteConfig(BaseModel):
     # $RIFT_EMBEDDING_MODEL or the built-in default. Ignored for
     # non-semantic scoring.
     embedding_model: str | None = None
+    # Optional per-suite overrides of Rift's built-in probe prompts. `prompts`
+    # maps a registry key (e.g. "judge_rubric") to a full template string;
+    # `cues` maps a faithfulness cue name to a hint template (overriding an
+    # existing cue or adding a new one). Both are validated against
+    # rift.prompts at load time. Empty = use the built-in defaults.
+    prompts: dict[str, str] = {}
+    cues: dict[str, str] | None = None
     cases: list[EvalCase]
 
     @field_validator("scoring")
@@ -44,6 +51,15 @@ class SuiteConfig(BaseModel):
         if v not in valid:
             raise ValueError(f"scoring must be one of {valid}, got '{v}'")
         return v
+
+    @model_validator(mode="after")
+    def _validate_prompt_overrides(self) -> "SuiteConfig":
+        # Lazy import to avoid a circular import (rift.prompts pulls default
+        # templates from the scoring / faithfulness modules).
+        from .prompts import validate_overrides
+
+        validate_overrides(self.prompts, self.cues)
+        return self
 
 
 class ModelConfig(BaseModel):

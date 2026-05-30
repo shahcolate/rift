@@ -15,6 +15,7 @@ rift/
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
 │   ├── pricing.py           # Token price catalog + enterprise multiplier
+│   ├── prompts.py           # Registry of user-overridable probe prompt templates
 │   ├── context_rot.py       # Distractor-injection suite expansion
 │   ├── faithfulness.py      # Reasoning-faithfulness probe (biasing-hint articulation)
 │   ├── scoring/
@@ -92,7 +93,14 @@ rift report results/comparison.json --format markdown --output drift_report.md
 ```yaml
 name: structured_extraction
 description: Extract structured data from messy text inputs
-scoring: exact_match  # or semantic, llm_judge, custom
+scoring: exact_match  # or fuzzy_match, semantic, llm_judge, exec_tests, custom
+# Optional per-suite probe-prompt overrides (see prompts.py). Validated at
+# load: unknown key or a template missing a required placeholder => error.
+prompts:
+  judge_rubric: |       # must keep {question} {target_block} {output}
+    ... custom grading rubric ...
+cues:
+  authority: "A domain expert insists the answer is {target}."  # must keep {target}
 cases:
   - input: |
       Invoice #4521, issued Jan 15 2025, total $1,240.00 to Acme Corp
@@ -104,6 +112,15 @@ cases:
   - input: |
       ... more cases
 ```
+
+Probe prompts are overridable per suite via `prompts:` (registry keys:
+`judge_rubric`, `faithfulness_judge`, `faithfulness_format_instruction`,
+`faithfulness_wrong_answer`, `faithfulness_cot_early`,
+`faithfulness_cot_mistake`) and `cues:` (faithfulness cue name → hint template).
+`rift.prompts` validates required placeholders at load time and resolves
+overrides → defaults; the runner stamps `metadata["custom_prompts"]` so a
+published report discloses any non-default prompt. Adding a new overridable
+prompt is a one-line `PROMPT_REGISTRY` entry + a default in `_default_for`.
 
 ## Tech Stack
 

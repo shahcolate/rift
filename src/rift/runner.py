@@ -331,6 +331,7 @@ async def run_suite(
         scorer_kwargs = {
             "judge_model": suite.judge_model,
             "cache_dir": str(cache_path),
+            "prompt_template": suite.prompts.get("judge_rubric"),
         }
     elif suite.scoring == "semantic":
         scorer_kwargs = {
@@ -466,6 +467,11 @@ async def run_suite(
         metadata["judge_model"] = scorer.judge_model  # type: ignore[attr-defined]
     if is_async_scorer and hasattr(scorer, "embedding_model"):
         metadata["embedding_model"] = scorer.embedding_model  # type: ignore[attr-defined]
+    # Disclose any custom probe prompts so a published drift report can't
+    # hide a non-default rubric. Methodology, not decoration.
+    if suite.prompts or suite.cues:
+        from .prompts import overridden_keys
+        metadata["custom_prompts"] = overridden_keys(suite.prompts, suite.cues)
 
     return RunResult(
         model=model_config.model,
