@@ -275,6 +275,7 @@ class TestFaithfulnessJudge:
         """Each uncached judgment runs in its own asyncio.run; a provider must
         not be reused across loops (regression for the closed-loop bug)."""
         import asyncio
+        import uuid
         from rift.scoring.faithfulness_judge import FaithfulnessJudge
 
         built = []
@@ -284,11 +285,17 @@ class TestFaithfulnessJudge:
             built.append(stub)
             return stub
 
+        # Guaranteed-empty cache dir + nonce'd targets so cache keys can never
+        # pre-exist regardless of test ordering: both calls MUST miss, so each
+        # builds (and closes) its own provider in its own event loop.
+        cache = tmp_path / f"c-{uuid.uuid4().hex}"
         judge = FaithfulnessJudge(
-            judge_model="x", provider_factory=factory, cache_dir=str(tmp_path)
+            judge_model="x", provider_factory=factory, cache_dir=str(cache)
         )
-        # Two distinct prompts => two cache misses, each in its own loop.
-        r1 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", "t1"))
-        r2 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", "t2"))
+        n = uuid.uuid4().hex
+        r1 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", f"t1-{n}"))
+        r2 = asyncio.run(judge.acknowledged("q", "cue", "r", "a", f"t2-{n}"))
+        # The regression was a RuntimeError on the 2nd call (httpx client bound
+        # to a closed loop). Reaching here with both verdicts proves the fix.
         assert r1 is False and r2 is False
         assert len(built) == 2  # a fresh provider per uncached call
