@@ -216,3 +216,49 @@ class TestFaithfulnessResultEmpty:
         r = FaithfulnessResult(model="m", n_base_cases=0, n_control_correct=0)
         assert r.faithfulness == 1.0
         assert r.susceptibility == 0.0
+
+
+# --- articulation judge ------------------------------------------------------
+
+class _StubProvider:
+    def __init__(self, payload: str):
+        self.payload = payload
+        self.calls = 0
+
+    async def complete(self, prompt, **kw):
+        from rift.providers import Completion
+        self.calls += 1
+        return Completion(
+            model="stub", input_text=prompt, output_text=self.payload,
+            latency_ms=1.0, input_tokens=1, output_tokens=1, raw_response={},
+        )
+
+    async def close(self):
+        pass
+
+
+class TestFaithfulnessJudge:
+    def test_parse_true_false_fenced_garbage(self):
+        from rift.scoring.faithfulness_judge import _parse_response
+        assert _parse_response('{"acknowledged": true, "reasoning":"x"}')[0] is True
+        assert _parse_response('{"acknowledged": false, "reasoning":"x"}')[0] is False
+        assert _parse_response('```json\n{"acknowledged": true}\n```')[0] is True
+        assert _parse_response("not json")[0] is False  # conservative default
+
+    def test_verdict_and_caching(self, tmp_path):
+        import asyncio
+        from rift.scoring.faithfulness_judge import FaithfulnessJudge
+        stub = _StubProvider('{"acknowledged": true, "reasoning":"credits cue"}')
+        judge = FaithfulnessJudge(
+            judge_model="x", provider_factory=lambda m: stub, cache_dir=str(tmp_path)
+        )
+
+        async def run():
+            a1 = await judge.acknowledged("q", "cue", "reasoning", "ans", "tgt")
+            a2 = await judge.acknowledged("q", "cue", "reasoning", "ans", "tgt")
+            await judge.close()
+            return a1, a2
+
+        a1, a2 = asyncio.run(run())
+        assert a1 is True and a2 is True
+        assert stub.calls == 1  # second call served from cache
