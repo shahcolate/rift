@@ -20,7 +20,9 @@ import asyncio
 import html
 import json
 import math
+import os
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -46,7 +48,16 @@ from .runner import RunResult, _cache_key, run_suite
 
 
 ROOT = Path(__file__).parent.parent.parent
-RECORDED = ROOT / "benchmarks" / "context_rot_outcomes.yaml"
+
+# The demo replays committed outcomes. They're bundled into the wheel under
+# rift/_data/benchmarks (see pyproject force-include); fall back to the
+# repo-root copy when running from a source checkout or editable install.
+_BUNDLED_RECORDED = Path(__file__).parent / "_data" / "benchmarks" / "context_rot_outcomes.yaml"
+RECORDED = (
+    _BUNDLED_RECORDED
+    if _BUNDLED_RECORDED.exists()
+    else ROOT / "benchmarks" / "context_rot_outcomes.yaml"
+)
 
 
 def _safe_pct_change(base: float, chal: float) -> float | None:
@@ -141,7 +152,14 @@ def replay_recorded_run(baseline: str, challenger: str,
     outcomes = yaml.safe_load(RECORDED.read_text()) or {}
 
     if cache_dir is None:
-        cache_dir = ROOT / ".rift" / "cache_demo"
+        # Use a writable temp location, not ROOT/.rift — when installed via
+        # pip, ROOT is site-packages and is typically read-only. The demo
+        # primes this cache fresh from the recording on every run, so it
+        # doesn't need to persist. Scope the dir per-user so a shared /tmp
+        # on a multi-user host doesn't hand the second user a directory
+        # owned (and unwritable) by the first.
+        uid = getattr(os, "getuid", os.getpid)()
+        cache_dir = Path(tempfile.gettempdir()) / f"rift_demo_cache_{uid}"
 
     base_cfg = resolve_model(baseline)
     chal_cfg = resolve_model(challenger)

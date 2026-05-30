@@ -13,10 +13,10 @@ authors = [
     { name = "Shah Baig" },
 ]
 keywords = ["llm", "evaluation", "drift", "regression", "testing"]
+urls = { Homepage = "https://github.com/shahcolate/rift", Repository = "https://github.com/shahcolate/rift", Issues = "https://github.com/shahcolate/rift/issues" }
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Testing",
@@ -44,6 +44,15 @@ rift = "rift.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rift"]
+
+# The package reads built-in suites and the demo's recorded outcomes from
+# disk at runtime. The canonical copies live at the repo root (see CLAUDE.md
+# layout); force-include bakes them into the wheel under rift/_data/ so a
+# `pip install rift-eval` ships them. Running from a source checkout or an
+# editable install falls back to the repo-root copies (see config.py / demo.py).
+[tool.hatch.build.targets.wheel.force-include]
+"suites" = "rift/_data/suites"
+"benchmarks/context_rot_outcomes.yaml" = "rift/_data/benchmarks/context_rot_outcomes.yaml"
 
 [tool.ruff]
 target-version = "py311"
