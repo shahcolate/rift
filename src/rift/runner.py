@@ -40,7 +40,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
 from .config import ModelConfig, SuiteConfig
 from .pricing import cost_of
-from .providers import BaseProvider, Completion
+from .providers import BaseProvider, Completion, MissingAPIKeyError
 from .providers.anthropic import AnthropicProvider
 from .providers.google import GoogleProvider
 from .providers.openai import OpenAIProvider
@@ -363,6 +363,11 @@ async def run_suite(
                     completion, attempts = await _complete_with_retry(
                         _provider(), case.input, dict(suite.model_params)
                     )
+                except MissingAPIKeyError:
+                    # A missing key is fatal and user-fixable, not a per-case
+                    # failure — let it surface as the clean ClickException
+                    # rather than burying it as "every case errored, mean 0.0".
+                    raise
                 except Exception as exc:
                     return CaseResult(
                         case_index=idx,

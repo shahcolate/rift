@@ -113,6 +113,14 @@ cases:
   the cache; changing the model obviously invalidates the cache.
 - Provider instantiation is lazy — fully cached runs (including
   benchmark replays from recorded outcomes) work without API keys.
+  This keyless guarantee covers `rift demo` and code that calls
+  `run_suite` directly (benchmarks, demo replay), which do not
+  preflight. The live CLI commands (`compare`/`run`/`matrix`/
+  `sycophancy`/`discover`) DO preflight keys via `ensure_provider_keys`
+  for a clean fail-fast prompt, so they require a key even when a run
+  would have been fully cached. A missing key raised lazily anywhere
+  (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
+  swallowed as a per-case error, so it always shows the clean message.
 - Cache writes are atomic (tmp + rename) so a crashed runner never
   leaves a half-written JSON.
 - Every `CaseResult` carries `input_tokens`, `output_tokens`, and
@@ -165,6 +173,15 @@ cases:
 - OPENAI_API_KEY — for OpenAI provider
 - GEMINI_API_KEY — for Google (Gemini) provider
 - RIFT_CACHE_DIR — override cache location (default: .rift/cache)
+
+Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
+(real env vars always win — `os.environ.setdefault`). `rift setup`
+writes `~/.rift/.env` (mode 0600); see `keys.py`. Live commands
+(`compare`/`run`/`matrix`/`sycophancy`/`discover`) preflight the
+needed keys via `ensure_provider_keys` — interactive TTY prompts for a
+missing key, non-interactive raises `MissingAPIKeyError` (a
+`ClickException` → clean message, exit 1, never a traceback). The
+demo and cached/replay paths stay keyless (lazy provider init).
 
 ## Development Commands
 

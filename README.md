@@ -46,6 +46,10 @@ rift demo --paced                      # press Enter between acts (live)
 ```bash
 pip install rift-eval
 
+# One-time: add your provider API key(s). Paste when prompted; saved to
+# ~/.rift/.env and loaded automatically from then on. (The demo needs none.)
+rift setup
+
 # Compare two models (with short aliases — opus-4-8, opus-4-7, sonnet-4-6, etc.)
 rift compare --baseline opus-4-7 --challenger opus-4-8 --suite reasoning
 

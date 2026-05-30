@@ -43,7 +43,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion
+from . import BaseProvider, Completion, MissingAPIKeyError
 
 
 # Valid Gemini thinking levels. The API rejects anything else with a
@@ -65,7 +65,7 @@ class GoogleProvider(BaseProvider):
         self.model = model
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not set")
+            raise MissingAPIKeyError("google")
         self.client = httpx.AsyncClient(
             base_url=api_base or "https://generativelanguage.googleapis.com",
             headers={

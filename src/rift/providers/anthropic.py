@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion
+from . import BaseProvider, Completion, MissingAPIKeyError
 
 
 # Per-model parameter compatibility. Newer models deprecate knobs the
@@ -27,7 +27,7 @@ class AnthropicProvider(BaseProvider):
         self.model = model
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
+            raise MissingAPIKeyError("anthropic")
         self.client = httpx.AsyncClient(
             base_url="https://api.anthropic.com",
             headers={
