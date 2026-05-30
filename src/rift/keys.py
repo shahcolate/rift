@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import click
@@ -41,6 +42,21 @@ def _parse_env(text: str) -> dict[str, str]:
         if key:
             out[key] = value
     return out
+
+
+def _format_value(value: str) -> str:
+    """Serialize a value so ``_parse_env`` reads it back unchanged.
+
+    Real tokens (``sk-...``, ``AIza...``) are written raw. Only values the
+    parser would otherwise alter — surrounding whitespace, or a matched
+    surrounding quote pair — are wrapped in double quotes so the round-trip
+    is lossless.
+    """
+    needs_quoting = value != value.strip() or (
+        len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'"
+    ) or (len(value) == 1 and value in "\"'")
+    return f'"{value}"' if needs_quoting else value
+
 
 
 def load_env() -> None:
@@ -79,25 +95,27 @@ def save_key(env_var: str, value: str) -> Path:
             # duplicated.
             existing = line.split("=", 1)[0].strip() if "=" in line else None
             if existing == env_var:
-                lines.append(f"{env_var}={value}")
+                lines.append(f"{env_var}={_format_value(value)}")
                 found = True
             else:
                 lines.append(line)
     if not found:
-        lines.append(f"{env_var}={value}")
+        lines.append(f"{env_var}={_format_value(value)}")
 
-    # Create the temp file 0600 from the start (O_EXCL + mode) so the secret
-    # is never briefly world-readable between write and chmod. 0o600 has no
-    # group/other bits, so it survives any umask.
-    tmp = ENV_FILE.with_name(ENV_FILE.name + ".tmp")
+    # Write via a uniquely-named temp in the same dir, then atomically
+    # rename. mkstemp creates the file 0600 from the start (secret is never
+    # briefly world-readable) and a unique name means concurrent saves never
+    # collide on a fixed path — they just race to the final os.replace, last
+    # writer wins, no crash.
+    fd, tmp_name = tempfile.mkstemp(dir=str(ENV_DIR), prefix=".env-", suffix=".tmp")
+    tmp = Path(tmp_name)
     try:
-        os.unlink(tmp)  # clear any stale temp from a crashed write
-    except OSError:
-        pass
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write("\n".join(lines) + "\n")
-    os.replace(tmp, ENV_FILE)  # atomic; final file inherits the 0600 temp
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(tmp, ENV_FILE)  # atomic; final file inherits the 0600 temp
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return ENV_FILE
 
 
