@@ -78,6 +78,27 @@ class TestEnvFile:
         assert stat.S_IMODE(keys.ENV_DIR.stat().st_mode) == 0o700
 
 
+    def test_quoted_value_roundtrips(self, fake_home, monkeypatch):
+        # A value that itself starts and ends with a quote must survive a
+        # save -> load round-trip unchanged (write-side quoting is the inverse
+        # of the parser's quote-stripping).
+        for raw in ('"already_quoted"', "'single'", '"'):
+            keys.save_key("ANTHROPIC_API_KEY", raw)
+            monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+            keys.load_env()
+            assert os.environ["ANTHROPIC_API_KEY"] == raw, raw
+            monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def test_plain_key_written_unquoted(self, fake_home):
+        keys.save_key("ANTHROPIC_API_KEY", "sk-ant-123")
+        assert "ANTHROPIC_API_KEY=sk-ant-123" in keys.ENV_FILE.read_text()
+
+    def test_save_leaves_no_temp_file(self, fake_home):
+        keys.save_key("ANTHROPIC_API_KEY", "sk-x")
+        leftovers = [p.name for p in keys.ENV_DIR.iterdir() if p.name != ".env"]
+        assert leftovers == []
+
+
 class TestEnsureProviderKeys:
     def test_present_key_does_not_raise(self, fake_home, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-present")
