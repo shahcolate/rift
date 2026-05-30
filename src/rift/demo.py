@@ -20,6 +20,7 @@ import asyncio
 import html
 import json
 import math
+import os
 import sys
 import tempfile
 import time
@@ -154,8 +155,11 @@ def replay_recorded_run(baseline: str, challenger: str,
         # Use a writable temp location, not ROOT/.rift — when installed via
         # pip, ROOT is site-packages and is typically read-only. The demo
         # primes this cache fresh from the recording on every run, so it
-        # doesn't need to persist.
-        cache_dir = Path(tempfile.gettempdir()) / "rift_demo_cache"
+        # doesn't need to persist. Scope the dir per-user so a shared /tmp
+        # on a multi-user host doesn't hand the second user a directory
+        # owned (and unwritable) by the first.
+        uid = getattr(os, "getuid", os.getpid)()
+        cache_dir = Path(tempfile.gettempdir()) / f"rift_demo_cache_{uid}"
 
     base_cfg = resolve_model(baseline)
     chal_cfg = resolve_model(challenger)
