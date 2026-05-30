@@ -48,7 +48,14 @@ class ModelConfig(BaseModel):
     params: dict[str, Any] = {}
 
 
-BUILTIN_SUITES_DIR = Path(__file__).parent.parent.parent / "suites"
+# Built-in suites are bundled into the wheel under rift/_data/suites (see
+# pyproject force-include). When running from a source checkout or an editable
+# install that directory doesn't exist, so fall back to the repo-root suites/.
+_BUNDLED_SUITES_DIR = Path(__file__).parent / "_data" / "suites"
+_REPO_SUITES_DIR = Path(__file__).parent.parent.parent / "suites"
+BUILTIN_SUITES_DIR = (
+    _BUNDLED_SUITES_DIR if _BUNDLED_SUITES_DIR.is_dir() else _REPO_SUITES_DIR
+)
 
 
 def load_suite(path_or_name: str) -> SuiteConfig:
