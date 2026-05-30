@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
+from . import __version__
 from .calibration import compare_calibration
 from .comparator import compare_runs, compare_by_subgroup, power_analysis
 from .config import load_suite, resolve_model
@@ -42,7 +43,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="0.2.0", prog_name="rift")
+@click.version_option(version=__version__, prog_name="rift")
 def main():
     """Rift: You upgraded your model. What broke?"""
     # Load saved API keys (~/.rift/.env, then ./.env) before any command
