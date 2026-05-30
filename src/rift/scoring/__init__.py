@@ -33,12 +33,15 @@ def get_scorer(name: str, **kwargs) -> Scorer:
 
     ``kwargs`` are forwarded to the scorer constructor. ``llm_judge``
     accepts ``judge_model``, ``cache_dir``, ``provider_factory``,
-    ``judge_params``; the other built-ins ignore kwargs.
+    ``judge_params``; ``semantic`` accepts ``embedding_model``,
+    ``cache_dir``, ``embedder_factory``, ``threshold``; the other
+    built-ins ignore kwargs.
     """
     from .exact_match import ExactMatchScorer
     from .exec_tests import ExecTestsScorer
     from .fuzzy_match import FuzzyMatchScorer
     from .llm_judge import LLMJudgeScorer
+    from .semantic import SemanticScorer
 
     if name == "exact_match":
         return ExactMatchScorer()
@@ -48,7 +51,9 @@ def get_scorer(name: str, **kwargs) -> Scorer:
         return ExecTestsScorer(**kwargs)
     if name == "llm_judge":
         return LLMJudgeScorer(**kwargs)
+    if name == "semantic":
+        return SemanticScorer(**kwargs)
     raise ValueError(
         f"Unknown scorer: {name}. Available: "
-        f"['exact_match', 'fuzzy_match', 'exec_tests', 'llm_judge']"
+        f"['exact_match', 'fuzzy_match', 'exec_tests', 'llm_judge', 'semantic']"
     )
