@@ -119,9 +119,16 @@ def _format_target_block(expected: Any) -> str:
     return f"Reference answer:\n\"\"\"\n{expected}\n\"\"\""
 
 
-def _build_judge_prompt(question: str, output: str, expected: Any) -> str:
-    """Assemble the full judge prompt for one case."""
-    return JUDGE_PROMPT_TEMPLATE.format(
+def _build_judge_prompt(question: str, output: str, expected: Any,
+                        template: str | None = None) -> str:
+    """Assemble the full judge prompt for one case.
+
+    ``template`` overrides :data:`JUDGE_PROMPT_TEMPLATE` (a suite-level custom
+    rubric). It must carry the ``{question}``, ``{target_block}`` and
+    ``{output}`` placeholders — validated at suite load by
+    :func:`rift.prompts.validate_overrides`.
+    """
+    return (template or JUDGE_PROMPT_TEMPLATE).format(
         question=question,
         target_block=_format_target_block(expected),
         output=output,
@@ -204,12 +211,15 @@ class LLMJudgeScorer:
         provider_factory: ProviderFactory | None = None,
         cache_dir: str | Path | None = None,
         judge_params: dict | None = None,
+        prompt_template: str | None = None,
     ) -> None:
         self.judge_model = (
             judge_model
             or os.environ.get(DEFAULT_JUDGE_MODEL_ENV)
             or DEFAULT_JUDGE_MODEL
         )
+        # Optional suite-level rubric override. None => the committed default.
+        self.prompt_template = prompt_template
         self._provider_factory = provider_factory or _default_provider_factory
         self._provider: BaseProvider | None = None
         if cache_dir is None:
@@ -260,7 +270,8 @@ class LLMJudgeScorer:
         reference answers but poor for rubric scoring.
         """
         question = context or "(prompt not provided)"
-        prompt = _build_judge_prompt(question, output, expected)
+        prompt = _build_judge_prompt(question, output, expected,
+                                     template=self.prompt_template)
         cache_key = self._cache_key(prompt)
         cached = self._read_cache(cache_key)
         if cached is not None:

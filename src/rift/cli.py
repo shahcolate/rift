@@ -551,7 +551,12 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
         if cot_perturbations else None
     )
 
-    judge = FaithfulnessJudge(judge_model=judge_model, cache_dir=cache_dir)
+    # Suite-level prompt overrides thread into the judge and the suite builders.
+    prompts_block = base_suite.prompts
+    judge = FaithfulnessJudge(
+        judge_model=judge_model, cache_dir=cache_dir,
+        prompt_template=prompts_block.get("faithfulness_judge"),
+    )
     judge_cfg = resolve_model(judge.judge_model)
     # hint mode needs the proposer + judge; cot mode needs neither. Preflight
     # only the providers the chosen mode(s) will actually call.
@@ -577,12 +582,12 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
         regressed |= _run_hint_mode(
             base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
             baseline, challenger, cue_list, concurrency, alpha, cache_dir,
-            out_payload,
+            out_payload, prompts_block,
         )
     if mode in ("cot", "both"):
         regressed |= _run_cot_mode(
             base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
-            cot_list, concurrency, alpha, cache_dir, out_payload,
+            cot_list, concurrency, alpha, cache_dir, out_payload, prompts_block,
         )
 
     asyncio.run(judge.close())
@@ -600,19 +605,32 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
 
 def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
                    baseline, challenger, cue_list, concurrency, alpha, cache_dir,
-                   out_payload) -> bool:
+                   out_payload, prompts_block) -> bool:
     """Hint-articulation mode. Returns True if a significant regression was found."""
     from dataclasses import asdict
 
+    from .prompts import resolve_cues
+
     console.print(f"[dim]hint mode · judge: {judge.judge_model}[/dim]")
-    wrong_suite = build_wrong_answer_suite(base_suite)
+    wrong_suite = build_wrong_answer_suite(
+        base_suite,
+        wrong_answer_prompt=prompts_block.get("faithfulness_wrong_answer"),
+    )
     wrong_run = asyncio.run(
         run_suite(wrong_suite, proposer_cfg, concurrency=concurrency,
                   cache_dir=cache_dir)
     )
     hint_targets = parse_hint_targets(wrong_run)
 
-    derived = build_faithfulness_suite(base_suite, hint_targets, cues=cue_list)
+    # Resolve cue templates once and reuse for both the suite build and the
+    # judge-side cue reconstruction in compute_faithfulness, so an overridden
+    # or newly-added cue is judged against the exact text the model saw.
+    cue_templates = resolve_cues(base_suite.cues)
+    derived = build_faithfulness_suite(
+        base_suite, hint_targets, cues=cue_list,
+        cue_templates=cue_templates,
+        format_instruction=prompts_block.get("faithfulness_format_instruction"),
+    )
     base_run = asyncio.run(
         run_suite(derived, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
     )
@@ -625,8 +643,10 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
             judge.acknowledged(question, cue_text, reasoning, answer, target)
         )
 
-    base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets)
-    chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets)
+    base_fr = compute_faithfulness(base_run, scorer, _ack, hint_targets,
+                                   cue_templates=cue_templates)
+    chal_fr = compute_faithfulness(chal_run, scorer, _ack, hint_targets,
+                                   cue_templates=cue_templates)
 
     shared = sorted(set(base_fr.per_case) & set(chal_fr.per_case))
     if not shared:
@@ -654,13 +674,18 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
 
 
 def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
-                  cot_list, concurrency, alpha, cache_dir, out_payload) -> bool:
+                  cot_list, concurrency, alpha, cache_dir, out_payload,
+                  prompts_block) -> bool:
     """CoT-dependence mode. Returns True if a significant regression was found."""
     from dataclasses import asdict
 
+    fmt = prompts_block.get("faithfulness_format_instruction")
+    early_tpl = prompts_block.get("faithfulness_cot_early")
+    mistake_tpl = prompts_block.get("faithfulness_cot_mistake")
+
     console.print("[dim]cot mode · no judge/proposer needed[/dim]")
     # 1. Control run per model captures each model's own chain-of-thought.
-    control = build_control_suite(base_suite)
+    control = build_control_suite(base_suite, format_instruction=fmt)
     base_ctrl = asyncio.run(
         run_suite(control, base_cfg, concurrency=concurrency, cache_dir=cache_dir)
     )
@@ -670,10 +695,12 @@ def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
 
     # 2. Per-model perturbation suites, built from that model's own reasoning.
     base_pert_suite, base_answers = build_cot_perturbation_suite(
-        base_suite, base_ctrl, scorer, perturbations=cot_list
+        base_suite, base_ctrl, scorer, perturbations=cot_list,
+        early_template=early_tpl, mistake_template=mistake_tpl,
     )
     chal_pert_suite, chal_answers = build_cot_perturbation_suite(
-        base_suite, chal_ctrl, scorer, perturbations=cot_list
+        base_suite, chal_ctrl, scorer, perturbations=cot_list,
+        early_template=early_tpl, mistake_template=mistake_tpl,
     )
     base_pert = asyncio.run(
         run_suite(base_pert_suite, base_cfg, concurrency=concurrency, cache_dir=cache_dir)

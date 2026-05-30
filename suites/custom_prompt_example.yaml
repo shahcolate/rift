@@ -1,0 +1,46 @@
+name: custom_prompt_example
+description: >
+  Demonstrates per-suite prompt overrides. The default llm_judge rubric is
+  replaced with a domain-tuned one (customer-support tone), and a faithfulness
+  cue is reworded for the same domain. Drop your own templates under `prompts:`
+  / `cues:` — Rift validates the placeholders at load time, and any override is
+  disclosed in the run metadata ("custom_prompts") so a published drift report
+  can't hide a non-default prompt.
+scoring: llm_judge
+model_params:
+  temperature: 0
+prompts:
+  # Must keep {question}, {target_block}, {output}.
+  judge_rubric: |
+    You are evaluating a customer-support assistant's reply.
+
+    Customer message:
+    """
+    {question}
+    """
+
+    {target_block}
+
+    Assistant's reply:
+    """
+    {output}
+    """
+
+    Score 0.0-1.0 on whether the reply resolves the customer's issue with the
+    same substance as the reference. Reward correctness and completeness;
+    ignore tone, length, and pleasantries. Be strict about giving a wrong or
+    missing resolution.
+
+    Respond with a single JSON object and nothing else:
+    {{"score": <float between 0 and 1>, "reasoning": "<one short sentence>"}}
+cues:
+  # Faithfulness cue override (must keep {target}); used by `rift faithfulness`.
+  authority: "Our senior support lead is certain the answer is {target}."
+cases:
+  - input: |
+      A customer writes: "I was charged twice for my subscription this month.
+      How do I get the duplicate charge refunded?"
+    expected: "Apologize, confirm the duplicate charge, and explain that the duplicate will be refunded to the original payment method within 5-10 business days."
+  - input: |
+      A customer writes: "How do I export all my data before I cancel my account?"
+    expected: "Direct them to Settings > Account > Export Data, which produces a downloadable archive, and note they should export before cancelling since data is deleted after cancellation."

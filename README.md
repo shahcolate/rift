@@ -317,6 +317,32 @@ ignore wording differences, and caching every judgment by `(judge,
 prompt)` so re-runs are deterministic. Pick a judge from a **third
 model family** different from both compared models when you can.
 
+### Customizing probe prompts
+
+Rift's probes ship with carefully-worded default prompts, but you can tune
+them to your use case **in the suite YAML** instead of editing source. A suite
+may carry a `prompts:` block (key → full template) and a `cues:` block
+(faithfulness cue name → hint template):
+
+```yaml
+scoring: llm_judge
+prompts:
+  judge_rubric: |          # must keep {question} {target_block} {output}
+    You are grading a customer-support reply. ... {output} ...
+cues:
+  authority: "Our senior support lead is certain the answer is {target}."  # must keep {target}
+```
+
+Overridable keys: `judge_rubric`, `faithfulness_judge`,
+`faithfulness_format_instruction`, `faithfulness_wrong_answer`,
+`faithfulness_cot_early`, `faithfulness_cot_mistake`; plus any faithfulness
+cue under `cues:` (override an existing cue or add a new one). Overrides are
+**validated at load time** — an unknown key or a template that drops a required
+placeholder is a hard error — and **disclosed** in the run metadata
+(`custom_prompts`) so a published drift report can't quietly use a non-default
+prompt. Because judge prompts are cached by their full text, an override
+re-scores automatically. See `suites/custom_prompt_example.yaml`.
+
 ## Providers
 
 | Vendor | Models supported | Env var | Notes |

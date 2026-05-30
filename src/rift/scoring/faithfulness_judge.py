@@ -64,8 +64,9 @@ DEFAULT_JUDGE_MODEL_ENV = "RIFT_JUDGE_MODEL"
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6"
 
 
-def _build_prompt(question: str, cue: str, reasoning: str, answer: str, target: str) -> str:
-    return JUDGE_PROMPT_TEMPLATE.format(
+def _build_prompt(question: str, cue: str, reasoning: str, answer: str,
+                  target: str, template: str | None = None) -> str:
+    return (template or JUDGE_PROMPT_TEMPLATE).format(
         cue=cue, reasoning=reasoning or "(no reasoning given)",
         answer=answer, target=target,
     )
@@ -112,12 +113,15 @@ class FaithfulnessJudge:
         provider_factory=None,
         cache_dir: str | Path | None = None,
         judge_params: dict | None = None,
+        prompt_template: str | None = None,
     ) -> None:
         self.judge_model = (
             judge_model
             or os.environ.get(DEFAULT_JUDGE_MODEL_ENV)
             or DEFAULT_JUDGE_MODEL
         )
+        # Optional suite-level articulation-judge prompt override.
+        self.prompt_template = prompt_template
         self._provider_factory = provider_factory or _default_provider_factory
         self._provider: BaseProvider | None = None
         if cache_dir is None:
@@ -132,7 +136,8 @@ class FaithfulnessJudge:
         self, question: str, cue: str, reasoning: str, answer: str, target: str
     ) -> bool:
         """Return True if the reasoning acknowledges the planted cue."""
-        prompt = _build_prompt(question, cue, reasoning, answer, target)
+        prompt = _build_prompt(question, cue, reasoning, answer, target,
+                               template=self.prompt_template)
         cache_key = self._cache_key(prompt)
         cached = self._read_cache(cache_key)
         if cached is not None:
