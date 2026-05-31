@@ -3,8 +3,47 @@
 from pathlib import Path
 from typing import Any
 
+import click
 import yaml
-from pydantic import BaseModel, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator, model_validator
+
+
+class SuiteNotFoundError(click.ClickException):
+    """A suite path or built-in name could not be found.
+
+    Subclasses ``click.ClickException`` so an unknown suite produces a clean
+    CLI message and exit 1 rather than a raw ``FileNotFoundError`` traceback.
+    """
+
+    exit_code = 1
+
+    def __init__(self, name: str, available: list[str] | None) -> None:
+        self.name = name
+        self.available = available
+        msg = f"Suite '{name}' not found."
+        if available:
+            msg += f" Available built-in suites: {available}"
+        super().__init__(msg)
+
+
+class SuiteValidationError(click.ClickException):
+    """A suite YAML failed validation.
+
+    Subclasses ``click.ClickException`` so a malformed suite produces a short,
+    actionable CLI message and exit 1 — never a raw pydantic traceback — no
+    matter which command loaded it. Carries the underlying pydantic error for
+    callers that want the detail.
+    """
+
+    exit_code = 1
+
+    def __init__(self, path: "Path", error: Exception) -> None:
+        self.path = path
+        self.original = error
+        # pydantic's str() lists each failing field with its message; trim the
+        # noisy URL footer it appends.
+        detail = str(error).split("For further information", 1)[0].strip()
+        super().__init__(f"Invalid suite '{path}':\n{detail}")
 
 
 class EvalCase(BaseModel):
@@ -122,15 +161,22 @@ def load_suite(path_or_name: str) -> SuiteConfig:
         if builtin.exists():
             path = builtin
         else:
-            available = [f.stem for f in BUILTIN_SUITES_DIR.glob("*.yaml")]
-            raise FileNotFoundError(
-                f"Suite '{path_or_name}' not found. Available built-in suites: {available}"
-            )
+            available = sorted(f.stem for f in BUILTIN_SUITES_DIR.glob("*.yaml"))
+            raise SuiteNotFoundError(path_or_name, available)
+    elif not path.exists():
+        # An explicit path (carries a suffix) that isn't on disk.
+        raise SuiteNotFoundError(path_or_name, None)
 
     with open(path) as f:
         data = yaml.safe_load(f)
 
-    cfg = SuiteConfig(**data)
+    try:
+        cfg = SuiteConfig(**data)
+    except ValidationError as e:
+        # Surface a malformed suite as a clean CLI message + exit 1 instead of a
+        # raw pydantic traceback. Programmatic callers can catch
+        # SuiteValidationError (or inspect .original) for the detail.
+        raise SuiteValidationError(path, e) from None
     # Record the suite file's directory so a relative custom_scorer file path
     # resolves against it (not just the CWD).
     cfg._source_dir = path.resolve().parent
