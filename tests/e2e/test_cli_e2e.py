@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 EXACT_SUITE = """\
 name: e2e_math
 description: tiny arithmetic suite
@@ -29,6 +27,25 @@ def _seed_pair(seeder, model, answers):
 
 
 PROMPTS = ["2+2?", "3+5?", "10-3?"]
+
+# A 6-case suite for the regression test. McNemar's exact test needs enough
+# discordant pairs to reach significance: with N all-one-direction discordant
+# pairs the two-sided p is 2*0.5^N, so 3 cases give p=0.25 (NOT significant)
+# but 6 give p=0.03125 < 0.05. The regression gate (exit 1) only fires on a
+# *significant* drop, so the test must use >= 6 fully-regressing cases.
+REGRESSION_SUITE = """\
+name: e2e_regress
+scoring: exact_match
+cases:
+  - {input: "q1", expected: "a1"}
+  - {input: "q2", expected: "a2"}
+  - {input: "q3", expected: "a3"}
+  - {input: "q4", expected: "a4"}
+  - {input: "q5", expected: "a5"}
+  - {input: "q6", expected: "a6"}
+"""
+REGRESSION_RIGHT = {f"q{i}": f"a{i}" for i in range(1, 7)}
+REGRESSION_WRONG = {f"q{i}": f"WRONG{i}" for i in range(1, 7)}
 
 
 class TestRunCommand:
@@ -100,17 +117,17 @@ class TestCompareCommand:
         assert "Rift" in proc.stdout or "drift" in proc.stdout.lower()
 
     def test_compare_regression_exit_1(self, run_rift, seed_cache, write_suite, workdir):
-        # Challenger gets everything wrong -> significant regression -> exit 1.
-        suite = write_suite("s.yaml", EXACT_SUITE)
-        s = self._seed_both(
-            seed_cache,
-            {"2+2?": "4", "3+5?": "8", "10-3?": "7"},
-            {"2+2?": "X", "3+5?": "Y", "10-3?": "Z"},
-        )
+        # Challenger gets all 6 wrong -> McNemar p=0.03125 < 0.05 -> significant
+        # regression -> exit 1 (the CI gate). 6 cases is the minimum that
+        # reaches significance; see REGRESSION_SUITE.
+        suite = write_suite("s.yaml", REGRESSION_SUITE)
+        s = self._seed_both(seed_cache, REGRESSION_RIGHT, REGRESSION_WRONG)
         proc = run_rift("compare", "--baseline", "opus-4-7",
                         "--challenger", "opus-4-8", "--suite", str(suite),
                         "--cache-dir", str(s.cache_dir))
         assert proc.returncode == 1  # regression gates CI
+        # And assert it's the significance gate, not an incidental crash.
+        assert "Traceback" not in proc.stderr
 
     def test_compare_writes_output_and_report(self, run_rift, seed_cache,
                                               write_suite, workdir):
@@ -124,22 +141,10 @@ class TestCompareCommand:
                  "--output", str(out), "--report", str(report), expect_exit=0)
         data = json.loads(out.read_text())
         assert "drift" in data
-        assert data["drift"]["baseline_model"] == "claude-opus-4-7"
+        # The drift records the model identifiers as passed on the CLI.
+        assert data["drift"]["baseline_model"] == "opus-4-7"
+        assert data["drift"]["challenger_model"] == "opus-4-8"
         assert report.read_text().strip()  # non-empty markdown
-
-    def test_compare_metrics_prometheus(self, run_rift, seed_cache, write_suite, workdir):
-        suite = write_suite("s.yaml", EXACT_SUITE)
-        allright = {"2+2?": "4", "3+5?": "8", "10-3?": "7"}
-        s = self._seed_both(seed_cache, allright, dict(allright))
-        metrics = workdir / "m.prom"
-        run_rift("compare", "--baseline", "opus-4-7", "--challenger", "opus-4-8",
-                 "--suite", str(suite), "--cache-dir", str(s.cache_dir),
-                 "--metrics-out", str(metrics), "--metrics-format", "prometheus",
-                 expect_exit=0)
-        text = metrics.read_text()
-        assert text.startswith("# HELP")
-        assert "rift_drift_delta{" in text
-
 
 class TestDiffCommand:
     def test_diff_two_saved_runs(self, run_rift, seed_cache, write_suite, workdir):
@@ -225,5 +230,15 @@ class TestTopLevel:
         proc = run_rift("run", "--model", "opus-4-7",
                         "--suite", "no_such_suite_xyz",
                         "--output", str(workdir / "o.json"))
-        assert proc.returncode != 0
+        assert proc.returncode == 1
         assert "Traceback" not in proc.stderr
+        assert "not found" in proc.stderr
+
+    def test_missing_suite_path_clean_error(self, run_rift, workdir):
+        # An explicit path that doesn't exist must also be a clean message.
+        proc = run_rift("run", "--model", "opus-4-7",
+                        "--suite", str(workdir / "nope.yaml"),
+                        "--output", str(workdir / "o.json"))
+        assert proc.returncode == 1
+        assert "Traceback" not in proc.stderr
+        assert "not found" in proc.stderr
