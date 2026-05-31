@@ -76,12 +76,16 @@ def run_rift(workdir):
     def _run(*args: str, expect_exit: int | None = None,
              env_extra: dict | None = None) -> subprocess.CompletedProcess:
         env = dict(os.environ)
+        # Explicit dummy keys win over anything in ~/.rift/.env (rift loads
+        # those via os.environ.setdefault), and the seeded cache blocks any
+        # real call — so we get key-preflight isolation without overriding HOME
+        # (which would also repoint user site-packages and hide installed deps).
         env.update({
             "ANTHROPIC_API_KEY": "dummy-e2e",
             "OPENAI_API_KEY": "dummy-e2e",
             "GEMINI_API_KEY": "dummy-e2e",
-            # Never read a developer's real ~/.rift/.env during tests.
-            "HOME": str(workdir),
+            # Point rift's cache/config away from any real user state.
+            "RIFT_CACHE_DIR": str(workdir / ".rift_cache_default"),
         })
         if env_extra:
             env.update(env_extra)
