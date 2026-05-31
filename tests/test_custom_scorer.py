@@ -222,14 +222,14 @@ class TestContextRotInteraction:
     def test_source_dir_survives_context_rot_expansion(self, tmp_path):
         # A custom-scored suite + context-rot must still resolve the scorer
         # file relative to the (original) suite directory.
-        from rift.context_rot import expand_with_context_rot
+        from rift.context_rot import expand_suite
         (tmp_path / "sc.py").write_text(
             "def score(output, expected):\n    return 1.0\n"
         )
         suite = SuiteConfig(name="t", scoring="custom", custom_scorer="./sc.py:score",
                             cases=[{"input": "q", "expected": "a"}])
         suite._source_dir = tmp_path
-        expanded = expand_with_context_rot(suite)
+        expanded = expand_suite(suite)
         assert expanded._source_dir == tmp_path
         scorer = get_scorer("custom", custom_scorer=expanded.custom_scorer,
                             base_dir=expanded._source_dir)
