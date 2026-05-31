@@ -102,13 +102,59 @@ class ExactMatchScorer:
                 except json.JSONDecodeError:
                     continue
 
-        # Try to find first { ... } block
+        # Greedy attempt: first "{" to last "}". Handles a single object
+        # (possibly nested) wrapped in prose in one parse.
         start = text.find("{")
         end = text.rfind("}")
-        if start != -1 and end != -1:
+        if start != -1 and end != -1 and end > start:
             try:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
                 pass
 
+        # Greedy span failed — e.g. prose between/around objects, an
+        # emoticon brace, or multiple top-level objects. Scan for the first
+        # *balanced* {...} object (string/escape-aware so braces inside JSON
+        # strings don't throw off the depth count) and parse that.
+        for i, ch in enumerate(text):
+            if ch != "{":
+                continue
+            candidate = _balanced_object(text, i)
+            if candidate is not None:
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    continue
+
         return None
+
+
+def _balanced_object(text: str, start: int) -> str | None:
+    """Return the substring of ``text`` from ``start`` ("{") through its
+    matching "}", or ``None`` if the braces never balance.
+
+    Tracks JSON string context and backslash escapes so that braces inside
+    string literals (``{"note": "a } brace"}``) do not corrupt the depth count.
+    """
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None

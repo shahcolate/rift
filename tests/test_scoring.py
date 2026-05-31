@@ -47,6 +47,27 @@ class TestExactMatchScorer:
         expected = {"name": "Alice"}
         assert self.scorer.score(output, expected) == 0.0
 
+    def test_dict_multiple_objects_extracts_first(self):
+        # The greedy first-{-to-last-} span is invalid JSON here (text between
+        # the two objects). The balanced-object fallback recovers the first.
+        output = '{"name": "Alice"} and also {"name": "Bob"}'
+        expected = {"name": "Alice"}
+        assert self.scorer.score(output, expected) == 1.0
+
+    def test_dict_trailing_brace_in_prose(self):
+        # A stray "}" in trailing prose (e.g. an emoticon) breaks the greedy
+        # span; the balanced scan still finds the real object.
+        output = 'Result: {"name": "Alice"}. Hope that helps :}'
+        expected = {"name": "Alice"}
+        assert self.scorer.score(output, expected) == 1.0
+
+    def test_dict_brace_inside_string_value(self):
+        # Braces inside a JSON string literal must not throw off the
+        # balanced-brace depth counter.
+        output = 'Note: {"name": "A } B", "age": "30"} done'
+        expected = {"name": "A } B", "age": "30"}
+        assert self.scorer.score(output, expected) == 1.0
+
 
 class TestExactMatchConfidenceTolerance:
     """The exact-match scorer should ignore a trailing confidence line."""

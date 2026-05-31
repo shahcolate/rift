@@ -119,8 +119,9 @@ class DriftResult:
     effect_size: float = 0.0
     effect_size_kind: str = "none"           # "cohens_h_marginal" | "hedges_g" | "none"
     effect_size_magnitude: str = "negligible"  # "negligible"|"small"|"medium"|"large"
-    # Paired binary only: Cohen's g = (b−c)/(b+c) on the discordant cells.
-    # Reported alongside Cohen's h_marginal so a reviewer can verify both.
+    # Paired binary only: Cohen's g = P − 0.5 on the discordant cells, where
+    # P = b/(b+c) (range [-0.5, 0.5]). Reported alongside Cohen's h_marginal
+    # so a reviewer can verify both.
     cohens_g_paired: float | None = None
     # Per-tag subgroup drift (optional).
     subgroups: dict[str, "DriftResult"] = field(default_factory=dict)
@@ -227,11 +228,16 @@ def _cohens_h(p1: float, p2: float) -> float:
 
 
 def _cohens_g_paired(baseline: np.ndarray, challenger: np.ndarray) -> float | None:
-    """Cohen's g for paired binary data: (n_improve − n_regress)/n_discordant.
+    """Cohen's g for paired binary data: P − 0.5, where P is the proportion
+    of discordant pairs that are improvements (P = n_improve / n_discordant).
 
-    Ranges in [-1, 1]. Magnitude (Cohen 1988): |g|<0.05 negligible,
-    <0.15 small, <0.25 medium, ≥0.25 large. Returns ``None`` when there
-    are no discordant pairs (test is uninformative).
+    Equivalently ``(n_improve − n_regress) / (2·n_discordant)``. This is the
+    canonical Cohen's g (Cohen 1988) for the sign/McNemar setting, ranging in
+    [-0.5, 0.5]. Magnitude thresholds (Cohen 1988): |g|<0.05 negligible,
+    <0.15 small, <0.25 medium, ≥0.25 large — these are defined on this
+    [-0.5, 0.5] scale, so the divisor MUST be ``2·n_disc`` (not ``n_disc``)
+    for the thresholds to apply. Returns ``None`` when there are no discordant
+    pairs (test is uninformative).
     """
     diff = challenger - baseline
     n_improve = int(np.sum(diff > 0))
@@ -239,7 +245,7 @@ def _cohens_g_paired(baseline: np.ndarray, challenger: np.ndarray) -> float | No
     n_disc = n_improve + n_regress
     if n_disc == 0:
         return None
-    return (n_improve - n_regress) / n_disc
+    return (n_improve - n_regress) / (2 * n_disc)
 
 
 def _hedges_g(baseline: np.ndarray, challenger: np.ndarray) -> float:

@@ -23,8 +23,10 @@ class TestEffectSize:
         assert r.effect_size < 0
         # Paired Cohen's g is also reported alongside, on the discordant pairs.
         assert r.cohens_g_paired is not None
-        # n_improve=0, n_regress=5, n_disc=5 → g = (0-5)/5 = -1.0
-        assert r.cohens_g_paired == -1.0
+        # n_improve=0, n_regress=5, n_disc=5 → P = 0/5 = 0, g = P - 0.5 = -0.5.
+        # (Canonical Cohen's g ranges in [-0.5, 0.5]; the all-regress extreme
+        # is the floor.)
+        assert r.cohens_g_paired == -0.5
 
     def test_cohens_g_paired_none_when_no_discordant(self):
         """All concordant pairs: paired g is undefined (None), not 0."""
