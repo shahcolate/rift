@@ -391,10 +391,34 @@ rift matrix \
 
 ## CI/CD Integration
 
-Rift returns exit code 1 when significant drift is detected. Drop it in your deployment pipeline:
+Rift returns exit code 1 when significant drift is detected, so it gates any
+pipeline. A ready-made **GitHub Action** wraps `rift compare`, writes the drift
+report to the job summary, and exposes a `regression` output:
 
 ```yaml
-# GitHub Actions
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shahcolate/rift/.github/actions/rift-drift-check@v1.0.0
+        with:
+          baseline: opus-4-7
+          challenger: opus-4-8
+          suite: reasoning
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+The job fails when a regression is detected, gating the PR. See
+[`.github/actions/rift-drift-check`](.github/actions/rift-drift-check/README.md)
+for all inputs/outputs (metrics upload, completion caching, custom judge,
+`fail-on-regression` toggle, …).
+
+For other CI systems, call the CLI directly and let the exit code gate the
+pipeline:
+
+```yaml
 - name: Check for model drift
   run: rift compare --baseline $CURRENT_MODEL --challenger $NEW_MODEL --suite production_evals
   env:
