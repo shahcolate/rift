@@ -45,6 +45,9 @@ rift/
 │   ├── context_rot_opus47.md           # Raw Rift drift report
 │   └── context_rot_opus47_analysis.md  # Methodology + findings writeup
 ├── tests/
+├── .github/
+│   ├── actions/rift-drift-check/  # Reusable composite action (drift gate in CI)
+│   └── workflows/publish.yml      # Build + PyPI publish on GitHub Release (OIDC)
 ├── pyproject.toml
 ├── README.md
 └── CLAUDE.md

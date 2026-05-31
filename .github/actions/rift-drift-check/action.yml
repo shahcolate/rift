@@ -1,0 +1,159 @@
+name: "Rift drift check"
+description: >
+  Run a Rift eval suite comparing a baseline and challenger model and fail the
+  job when a statistically-significant regression is detected. Writes a
+  markdown drift report to the job summary and exposes the report / metrics as
+  outputs.
+author: "Rift"
+branding:
+  icon: "git-commit"
+  color: "purple"
+
+inputs:
+  baseline:
+    description: "Baseline model identifier (e.g. opus-4-7)."
+    required: true
+  challenger:
+    description: "Challenger model identifier (e.g. opus-4-8)."
+    required: true
+  suite:
+    description: "Suite name or path to a suite YAML."
+    required: true
+  alpha:
+    description: "Significance threshold."
+    required: false
+    default: "0.05"
+  fail-on-regression:
+    description: >
+      Fail the job when a significant regression is detected (Rift exits 1).
+      Set to 'false' to always succeed and only surface the report.
+    required: false
+    default: "true"
+  report-path:
+    description: "Where to write the markdown drift report."
+    required: false
+    default: "rift-drift-report.md"
+  metrics-path:
+    description: "Where to write flat metrics (omit to skip)."
+    required: false
+    default: ""
+  metrics-format:
+    description: "Metrics format: json or prometheus."
+    required: false
+    default: "json"
+  cache-dir:
+    description: "Completion cache directory (cache between runs to save cost)."
+    required: false
+    default: ".rift/cache"
+  extra-args:
+    description: >
+      Additional raw args appended to `rift compare`, whitespace-split into
+      argv tokens (e.g. "--judge-model sonnet-4-6"). NOT shell-quoted: don't
+      pass values containing spaces.
+    required: false
+    default: ""
+  install-spec:
+    description: >
+      What `pip install` should install Rift from. Defaults to
+      'rift-eval>=1.0.0' so the installed version is guaranteed to support the
+      flags this action uses (a bare 'rift-eval' could resolve to an older
+      release that predates them). Pin exactly (e.g. 'rift-eval==1.0.0') for
+      reproducible CI, or point at source with a git ref like
+      'git+https://github.com/shahcolate/rift@main' or '.' for a checked-out
+      copy. Keep this in lockstep with the action ref you pin (`@v1.0.0`).
+    required: false
+    default: "rift-eval>=1.0.0"
+  python-version:
+    description: "Python version to set up."
+    required: false
+    default: "3.11"
+
+outputs:
+  regression:
+    description: "'true' if a significant regression was detected, else 'false'."
+    value: ${{ steps.compare.outputs.regression }}
+  report-path:
+    description: "Path to the written markdown report."
+    value: ${{ inputs.report-path }}
+  metrics-path:
+    description: "Path to the written metrics file (empty if not requested)."
+    value: ${{ inputs.metrics-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    # All inputs reach the shell via env:, never interpolated as ${{ }} into a
+    # run: body. Interpolating untrusted input text directly into a run: block
+    # is the canonical GitHub Actions script-injection footgun; the env
+    # indirection neutralizes it.
+    - name: Install Rift
+      shell: bash
+      env:
+        INSTALL_SPEC: ${{ inputs.install-spec }}
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install "$INSTALL_SPEC"
+
+    - name: Run drift comparison
+      id: compare
+      shell: bash
+      env:
+        BASELINE: ${{ inputs.baseline }}
+        CHALLENGER: ${{ inputs.challenger }}
+        SUITE: ${{ inputs.suite }}
+        ALPHA: ${{ inputs.alpha }}
+        REPORT_PATH: ${{ inputs.report-path }}
+        CACHE_DIR: ${{ inputs.cache-dir }}
+        METRICS_PATH: ${{ inputs.metrics-path }}
+        METRICS_FORMAT: ${{ inputs.metrics-format }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+      run: |
+        set -o pipefail
+        args=(compare
+          --baseline "$BASELINE"
+          --challenger "$CHALLENGER"
+          --suite "$SUITE"
+          --alpha "$ALPHA"
+          --report "$REPORT_PATH"
+          --cache-dir "$CACHE_DIR")
+        if [ -n "$METRICS_PATH" ]; then
+          args+=(--metrics-out "$METRICS_PATH" --metrics-format "$METRICS_FORMAT")
+        fi
+        # extra-args is whitespace-split into separate argv tokens (it is NOT
+        # shell-quoted: don't pass values containing spaces).
+        if [ -n "$EXTRA_ARGS" ]; then
+          read -ra extra_arr <<< "$EXTRA_ARGS"
+          args+=("${extra_arr[@]}")
+        fi
+
+        # Rift exits 1 on a significant regression; capture it without aborting
+        # so we can set the output and write the summary first.
+        set +e
+        rift "${args[@]}"
+        code=$?
+        set -e
+
+        if [ "$code" -eq 0 ]; then
+          echo "regression=false" >> "$GITHUB_OUTPUT"
+        elif [ "$code" -eq 1 ]; then
+          echo "regression=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::rift compare failed (exit $code)"
+          exit "$code"
+        fi
+
+        # Surface the report in the job summary.
+        if [ -f "$REPORT_PATH" ]; then
+          cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        if [ "$code" -eq 1 ] && [ "$FAIL_ON_REGRESSION" = "true" ]; then
+          echo "::error::Significant regression detected ($BASELINE -> $CHALLENGER)."
+          exit 1
+        fi
