@@ -108,9 +108,16 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="When writing --output, omit per-case input_text and "
                    "output fields. Use for proprietary suites whose prompts "
                    "or completions should not leave your machine.")
+@click.option("--metrics-out", default=None,
+              help="Write flat drift metrics to PATH for dashboards "
+                   "(node_exporter / time-series stores). See --metrics-format.")
+@click.option("--metrics-format", type=click.Choice(["json", "prometheus"]),
+              default="json", show_default=True,
+              help="Format for --metrics-out.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power, judge_model, strip_io):
+            refusal, calibration, power, judge_model, strip_io,
+            metrics_out, metrics_format):
     """Compare two models on an eval suite."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
@@ -215,6 +222,15 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             f.write(md)
         console.print(f"Report saved to [green]{report}[/green]")
 
+    if metrics_out:
+        from .observability import comparison_metrics, write_metrics
+
+        write_metrics(comparison_metrics(drift), metrics_out, metrics_format)
+        console.print(
+            f"Metrics ([cyan]{metrics_format}[/cyan]) saved to "
+            f"[green]{metrics_out}[/green]"
+        )
+
     if drift.significant and drift.delta < 0:
         sys.exit(1)
 
@@ -234,8 +250,15 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--strip-io", is_flag=True, default=False,
               help="Omit per-case input_text and output from the saved "
                    "JSON. Use for proprietary suites.")
+@click.option("--metrics-out", default=None,
+              help="Write flat run metrics to PATH for dashboards. "
+                   "See --metrics-format.")
+@click.option("--metrics-format", type=click.Choice(["json", "prometheus"]),
+              default="json", show_default=True,
+              help="Format for --metrics-out.")
 def run(model, suite, concurrency, output, cache_dir, context_rot,
-        enterprise_multiplier, judge_model, strip_io):
+        enterprise_multiplier, judge_model, strip_io,
+        metrics_out, metrics_format):
     """Run a single model against an eval suite and save results."""
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
@@ -259,6 +282,14 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
     console.print(f"Spend: [bold]${result.total_cost_usd:.4f}[/bold]  "
                   f"$/correct: [bold]${result.cost_per_correct():.4f}[/bold]")
     console.print(f"Results saved to [green]{output}[/green]")
+    if metrics_out:
+        from .observability import run_metrics, write_metrics
+
+        write_metrics(run_metrics(result), metrics_out, metrics_format)
+        console.print(
+            f"Metrics ([cyan]{metrics_format}[/cyan]) saved to "
+            f"[green]{metrics_out}[/green]"
+        )
 
 
 @main.command()

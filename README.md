@@ -343,6 +343,34 @@ placeholder is a hard error — and **disclosed** in the run metadata
 prompt. Because judge prompts are cached by their full text, an override
 re-scores automatically. See `suites/custom_prompt_example.yaml`.
 
+## Observability / metrics export
+
+Beyond the human-facing report and the rich `--output` JSON, `compare` and `run`
+can emit a **flat, stable set of named metrics** for dashboards and time-series
+stores:
+
+```bash
+rift compare --baseline opus-4-7 --challenger opus-4-8 --suite reasoning \
+  --metrics-out drift.prom --metrics-format prometheus
+```
+
+Two formats:
+
+- `--metrics-format json` (default) — `{"schema", "generated_at", "series":
+  [{labels, metrics}]}`; easy to ship to a log pipeline or load anywhere.
+- `--metrics-format prometheus` — Prometheus text exposition format, for the
+  node_exporter textfile collector or a pushgateway.
+
+`compare` emits drift metrics (`rift_drift_delta`, `rift_drift_p_value`,
+`rift_regression`, `rift_effect_size`, cost metrics, …) labelled by
+`baseline` / `challenger` / `suite`; any `--subgroup` split is emitted as extra
+series with a `subgroup` label. `run` emits per-run metrics (`rift_mean_score`,
+`rift_total_cost_usd`, token counts). Non-finite values (e.g. an undefined
+cost-per-correct) are omitted so the JSON stays valid. Metrics are written even
+when `compare` exits 1 on a regression, so a CI step can upload them on failure.
+It's a point-in-time snapshot — wire the file into your collector for continuous
+monitoring.
+
 ## Providers
 
 | Vendor | Models supported | Env var | Notes |
