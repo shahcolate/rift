@@ -1,0 +1,15 @@
+name: custom_scorer_example
+description: >
+  Demonstrates a user-supplied scoring function (scoring: custom). The
+  custom_scorer points at a function in a sibling .py file, resolved relative
+  to this suite file. The function gets (output, expected) and returns a float
+  in 0.0-1.0. Loading executes that module, so only run suites you trust.
+scoring: custom
+custom_scorer: ./custom_scorer_example.py:keyword_overlap
+model_params:
+  temperature: 0
+cases:
+  - input: "Name three primary colors."
+    expected: "red blue yellow"
+  - input: "List two states of matter."
+    expected: "solid liquid"

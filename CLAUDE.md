@@ -20,6 +20,7 @@ rift/
 │   ├── faithfulness.py      # Reasoning-faithfulness probe (biasing-hint articulation)
 │   ├── scoring/
 │   │   ├── exact_match.py
+│   │   ├── custom.py        # Loader for user-supplied `scoring: custom` scorers
 │   │   ├── llm_judge.py
 │   │   ├── semantic.py      # Embedding-cosine scorer (OpenAI + Google backends)
 │   │   └── faithfulness_judge.py  # Articulation judge (did reasoning admit the cue?)
@@ -121,6 +122,16 @@ Probe prompts are overridable per suite via `prompts:` (registry keys:
 overrides → defaults; the runner stamps `metadata["custom_prompts"]` so a
 published report discloses any non-default prompt. Adding a new overridable
 prompt is a one-line `PROMPT_REGISTRY` entry + a default in `_default_for`.
+
+Custom scoring: `scoring: custom` + `custom_scorer: "target:callable"` (an
+importable `module:fn` or a `./file.py:fn` resolved against the suite file's
+dir, tracked via `SuiteConfig._source_dir` — which `_with_cases` in
+`context_rot.py` must preserve). The target may be a sync
+`score(output, expected)`, an async `ascore(output, expected, context=None)`,
+or a Scorer class/instance; plain functions are wrapped in `scoring/custom.py`.
+`SuiteConfig` validates the spec at load (custom ⇒ scorer required; scorer ⇒
+custom required); the loader executes the target module (trust boundary — only
+run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
 
 ## Tech Stack
 

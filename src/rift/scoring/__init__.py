@@ -34,7 +34,9 @@ def get_scorer(name: str, **kwargs) -> Scorer:
     ``kwargs`` are forwarded to the scorer constructor. ``llm_judge``
     accepts ``judge_model``, ``cache_dir``, ``provider_factory``,
     ``judge_params``; ``semantic`` accepts ``embedding_model``,
-    ``cache_dir``, ``embedder_factory``, ``threshold``; the other
+    ``cache_dir``, ``embedder_factory``, ``threshold``; ``custom``
+    accepts ``custom_scorer`` (a ``target:callable`` spec) and an
+    optional ``base_dir`` for resolving a relative file path; the other
     built-ins ignore kwargs.
     """
     from .exact_match import ExactMatchScorer
@@ -53,7 +55,18 @@ def get_scorer(name: str, **kwargs) -> Scorer:
         return LLMJudgeScorer(**kwargs)
     if name == "semantic":
         return SemanticScorer(**kwargs)
+    if name == "custom":
+        from .custom import load_custom_scorer
+
+        spec = kwargs.get("custom_scorer")
+        if not spec:
+            raise ValueError(
+                "custom scoring requires a 'custom_scorer' spec "
+                "(e.g. 'mypkg.scorers:score' or './scorer.py:score')"
+            )
+        return load_custom_scorer(spec, base_dir=kwargs.get("base_dir"))
     raise ValueError(
         f"Unknown scorer: {name}. Available: "
-        f"['exact_match', 'fuzzy_match', 'exec_tests', 'llm_judge', 'semantic']"
+        f"['exact_match', 'fuzzy_match', 'exec_tests', 'llm_judge', "
+        f"'semantic', 'custom']"
     )
