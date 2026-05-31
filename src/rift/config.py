@@ -3,8 +3,29 @@
 from pathlib import Path
 from typing import Any
 
+import click
 import yaml
-from pydantic import BaseModel, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator, model_validator
+
+
+class SuiteValidationError(click.ClickException):
+    """A suite YAML failed validation.
+
+    Subclasses ``click.ClickException`` so a malformed suite produces a short,
+    actionable CLI message and exit 1 — never a raw pydantic traceback — no
+    matter which command loaded it. Carries the underlying pydantic error for
+    callers that want the detail.
+    """
+
+    exit_code = 1
+
+    def __init__(self, path: "Path", error: Exception) -> None:
+        self.path = path
+        self.original = error
+        # pydantic's str() lists each failing field with its message; trim the
+        # noisy URL footer it appends.
+        detail = str(error).split("For further information", 1)[0].strip()
+        super().__init__(f"Invalid suite '{path}':\n{detail}")
 
 
 class EvalCase(BaseModel):
