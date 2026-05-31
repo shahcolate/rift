@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, PrivateAttr, field_validator, model_validator
 
 
 class EvalCase(BaseModel):
@@ -41,7 +41,19 @@ class SuiteConfig(BaseModel):
     # rift.prompts at load time. Empty = use the built-in defaults.
     prompts: dict[str, str] = {}
     cues: dict[str, str] | None = None
+    # Required when scoring == "custom": a reference to a user-supplied scorer,
+    # either "package.module:callable" (importable) or "path/to/file.py:callable"
+    # (a file, resolved relative to the suite file's directory then the CWD).
+    # The target may be a function score(output, expected) -> float, an async
+    # function ascore(output, expected, context=None) -> float, or a class /
+    # instance implementing the Scorer protocol. Loading executes the target
+    # module, so only run suites you trust. Ignored for non-custom scoring.
+    custom_scorer: str | None = None
     cases: list[EvalCase]
+
+    # Directory of the suite file (set by load_suite), used to resolve a
+    # relative custom_scorer file path. Not part of the serialized model.
+    _source_dir: Path | None = PrivateAttr(default=None)
 
     @field_validator("scoring")
     @classmethod
@@ -59,6 +71,25 @@ class SuiteConfig(BaseModel):
         from .prompts import validate_overrides
 
         validate_overrides(self.prompts, self.cues)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_custom_scorer(self) -> "SuiteConfig":
+        if self.scoring == "custom":
+            if not self.custom_scorer:
+                raise ValueError(
+                    "scoring 'custom' requires a 'custom_scorer' field, e.g. "
+                    "'mypkg.scorers:score' or './scorer.py:score'"
+                )
+            if ":" not in self.custom_scorer:
+                raise ValueError(
+                    f"custom_scorer must be 'target:callable', got "
+                    f"'{self.custom_scorer}'"
+                )
+        elif self.custom_scorer is not None:
+            raise ValueError(
+                "custom_scorer is only valid when scoring: custom"
+            )
         return self
 
 
@@ -99,7 +130,11 @@ def load_suite(path_or_name: str) -> SuiteConfig:
     with open(path) as f:
         data = yaml.safe_load(f)
 
-    return SuiteConfig(**data)
+    cfg = SuiteConfig(**data)
+    # Record the suite file's directory so a relative custom_scorer file path
+    # resolves against it (not just the CWD).
+    cfg._source_dir = path.resolve().parent
+    return cfg
 
 
 # Short aliases for convenience on the command line. Kept tiny on

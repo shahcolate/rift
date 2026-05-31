@@ -338,6 +338,11 @@ async def run_suite(
             "embedding_model": suite.embedding_model,
             "cache_dir": str(cache_path),
         }
+    elif suite.scoring == "custom":
+        scorer_kwargs = {
+            "custom_scorer": suite.custom_scorer,
+            "base_dir": suite._source_dir,
+        }
     scorer = get_scorer(suite.scoring, **scorer_kwargs)
     is_async_scorer = hasattr(scorer, "ascore")
     semaphore = asyncio.Semaphore(concurrency)
@@ -467,6 +472,9 @@ async def run_suite(
         metadata["judge_model"] = scorer.judge_model  # type: ignore[attr-defined]
     if is_async_scorer and hasattr(scorer, "embedding_model"):
         metadata["embedding_model"] = scorer.embedding_model  # type: ignore[attr-defined]
+    # Disclose a custom scorer so a saved RunResult records how it was scored.
+    if suite.scoring == "custom" and suite.custom_scorer:
+        metadata["custom_scorer"] = suite.custom_scorer
     # Disclose any custom probe prompts so a published drift report can't
     # hide a non-default rubric. Methodology, not decoration.
     if suite.prompts or suite.cues:

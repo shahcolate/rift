@@ -200,7 +200,7 @@ def expand_suite(
                 )
             )
 
-    return SuiteConfig(
+    expanded_suite = SuiteConfig(
         name=f"{base.name}__context_rot",
         description=(
             f"{base.description} — expanded with distractor context at "
@@ -208,8 +208,14 @@ def expand_suite(
         ),
         scoring=base.scoring,
         model_params=base.model_params,
+        custom_scorer=base.custom_scorer,
         cases=expanded,
     )
+    # Carry the source dir (a PrivateAttr, not copied by construction) so a
+    # relative custom_scorer file path still resolves relative to the suite
+    # file after expansion.
+    expanded_suite._source_dir = base._source_dir
+    return expanded_suite
 
 
 def load_base_and_expand(path_or_name: str) -> SuiteConfig:
