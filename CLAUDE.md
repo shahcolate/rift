@@ -14,6 +14,7 @@ rift/
 │   ├── runner.py            # Async eval engine (retries, timeouts, cost tagging)
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
+│   ├── observability.py     # Flat metrics export (JSON / Prometheus) for dashboards
 │   ├── pricing.py           # Token price catalog + enterprise multiplier
 │   ├── prompts.py           # Registry of user-overridable probe prompt templates
 │   ├── context_rot.py       # Distractor-injection suite expansion

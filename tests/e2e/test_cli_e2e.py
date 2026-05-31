@@ -99,6 +99,19 @@ class TestRunCommand:
             # but scores/costs preserved
             assert c["score"] in (0.0, 1.0)
 
+    def test_run_metrics_out(self, run_rift, seed_cache, write_suite, workdir):
+        suite = write_suite("s.yaml", EXACT_SUITE)
+        s = seed_cache()
+        _seed_pair(s, "opus-4-7", {"2+2?": "4", "3+5?": "8", "10-3?": "7"})
+        metrics = workdir / "m.prom"
+        run_rift("run", "--model", "opus-4-7", "--suite", str(suite),
+                 "--output", str(workdir / "run.json"), "--cache-dir", str(s.cache_dir),
+                 "--metrics-out", str(metrics), "--metrics-format", "prometheus",
+                 expect_exit=0)
+        text = metrics.read_text()
+        assert "rift_mean_score" in text
+        assert 'model="claude-opus-4-7"' in text
+
 
 class TestCompareCommand:
     def _seed_both(self, seed_cache, base_ans, chal_ans):
@@ -146,6 +159,35 @@ class TestCompareCommand:
         assert data["drift"]["baseline_model"] == "claude-opus-4-7"
         assert data["drift"]["challenger_model"] == "claude-opus-4-8"
         assert report.read_text().strip()  # non-empty markdown
+
+    def test_compare_metrics_prometheus(self, run_rift, seed_cache, write_suite, workdir):
+        suite = write_suite("s.yaml", EXACT_SUITE)
+        allright = {"2+2?": "4", "3+5?": "8", "10-3?": "7"}
+        s = self._seed_both(seed_cache, allright, dict(allright))
+        metrics = workdir / "m.prom"
+        run_rift("compare", "--baseline", "opus-4-7", "--challenger", "opus-4-8",
+                 "--suite", str(suite), "--cache-dir", str(s.cache_dir),
+                 "--metrics-out", str(metrics), "--metrics-format", "prometheus",
+                 expect_exit=0)
+        text = metrics.read_text()
+        assert text.startswith("# HELP")
+        assert "rift_drift_delta{" in text
+        assert 'baseline="claude-opus-4-7"' in text
+
+    def test_compare_metrics_emitted_on_regression(self, run_rift, seed_cache,
+                                                   write_suite, workdir):
+        # Metrics must be written even when the run exits 1 (regression gate):
+        # a CI step that uploads metrics should still get them on a failure.
+        suite = write_suite("s.yaml", REGRESSION_SUITE)
+        s = self._seed_both(seed_cache, REGRESSION_RIGHT, REGRESSION_WRONG)
+        metrics = workdir / "m.json"
+        proc = run_rift("compare", "--baseline", "opus-4-7",
+                        "--challenger", "opus-4-8", "--suite", str(suite),
+                        "--cache-dir", str(s.cache_dir),
+                        "--metrics-out", str(metrics), "--metrics-format", "json")
+        assert proc.returncode == 1  # regression
+        data = json.loads(metrics.read_text())  # but metrics still written
+        assert data["series"][0]["metrics"]["regression"] == 1
 
 
 class TestDiffCommand:
