@@ -141,10 +141,12 @@ class TestCompareCommand:
                  "--output", str(out), "--report", str(report), expect_exit=0)
         data = json.loads(out.read_text())
         assert "drift" in data
-        # The drift records the model identifiers as passed on the CLI.
-        assert data["drift"]["baseline_model"] == "opus-4-7"
-        assert data["drift"]["challenger_model"] == "opus-4-8"
+        # The drift records the *resolved* model ids — matching `run`'s
+        # RunResult.model, so compare/run/diff artifacts agree on naming.
+        assert data["drift"]["baseline_model"] == "claude-opus-4-7"
+        assert data["drift"]["challenger_model"] == "claude-opus-4-8"
         assert report.read_text().strip()  # non-empty markdown
+
 
 class TestDiffCommand:
     def test_diff_two_saved_runs(self, run_rift, seed_cache, write_suite, workdir):
@@ -164,6 +166,32 @@ class TestDiffCommand:
         # diff exits 0 (no significant drift on 1/3 change) or 1; either way no crash
         assert proc.returncode in (0, 1)
         assert "Traceback" not in proc.stderr
+
+
+class TestModelNamingConsistency:
+    def test_compare_drift_matches_run_model(self, run_rift, seed_cache,
+                                             write_suite, workdir):
+        # compare's drift.baseline_model must equal run's RunResult.model:
+        # both are the resolved id, so the two artifacts agree on naming.
+        suite = write_suite("s.yaml", EXACT_SUITE)
+        allright = {"2+2?": "4", "3+5?": "8", "10-3?": "7"}
+        s = seed_cache()
+        _seed_pair(s, "opus-4-7", allright)
+        _seed_pair(s, "opus-4-8", dict(allright))
+
+        run_out = workdir / "run.json"
+        run_rift("run", "--model", "opus-4-7", "--suite", str(suite),
+                 "--output", str(run_out), "--cache-dir", str(s.cache_dir),
+                 expect_exit=0)
+        run_model = json.loads(run_out.read_text())["model"]
+
+        cmp_out = workdir / "cmp.json"
+        run_rift("compare", "--baseline", "opus-4-7", "--challenger", "opus-4-8",
+                 "--suite", str(suite), "--cache-dir", str(s.cache_dir),
+                 "--output", str(cmp_out), expect_exit=0)
+        drift = json.loads(cmp_out.read_text())["drift"]
+
+        assert drift["baseline_model"] == run_model == "claude-opus-4-7"
 
 
 class TestCustomScorerE2E:

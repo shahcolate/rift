@@ -142,8 +142,8 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
     drift = compare_runs(
         baseline_scores=baseline_result.scores,
         challenger_scores=challenger_result.scores,
-        baseline_model=baseline,
-        challenger_model=challenger,
+        baseline_model=baseline_result.model,
+        challenger_model=challenger_result.model,
         suite_name=suite_config.name,
         alpha=alpha,
         baseline_costs=[c.cost_usd for c in baseline_result.cases],
@@ -157,8 +157,8 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             challenger_scores=challenger_result.scores,
             tags_per_case=tags,
             subgroup_prefix=subgroup,
-            baseline_model=baseline,
-            challenger_model=challenger,
+            baseline_model=baseline_result.model,
+            challenger_model=challenger_result.model,
             suite_name=suite_config.name,
             alpha=alpha,
             baseline_costs=[c.cost_usd for c in baseline_result.cases],
@@ -370,8 +370,8 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
         comparisons[(base, chal)] = compare_runs(
             baseline_scores=b.scores,
             challenger_scores=c.scores,
-            baseline_model=base,
-            challenger_model=chal,
+            baseline_model=b.model,
+            challenger_model=c.model,
             suite_name=suite_config.name,
             baseline_costs=[x.cost_usd for x in b.cases],
             challenger_costs=[x.cost_usd for x in c.cases],
@@ -581,12 +581,12 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
     if mode in ("hint", "both"):
         regressed |= _run_hint_mode(
             base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
-            baseline, challenger, cue_list, concurrency, alpha, cache_dir,
+            cue_list, concurrency, alpha, cache_dir,
             out_payload, prompts_block,
         )
     if mode in ("cot", "both"):
         regressed |= _run_cot_mode(
-            base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
+            base_suite, base_cfg, chal_cfg, scorer,
             cot_list, concurrency, alpha, cache_dir, out_payload, prompts_block,
         )
 
@@ -604,7 +604,7 @@ def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
 
 
 def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
-                   baseline, challenger, cue_list, concurrency, alpha, cache_dir,
+                   cue_list, concurrency, alpha, cache_dir,
                    out_payload, prompts_block) -> bool:
     """Hint-articulation mode. Returns True if a significant regression was found."""
     from dataclasses import asdict
@@ -658,8 +658,8 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
     drift = compare_runs(
         baseline_scores=[base_fr.per_case[i] for i in shared],
         challenger_scores=[chal_fr.per_case[i] for i in shared],
-        baseline_model=baseline,
-        challenger_model=challenger,
+        baseline_model=base_cfg.model,
+        challenger_model=chal_cfg.model,
         suite_name=f"{base_suite.name} (faithfulness/hint)",
         alpha=alpha,
     )
@@ -673,7 +673,7 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
     return drift.significant and drift.delta < 0
 
 
-def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
+def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer,
                   cot_list, concurrency, alpha, cache_dir, out_payload,
                   prompts_block) -> bool:
     """CoT-dependence mode. Returns True if a significant regression was found."""
@@ -723,8 +723,8 @@ def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer, baseline, challenger,
     drift = compare_runs(
         baseline_scores=[base_fr.per_case[i] for i in shared],
         challenger_scores=[chal_fr.per_case[i] for i in shared],
-        baseline_model=baseline,
-        challenger_model=challenger,
+        baseline_model=base_cfg.model,
+        challenger_model=chal_cfg.model,
         suite_name=f"{base_suite.name} (faithfulness/cot)",
         alpha=alpha,
     )
