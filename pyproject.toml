@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rift-eval"
-version = "0.1.1"
+version = "1.0.0"
 description = "Detect behavioral regressions between LLM model versions"
 readme = "README.md"
 license = "MIT"
@@ -15,7 +15,7 @@ authors = [
 keywords = ["llm", "evaluation", "drift", "regression", "testing"]
 urls = { Homepage = "https://github.com/shahcolate/rift", Repository = "https://github.com/shahcolate/rift", Issues = "https://github.com/shahcolate/rift/issues" }
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
