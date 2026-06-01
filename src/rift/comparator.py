@@ -330,19 +330,33 @@ def power_analysis(
 
     Returns a dict with:
 
-    * ``observed_effect`` — Cohen's h (binary) or paired-diff
-      standardized mean difference (continuous).
+    * ``observed_effect`` — for binary data the marginal risk difference
+      δ = (n_improve − n_regress)/n (= ``challenger_mean − baseline_mean``,
+      the quantity McNemar tests); for continuous data the paired-diff
+      standardized mean difference (Hedges' g).
     * ``observed_power`` — power to detect that effect at this N and α.
     * ``min_detectable_effect`` — smallest effect detectable at the
       requested ``power``, on the same scale as ``observed_effect``.
     * ``n_for_target`` — N needed to detect ``target_effect`` at
-      ``power``. ``None`` if ``target_effect`` is not given.
+      ``power``. ``None`` if ``target_effect`` is not given (binary: also
+      ``None`` when no discordant pairs were observed, so the discordant
+      rate cannot be estimated).
 
     This is the "we did not see drift, but could we have?" answer.
-    For paired binary data we use the standard normal approximation
-    on Cohen's h (Cohen 1988 §6); for continuous data we use the
-    paired-difference SMD with a normal approximation, which is
-    accurate for n≳20 and conservative below that.
+
+    **Binary (McNemar).** Power for a paired binary test depends on the
+    *discordant* pairs, not the marginal proportions: two comparisons with
+    identical marginals but different pair-agreement have different power.
+    We therefore use the McNemar normal approximation. The noncentrality is
+    the McNemar z-statistic ``|n_improve − n_regress| / √n_discordant``, and
+    the minimum-detectable / required-N formulas are on the risk-difference
+    scale with the observed discordant rate ``p_d = n_discordant/n`` as the
+    nuisance parameter (the standard G*Power "McNemar" parameterization).
+    This replaces an earlier marginal-Cohen's-h approximation that ignored
+    the paired structure McNemar actually uses.
+
+    **Continuous.** We use the paired-difference SMD (Hedges' g) with a
+    normal approximation, accurate for n≳20 and conservative below that.
     """
     b = np.asarray(baseline_scores, dtype=float)
     c = np.asarray(challenger_scores, dtype=float)
@@ -359,29 +373,46 @@ def power_analysis(
     from scipy import stats  # deferred — see module-top note
     z_alpha = float(stats.norm.ppf(1.0 - alpha / 2.0))
     z_power = float(stats.norm.ppf(power))
+    n_for_target: int | None = None
 
     if _is_binary(b, c):
-        eff = _cohens_h(float(b.mean()), float(c.mean()))
-        # Match the label used by ``compare_runs`` so a reader who sees an
-        # effect_size_kind in a DriftResult and an observed_effect_kind in a
-        # power report knows they are the same statistic.
-        kind = "cohens_h_marginal"
-        # Observed power: Pr(|Z| > z_α/2 | true effect = eff, n)
-        # Test statistic ≈ h*√n under H1.
-        ncp = abs(eff) * np.sqrt(n)
+        diff = c - b
+        n_improve = int(np.sum(diff > 0))
+        n_regress = int(np.sum(diff < 0))
+        n_disc = n_improve + n_regress
+        # Effect McNemar tests: the marginal risk difference (= compare_runs'
+        # ``delta``). Same units as the headline number, so the MDE reads as
+        # "the smallest accuracy swing we could reliably detect".
+        eff = (n_improve - n_regress) / n
+        kind = "mcnemar_risk_diff"
+        p_d = n_disc / n  # discordant rate — the nuisance parameter
+        # Noncentrality = the McNemar z-statistic at the observed split.
+        # Zero when no pairs are discordant (the test has no information).
+        ncp = abs(n_improve - n_regress) / np.sqrt(n_disc) if n_disc else 0.0
+        observed_power = float(
+            stats.norm.cdf(ncp - z_alpha) + stats.norm.cdf(-ncp - z_alpha)
+        )
+        # MDE / required-N on the risk-difference scale, planning at the
+        # observed discordant rate. Undefined without any discordant pairs.
+        if p_d > 0.0:
+            mde = float((z_alpha + z_power) * np.sqrt(p_d / n))
+            if target_effect is not None and target_effect > 0:
+                n_for_target = int(
+                    np.ceil(p_d * ((z_alpha + z_power) / target_effect) ** 2)
+                )
+        else:
+            mde = float("inf")
     else:
         eff = _hedges_g(b, c)
         kind = "smd"
         ncp = abs(eff) * np.sqrt(n)
-
-    observed_power = float(
-        stats.norm.cdf(ncp - z_alpha) + stats.norm.cdf(-ncp - z_alpha)
-    )
-    # Minimum detectable effect at requested power: solve ncp = z_α + z_β
-    mde = float((z_alpha + z_power) / np.sqrt(n))
-    n_for_target: int | None = None
-    if target_effect is not None and target_effect > 0:
-        n_for_target = int(np.ceil(((z_alpha + z_power) / target_effect) ** 2))
+        observed_power = float(
+            stats.norm.cdf(ncp - z_alpha) + stats.norm.cdf(-ncp - z_alpha)
+        )
+        # MDE on the SMD scale: solve ncp = z_α + z_β.
+        mde = float((z_alpha + z_power) / np.sqrt(n))
+        if target_effect is not None and target_effect > 0:
+            n_for_target = int(np.ceil(((z_alpha + z_power) / target_effect) ** 2))
 
     return {
         "observed_effect": round(eff, 4),
