@@ -76,6 +76,58 @@ def setup():
     run_setup(console)
 
 
+@main.command()
+@click.option("--host", default="127.0.0.1", show_default=True,
+              help="Interface to bind. Use 0.0.0.0 to expose on your network.")
+@click.option("--port", default=8787, show_default=True, type=int)
+@click.option("--db", "db_path", default="rift_monitors.db", show_default=True,
+              help="SQLite file for monitors, run history, and alerts.")
+@click.option("--cache-dir", "cache_dir", default=None,
+              help="Root completion-cache directory for monitored runs.")
+@click.option("--demo", "seed_demo", is_flag=True, default=False,
+              help="Seed and run a keyless Opus 4.6→4.7 demo monitor so the "
+                   "dashboard is populated out of the box (no API key needed).")
+def serve(host, port, db_path, cache_dir, seed_demo):
+    """Launch the Rift control plane: dashboard + monitoring API.
+
+    Turns the one-shot CLI into a standing service — schedule paired drift
+    comparisons, keep their history, and get alerted when a model upgrade
+    silently regresses. Requires the optional server extra:
+
+        pip install 'rift-eval[server]'
+    """
+    try:
+        import uvicorn
+
+        from .server import create_app
+
+        app = create_app(db_path, cache_root=cache_dir)
+    except ImportError as exc:
+        raise click.ClickException(
+            "The control plane needs the optional 'server' extra.\n"
+            "Install it with:  pip install 'rift-eval[server]'"
+        ) from exc
+
+    if seed_demo:
+        from .server.service import seed_demo_monitor
+
+        seed_demo_monitor(db_path)
+        console.print(
+            "[green]Seeded[/green] the offline demo monitor "
+            "(keyless replay of the Opus 4.6→4.7 context-rot benchmark)."
+        )
+
+    console.print(
+        f"\n[bold]Rift[/bold] control plane → "
+        f"[cyan]http://{host}:{port}[/cyan]"
+    )
+    console.print(
+        "  Dashboard [dim]/[/dim]   ·   API [dim]/api/monitors[/dim]   ·   "
+        "Metrics [dim]/metrics[/dim]\n"
+    )
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
 def _maybe_expand(suite_config, context_rot: bool):
     return expand_suite(suite_config) if context_rot else suite_config
 

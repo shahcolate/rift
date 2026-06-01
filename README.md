@@ -369,7 +369,52 @@ series with a `subgroup` label. `run` emits per-run metrics (`rift_mean_score`,
 cost-per-correct) are omitted so the JSON stays valid. Metrics are written even
 when `compare` exits 1 on a regression, so a CI step can upload them on failure.
 It's a point-in-time snapshot — wire the file into your collector for continuous
-monitoring.
+monitoring. Or skip the wiring and run the built-in control plane below.
+
+## Continuous monitoring (`rift serve`)
+
+`rift compare` answers "did this upgrade break anything?" *once*. `rift serve`
+turns that into a standing service: define a **monitor** (a suite + baseline +
+challenger + a cron schedule), and Rift re-runs the paired comparison on
+schedule, keeps the history, charts the drift over time, and **alerts you the
+moment a model silently regresses** — including a cost regression (same
+accuracy, materially higher `$/correct`), which is exactly the kind of drift a
+casual eval misses.
+
+It's a thin, self-hosted control plane over the same engine the CLI uses — no
+new eval logic, identical numbers. Install the optional extra and launch:
+
+```bash
+pip install 'rift-eval[server]'
+
+# Populated, keyless demo dashboard (replays the committed Opus 4.6→4.7 run):
+rift serve --demo
+#   → http://127.0.0.1:8787
+
+# Or start empty and define monitors via the UI / API:
+rift serve --port 8787 --db rift_monitors.db
+```
+
+What you get:
+
+- **Dashboard** (`/`) — every monitor with a live status badge (no drift /
+  regression / error), a drift sparkline, and the latest `Δ acc` / `Δ $/correct`.
+- **Detail page** (`/monitors/{id}`) — accuracy- and `$/correct`-drift
+  time-series, the full run history (p-value, effect size, regression flag), the
+  latest result panel, and any alerts raised.
+- **JSON API** — `GET/POST /api/monitors`, `POST /api/monitors/{id}/run`,
+  `GET /api/monitors/{id}/runs`, `GET /api/runs/{id}` (full drift + run blobs).
+- **`GET /metrics`** — Prometheus exposition of the latest run per monitor,
+  using the *same* metric names as `rift compare --metrics-out` (just point
+  Grafana/Prometheus at it).
+- **Scheduling** — standard 5-field cron per monitor; runs execute in the
+  background and a failed run (e.g. a missing API key) is recorded as an
+  `error` row, never a crash.
+- **Alerts** — a Slack-compatible webhook fires on any regression; every
+  regression is also recorded in the UI even without a webhook configured.
+
+The MVP is self-hosted and single-tenant. See [`docs/PRODUCT.md`](docs/PRODUCT.md)
+for the path from this to a hosted, multi-tenant platform.
 
 ## Providers
 
@@ -601,7 +646,8 @@ release notes typically hand-wave around:
 - [x] Reasoning faithfulness perturbations (biasing-hint articulation + CoT-dependence)
 - [x] Embedding-based semantic scoring (OpenAI + Google backends)
 - [ ] User-defined `custom` scoring functions
-- [ ] Hosted monitoring (continuous drift alerts)
+- [x] Self-hosted continuous monitoring + dashboard + alerts (`rift serve`)
+- [ ] Hosted, multi-tenant monitoring platform (see `docs/PRODUCT.md`)
 - [ ] CI/CD plugins (GitHub Actions, Jenkins)
 - [ ] Observability integrations (Datadog, W&B)
 

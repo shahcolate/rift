@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Rift · {{ monitor.name }}{% endblock %}
+{% block content %}
+<a href="/" class="back">← all monitors</a>
+
+<div class="detail-head">
+  <h1>{{ monitor.name }}</h1>
+  <div class="detail-actions">
+    <form method="post" action="/monitors/{{ monitor.id }}/run">
+      <button class="btn btn-primary">Run now</button>
+    </form>
+    <form method="post" action="/monitors/{{ monitor.id }}/toggle">
+      <button class="btn btn-ghost">{{ 'Pause' if monitor.enabled else 'Resume' }}</button>
+    </form>
+    <form method="post" action="/monitors/{{ monitor.id }}/delete"
+          onsubmit="return confirm('Delete this monitor and its history?');">
+      <button class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="meta">
+  <span><code>{{ monitor.baseline }}</code> → <code>{{ monitor.challenger }}</code></span>
+  <span class="muted">suite</span> <code>{{ monitor.suite }}</code>
+  <span class="muted">schedule</span>
+  <code>{{ monitor.schedule_cron or 'manual' }}</code>
+  {% if next_run %}<span class="muted">next</span> <code>{{ next_run }}</code>{% endif %}
+  {% if monitor.replay %}<span class="badge mute">replay</span>{% endif %}
+  {% if not monitor.enabled %}<span class="badge mute">paused</span>{% endif %}
+</div>
+
+<section class="panel">
+  <h2>Accuracy drift over time</h2>
+  {{ sparkline(deltas, width=640, height=120) | safe }}
+  <h2>$/correct drift over time</h2>
+  {{ sparkline(cost_deltas, width=640, height=120, stroke='#d63031', fill='#fdecec') | safe }}
+</section>
+
+{% if latest and latest.drift %}
+{% set d = latest.drift %}
+<section class="panel">
+  <h2>Latest result {{ status_badge(latest.status) | safe }}</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="v">{{ '%+.2f' % (d.delta * 100) }}pp</div><div class="l">accuracy delta</div></div>
+    <div class="kpi"><div class="v">{{ '%.4f' % d.p_value }}</div><div class="l">p-value ({{ d.test_used }})</div></div>
+    <div class="kpi"><div class="v">[{{ '%+.3f' % d.ci_lower }}, {{ '%+.3f' % d.ci_upper }}]</div><div class="l">95% CI</div></div>
+    {% if d.cost_delta_ci_defined %}
+    <div class="kpi"><div class="v {{ 'warn' if d.cost_normalized_delta_usd > 0 else '' }}">{{ '%+.4f' % d.cost_normalized_delta_usd }}</div><div class="l">Δ $/correct</div></div>
+    {% endif %}
+    <div class="kpi"><div class="v">{{ d.effect_size_magnitude }}</div><div class="l">effect ({{ d.effect_size_kind }})</div></div>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Run history</h2>
+  {% if not runs %}
+  <p class="muted">No runs yet. Hit <b>Run now</b> to populate.</p>
+  {% else %}
+  <table>
+    <thead><tr>
+      <th>When</th><th>Status</th><th>Δ acc</th><th>p</th>
+      <th>Δ $/correct</th><th>Run</th>
+    </tr></thead>
+    <tbody>
+      {% for r in runs %}
+      <tr class="{{ 'row-regress' if r.status == 'regression' else '' }}">
+        <td>{{ r.completed_at or r.started_at }}</td>
+        <td>{{ status_badge(r.status) | safe }}</td>
+        <td class="num">{{ '%+.4f' % r.delta if r.delta is not none else '—' }}</td>
+        <td class="num">{{ '%.4f' % r.p_value if r.p_value is not none else '—' }}</td>
+        <td class="num">{{ '%+.4f' % r.cost_normalized_delta_usd if r.cost_normalized_delta_usd is not none else '—' }}</td>
+        <td>{% if r.error %}<span class="err-text" title="{{ r.error }}">error</span>{% else %}<a href="/api/runs/{{ r.id }}">json</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+{% if alerts %}
+<section class="panel">
+  <h2>Alerts</h2>
+  <ul class="alerts">
+    {% for a in alerts %}
+    <li>
+      <span class="badge warn">{{ a.kind }}</span>
+      <span class="muted">{{ a.created_at }}</span>
+      {% if a.delivered %}<span class="badge good">delivered</span>
+      {% else %}<span class="badge mute">recorded (no webhook / undelivered)</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

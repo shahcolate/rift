@@ -32,11 +32,26 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The self-hosted control plane (`rift serve`): dashboard + monitoring API +
+# scheduler. Kept optional so the core CLI install stays lean.
+server = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "apscheduler>=3.10",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.3",
     "pyright>=1.1",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "apscheduler>=3.10",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",
 ]
 
 [project.scripts]
@@ -53,6 +68,9 @@ packages = ["src/rift"]
 [tool.hatch.build.targets.wheel.force-include]
 "suites" = "rift/_data/suites"
 "benchmarks/context_rot_outcomes.yaml" = "rift/_data/benchmarks/context_rot_outcomes.yaml"
+# NOTE: the dashboard's Jinja templates and static assets live *inside* the
+# package (src/rift/server/), so hatchling ships them as package data
+# automatically — no force-include needed (that would duplicate the entries).
 
 [tool.ruff]
 target-version = "py311"

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Rift{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <a class="brand" href="/">▚ Rift</a>
+      <span class="tagline">continuous LLM drift monitoring</span>
+      <nav>
+        <a href="/monitors/new" class="btn btn-primary">+ New monitor</a>
+        <a href="/metrics" class="btn btn-ghost">/metrics</a>
+      </nav>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <footer>
+      Self-hosted Rift control plane · the engine is the CLI you already trust.
+    </footer>
+  </div>
+</body>
+</html>

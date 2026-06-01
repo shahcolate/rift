@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Rift · new monitor{% endblock %}
+{% block content %}
+<h1>New monitor</h1>
+<p class="lede">A monitor is a standing comparison: run a suite against a
+  baseline and a challenger on a schedule.</p>
+
+<form method="post" action="/monitors" class="form">
+  <label>Name
+    <input name="name" required placeholder="Nightly · prod reasoning suite"/>
+  </label>
+
+  <label>Suite
+    <select name="suite" required>
+      {% for s in suites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <span class="field-hint">Built-in suites. Custom YAML paths work via the JSON API.</span>
+  </label>
+
+  <div class="row">
+    <label>Baseline model
+      <input name="baseline" required placeholder="opus-4-7"/>
+    </label>
+    <label>Challenger model
+      <input name="challenger" required placeholder="opus-4-8"/>
+    </label>
+  </div>
+
+  <label>Schedule (cron, 5-field — leave blank for manual only)
+    <input name="schedule_cron" placeholder="0 3 * * *"/>
+    <span class="field-hint">Example: <code>0 3 * * *</code> = every day at 03:00.</span>
+  </label>
+
+  <label>Alert webhook (Slack-compatible, optional)
+    <input name="alert_webhook" placeholder="https://hooks.slack.com/services/..."/>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="replay" value="true"/>
+    Replay committed outcomes (offline / keyless backtest)
+  </label>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Create monitor</button>
+    <a href="/" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}

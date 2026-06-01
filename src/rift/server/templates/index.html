@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Rift · monitors{% endblock %}
+{% block content %}
+<h1>Monitors</h1>
+<p class="lede">Each monitor re-runs a paired drift comparison on a schedule and
+  alerts you when a model upgrade silently regresses.</p>
+
+{% if not monitors %}
+<div class="empty">
+  <p>No monitors yet.</p>
+  <a href="/monitors/new" class="btn btn-primary">Create your first monitor</a>
+  <p class="hint">Or launch with <code>rift serve --demo</code> to seed an
+    offline, keyless example.</p>
+</div>
+{% else %}
+<div class="cards">
+  {% for row in monitors %}
+  {% set m = row.monitor %}
+  {% set latest = row.latest %}
+  <a class="card" href="/monitors/{{ m.id }}">
+    <div class="card-head">
+      <span class="card-title">{{ m.name }}</span>
+      {{ status_badge(latest.status if latest else None) | safe }}
+    </div>
+    <div class="card-sub">
+      <code>{{ m.baseline }}</code> → <code>{{ m.challenger }}</code>
+      <span class="muted">· {{ m.suite }}</span>
+      {% if not m.enabled %}<span class="badge mute">paused</span>{% endif %}
+      {% if m.replay %}<span class="badge mute">replay</span>{% endif %}
+    </div>
+    <div class="card-spark">{{ sparkline(row.deltas) | safe }}</div>
+    <div class="card-foot">
+      {% if latest and latest.delta is not none %}
+        <span class="metric">Δ acc <b>{{ '%+.4f' % latest.delta }}</b></span>
+        {% if latest.cost_normalized_delta_usd is not none %}
+        <span class="metric">Δ $/correct <b>{{ '%+.4f' % latest.cost_normalized_delta_usd }}</b></span>
+        {% endif %}
+        <span class="metric muted">p={{ '%.3f' % latest.p_value if latest.p_value is not none else 'n/a' }}</span>
+      {% else %}
+        <span class="muted">no runs yet · {{ row.n_runs }} recorded</span>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
