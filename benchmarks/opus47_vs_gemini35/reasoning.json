@@ -411,9 +411,9 @@
   },
   "power": {
     "observed_effect": 0.0,
-    "observed_effect_kind": "cohens_h_marginal",
+    "observed_effect_kind": "mcnemar_risk_diff",
     "observed_power": 0.05,
-    "min_detectable_effect": 0.8859,
+    "min_detectable_effect": Infinity,
     "n_for_target": null
   }
 }

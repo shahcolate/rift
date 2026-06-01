@@ -59,15 +59,15 @@ tokens of injected irrelevant "reference material").
 | p-value (McNemar exact) | — | **0.031** |
 | 95% CI (accuracy Δ) | — | [−0.34, −0.06] |
 | Regressed / improved cases | — | **6 / 0** |
-| Effect size | — | Cohen's h = −0.46 (marginal); paired g = −1.000 |
+| Effect size | — | Cohen's h = −0.46 (marginal); paired g = −0.500 |
 | Total spend | $2.29 | $2.28 |
 | $/correct | $0.0820 | **$0.1036 (+26%)** |
 | 95% CI (Δ $/correct) | — | [+$0.0051, +$0.0577] |
 | Refusal rate | 0.0% | 0.0% |
-| Observed power | — | 74.6% (α=0.05) |
+| Observed power | — | 68.8% (McNemar, α=0.05) |
 
 **Every discordant pair goes the same way** — 6 regressions, 0
-improvements (paired g = −1.000 is the maximum one-sided value). That is
+improvements (paired g = −0.500 is the maximum one-sided magnitude). That is
 a much stronger signal than a noisy accuracy dip: 4.8 is strictly losing
 cases here, never gaining them.
 
@@ -145,7 +145,7 @@ Notes that keep these honest:
 
 ## What is NOT in this writeup
 
-- **A bigger context-rot n.** 32 cases at 74.6% power is enough to flag
+- **A bigger context-rot n.** 32 cases at 68.8% power is enough to flag
   the regression but not to pin its magnitude tightly. A 100+ case run
   would tighten the CI and resolve the per-distractor-regime breakdown.
 - **Repeated trials.** Single-trial, temperature-pinned; no within-model
