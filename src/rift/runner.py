@@ -251,6 +251,13 @@ async def _complete_with_retry(
         except BaseException as exc:
             last_exc = exc
             if not _is_transient(exc) or attempt == MAX_RETRIES:
+                # Stamp the attempt count on the exception so the caller can
+                # record it accurately in the audit trail (a non-transient
+                # 4xx that fails on attempt 1 must not report MAX_RETRIES).
+                try:
+                    exc.rift_attempts = attempt  # type: ignore[attr-defined]
+                except Exception:
+                    pass  # some C-level exceptions reject attribute writes
                 raise
             server_hint = _retry_after_s(exc)
             if server_hint is not None:
@@ -380,6 +387,9 @@ async def run_suite(
                     # rather than burying it as "every case errored, mean 0.0".
                     raise
                 except Exception as exc:
+                    # Use the real attempt count stamped by _complete_with_retry;
+                    # fall back to MAX_RETRIES only if it wasn't recorded.
+                    attempts_made = getattr(exc, "rift_attempts", MAX_RETRIES)
                     return CaseResult(
                         case_index=idx,
                         input_text=case.input,
@@ -392,7 +402,7 @@ async def run_suite(
                         cost_usd=0.0,
                         tags=list(case.tags),
                         error=f"{type(exc).__name__}: {exc}",
-                        attempts=MAX_RETRIES,
+                        attempts=attempts_made,
                     )
                 # Write cache atomically (tmp + rename) so a crashed
                 # writer never leaves a half-written JSON.

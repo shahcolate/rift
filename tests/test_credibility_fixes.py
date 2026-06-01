@@ -12,9 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
-from rift.comparator import compare_runs, benjamini_hochberg
+from rift.comparator import benjamini_hochberg, compare_runs
 
 
 class TestCostPerCorrectCI:

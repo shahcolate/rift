@@ -36,7 +36,7 @@
     "effect_size": 3.1416,
     "effect_size_kind": "cohens_h_marginal",
     "effect_size_magnitude": "large",
-    "cohens_g_paired": 1.0,
+    "cohens_g_paired": 0.5,
     "subgroups": {}
   },
   "baseline": {
@@ -440,9 +440,9 @@
     "new_compliance_cases": []
   },
   "power": {
-    "observed_effect": 3.1416,
-    "observed_effect_kind": "cohens_h_marginal",
-    "observed_power": 1.0,
+    "observed_effect": 1.0,
+    "observed_effect_kind": "mcnemar_risk_diff",
+    "observed_power": 0.8508,
     "min_detectable_effect": 0.9339,
     "n_for_target": null
   }

@@ -154,7 +154,7 @@ long-context reasoning with injected distractors it regresses:
 | Signal | Opus 4.7 | Opus 4.8 | Δ |
 |---|---|---|---|
 | Accuracy (context-rot, n=32) | 87.5% (28/32) | 68.75% (22/32) | **−18.75pp, p=0.031 (significant)** |
-| Regressed / improved cases | — | — | **6 / 0** (paired g = −1.000) |
+| Regressed / improved cases | — | — | **6 / 0** (paired g = −0.500) |
 | Total spend | $2.29 | $2.28 | ~flat |
 | **$/correct** | $0.0820 | $0.1036 | **+26%** |
 | Refusal rate | 0.0% | 0.0% | no over-refusal |

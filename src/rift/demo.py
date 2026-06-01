@@ -26,7 +26,10 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from .comparator import DriftResult
 
 import yaml
 from rich.console import Console
@@ -136,14 +139,12 @@ def prime_cache_from_recording(suite, model: str, outcomes: dict,
 def replay_recorded_run(baseline: str, challenger: str,
                          cache_dir: Path | None = None,
                          subgroup_prefix: str = "distractor:"
-                         ) -> tuple[RunResult, RunResult, "DriftResultLike"]:
+                         ) -> tuple[RunResult, RunResult, "DriftResult"]:
     """Replay the published Opus 4.6 → 4.7 benchmark and return its data.
 
     Returns ``(baseline_run, challenger_run, drift)`` where ``drift``
     has ``.subgroups`` populated by ``subgroup_prefix``.
     """
-    from .comparator import DriftResult  # local import to avoid cycle in types
-
     base_suite = load_suite("context_rot_reasoning")
     suite = expand_suite(base_suite)
     if not RECORDED.exists():
@@ -198,10 +199,6 @@ def replay_recorded_run(baseline: str, challenger: str,
         challenger_costs=[c.cost_usd for c in chal_run.cases],
     )
     return base_run, chal_run, drift
-
-
-# Forward-decl alias to keep replay_recorded_run signature readable.
-DriftResultLike = "DriftResult"
 
 
 # ---------------------------------------------------------------------------

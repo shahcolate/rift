@@ -23,8 +23,10 @@ class TestEffectSize:
         assert r.effect_size < 0
         # Paired Cohen's g is also reported alongside, on the discordant pairs.
         assert r.cohens_g_paired is not None
-        # n_improve=0, n_regress=5, n_disc=5 → g = (0-5)/5 = -1.0
-        assert r.cohens_g_paired == -1.0
+        # n_improve=0, n_regress=5, n_disc=5 → P = 0/5 = 0, g = P - 0.5 = -0.5.
+        # (Canonical Cohen's g ranges in [-0.5, 0.5]; the all-regress extreme
+        # is the floor.)
+        assert r.cohens_g_paired == -0.5
 
     def test_cohens_g_paired_none_when_no_discordant(self):
         """All concordant pairs: paired g is undefined (None), not 0."""
@@ -118,9 +120,37 @@ class TestPowerAnalysis:
         p = power_analysis(b, c)
         assert p["observed_power"] >= 0.95
         assert p["min_detectable_effect"] > 0
-        # Same label as ``compare_runs`` uses, so consumers can match on one
-        # string regardless of which entry point produced the result.
-        assert p["observed_effect_kind"] == "cohens_h_marginal"
+        # Binary power is McNemar-based and reported on the marginal
+        # risk-difference scale (= compare_runs' ``delta``), not Cohen's h —
+        # power depends on the discordant pairs, which h ignores.
+        assert p["observed_effect_kind"] == "mcnemar_risk_diff"
+
+    def test_binary_power_uses_paired_structure_not_marginals(self):
+        # Two comparisons with IDENTICAL marginals (0.5 -> 0.4) but different
+        # discordant rates. McNemar power must differ; a marginal-only
+        # statistic (Cohen's h) would call them identical.
+        b = [1.0] * 10 + [0.0] * 10
+        # Few discordant: 0 improve, 2 regress (tight pairing -> high power).
+        c_few = [1.0] * 8 + [0.0] * 12
+        # Many discordant: 5 improve, 7 regress (same net -2 -> same marginal).
+        c_many = [0.0] * 7 + [1.0] * 8 + [0.0] * 5
+        p_few = power_analysis(b, c_few)
+        p_many = power_analysis(b, c_many)
+        # Same observed effect (marginal risk difference = -0.1)...
+        assert p_few["observed_effect"] == pytest.approx(-0.1)
+        assert p_many["observed_effect"] == pytest.approx(-0.1)
+        # ...but fewer discordant pairs => strictly more power.
+        assert p_few["observed_power"] > p_many["observed_power"]
+
+    def test_binary_power_zero_when_no_discordant(self):
+        # No discordant pairs: the test has no information. Power collapses to
+        # ~alpha and the MDE is undefined.
+        b = [1.0] * 5 + [0.0] * 5
+        p = power_analysis(b, list(b))
+        assert p["observed_power"] < 0.1
+        assert math.isinf(p["min_detectable_effect"])
+        assert p["n_for_target"] is None
+
 
     def test_low_power_at_tiny_effect(self):
         b = [0.5, 0.5, 0.6, 0.5]
