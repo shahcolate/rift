@@ -561,7 +561,11 @@ def compare_runs(
         test_used = "no_variation"
 
     # --- CI: bootstrap regardless of test used (non-parametric, robust) ---
-    if n >= 2 and float(np.std(diffs)) > 1e-10:
+    # ``bootstrap_n <= 0`` skips the resample entirely (CI collapses to the
+    # point estimate). Callers that only need the p-value / delta — e.g.
+    # ``rift selftest`` running this hundreds of times — pass 0 to avoid
+    # computing a 1000-sample CI they immediately discard.
+    if n >= 2 and float(np.std(diffs)) > 1e-10 and bootstrap_n > 0:
         ci_lower, ci_upper = _bootstrap_ci(diffs, n, bootstrap_n)
     else:
         ci_lower = ci_upper = float(diffs.mean()) if n > 0 else 0.0

@@ -87,7 +87,10 @@ def self_test(
             a_idx, b_idx = perm[:half], perm[half: 2 * half]
             arm_a.append(float(np.mean([xs[i] for i in a_idx])))
             arm_b.append(float(np.mean([xs[i] for i in b_idx])))
-        drift = compare_runs(arm_a, arm_b, model, model, suite_name, alpha=alpha)
+        # bootstrap_n=0: we read only .significant/.delta, so skip the CI
+        # resample compare_runs would otherwise run on every one of `reps`.
+        drift = compare_runs(arm_a, arm_b, model, model, suite_name,
+                             alpha=alpha, bootstrap_n=0)
         if drift.significant:
             n_sig += 1
             if drift.delta < 0:

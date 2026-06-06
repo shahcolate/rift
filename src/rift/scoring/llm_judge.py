@@ -314,7 +314,7 @@ class LLMJudgeScorer:
             return None
         try:
             with open(path) as f:
-                return Completion(**json.load(f))
+                return Completion.from_cache(json.load(f))
         except Exception:
             # Treat corruption as a miss and let the next write
             # overwrite the bad file.

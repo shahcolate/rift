@@ -96,6 +96,18 @@ class TestRunnerStamping:
         assert run.metadata["fingerprint_rollout"] is True
         assert len(run.metadata["fingerprints"]) == 2
 
+    def test_within_case_rollout_detected_across_trials(self, tmp_path, monkeypatch):
+        # A single case whose two trials straddle a server-side switch: only the
+        # first fingerprint lands on the CaseResult, but the run-level set must
+        # still see both (else the rollout is invisible under --trials).
+        prov = _StubProvider(["fp-old", "fp-new"])
+        monkeypatch.setattr("rift.runner._get_provider", lambda cfg: prov)
+        cfg = ModelConfig(provider="local", model="stub-model")
+        run = asyncio.run(run_suite(_suite(n=1), cfg, cache_dir=str(tmp_path),
+                                    show_progress=False, trials=2))
+        assert run.metadata["fingerprints"] == ["fp-new", "fp-old"]
+        assert run.metadata["fingerprint_rollout"] is True
+
     def test_no_fingerprint_no_metadata(self, tmp_path, monkeypatch):
         prov = _StubProvider([None])
         monkeypatch.setattr("rift.runner._get_provider", lambda cfg: prov)

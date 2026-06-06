@@ -387,6 +387,14 @@ async def run_suite(
     is_async_scorer = hasattr(scorer, "ascore")
     semaphore = asyncio.Semaphore(concurrency)
 
+    # Every distinct server fingerprint seen this run, across all cases AND all
+    # trials. Accumulated here (not re-derived from per-case results) so a
+    # within-case rollout under --trials — where a single case's trials straddle
+    # a server-side switch — is still counted; the per-case CaseResult keeps only
+    # its first fingerprint for the report. Updates happen synchronously inside
+    # run_case between awaits, so the shared set is safe under asyncio.
+    all_fingerprints: set[str] = set()
+
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     async def _fetch_trial(case, trial: int) -> Completion:
@@ -470,6 +478,7 @@ async def run_suite(
                     error=first_error, attempts=attempts_made,
                 )
 
+            all_fingerprints.update(fingerprints)
             mean = lambda xs: sum(xs) / len(xs)  # noqa: E731
             return CaseResult(
                 case_index=idx,
@@ -533,9 +542,7 @@ async def run_suite(
     # closes that hole. More than one distinct value means the served snapshot
     # changed *during* the run (a rollout) — surfaced loudly because it makes
     # the run internally non-comparable.
-    fingerprints = sorted({
-        r.provider_fingerprint for r in results if r.provider_fingerprint
-    })
+    fingerprints = sorted(all_fingerprints)
     if fingerprints:
         metadata["fingerprints"] = fingerprints
         if len(fingerprints) > 1:
