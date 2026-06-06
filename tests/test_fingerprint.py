@@ -161,3 +161,14 @@ class TestFingerprintReport:
         b = _run_with_fp("m", ["fp", "fp"])
         c = _run_with_fp("m", ["fp", "fp"])
         assert print_fingerprint_report(b, c) is False
+
+    def test_markup_in_fingerprint_does_not_break_render(self, capsys):
+        # Provider-supplied fingerprints carrying Rich markup must be escaped,
+        # not interpreted (a malformed tag would otherwise raise on render).
+        b = _run_with_fp("m-a", ["[red]evil", "[/unbalanced"])
+        c = _run_with_fp("m-b", ["fp-x", "fp-x"])
+        # Rollout on side b -> renders; must not raise, and the literal text
+        # should appear escaped rather than swallowed as markup.
+        assert print_fingerprint_report(b, c) is True
+        out = capsys.readouterr().out
+        assert "evil" in out

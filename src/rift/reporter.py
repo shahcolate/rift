@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -755,9 +756,13 @@ def print_fingerprint_report(baseline: RunResult, challenger: RunResult,
         b_fps and c_fps and b_fps == c_fps and len(b_fps) == 1
         and baseline.model != challenger.model
     )
+    # Fingerprints come from the provider's API response — escape any Rich
+    # markup so a crafted value can't distort or break the panel rendering.
+    b_show = ", ".join(escape(fp) for fp in b_fps) or "—"
+    c_show = ", ".join(escape(fp) for fp in c_fps) or "—"
     lines = [
-        f"  baseline   ({baseline.model}): {', '.join(b_fps) or '—'}",
-        f"  challenger ({challenger.model}): {', '.join(c_fps) or '—'}",
+        f"  baseline   ({escape(baseline.model)}): {b_show}",
+        f"  challenger ({escape(challenger.model)}): {c_show}",
     ]
     if collision:
         lines += [

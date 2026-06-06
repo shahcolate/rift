@@ -562,11 +562,13 @@ async def run_suite(
             if show_progress:
                 from rich.panel import Panel
                 from rich.console import Console as _Console
+                from rich.markup import escape as _escape
                 _Console().print(Panel(
-                    f"  Model [cyan]{model_config.model}[/cyan] returned "
+                    f"  Model [cyan]{_escape(model_config.model)}[/cyan] returned "
                     f"{len(fingerprints)} distinct server fingerprints during "
                     "this run:\n"
-                    + "\n".join(f"    • {fp}" for fp in fingerprints)
+                    # Fingerprints are provider-supplied — escape Rich markup.
+                    + "\n".join(f"    • {_escape(fp)}" for fp in fingerprints)
                     + "\n\n  The served snapshot changed mid-run (a rollout). "
                     "Scores\n  from before and after the switch are not strictly "
                     "comparable;\n  re-run once the rollout settles.",
