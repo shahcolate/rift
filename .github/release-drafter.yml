@@ -1,0 +1,51 @@
+# Config for release-drafter (.github/workflows/release-drafter.yml).
+# Keeps a running *draft* GitHub Release up to date as PRs merge to main, so
+# cutting a release is one click: open the draft, sanity-check, Publish — which
+# fires the `release: published` event that publish.yml listens for → PyPI.
+#
+# PR labels drive both categorization and the auto-computed version bump. No
+# labels needed to start: unlabeled PRs still appear under "Other changes" and
+# the version defaults to a patch bump.
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '🚀 Features'
+    labels: ['feature', 'enhancement']
+  - title: '🐛 Bug fixes'
+    labels: ['fix', 'bug']
+  - title: '📊 Stats & methodology'
+    labels: ['stats', 'methodology']
+  - title: '🧪 Tests & CI'
+    labels: ['test', 'tests', 'ci']
+  - title: '📝 Docs'
+    labels: ['docs', 'documentation']
+  - title: '🧰 Maintenance'
+    labels: ['chore', 'refactor', 'deps', 'dependencies']
+
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+change-title-escapes: '\<*_&'  # avoid markdown/mention injection from PR titles
+
+# Semantic-version bump inferred from the labels on the merged PRs since the
+# last release. Falls back to a patch bump when nothing matches.
+version-resolver:
+  major:
+    labels: ['major', 'breaking']
+  minor:
+    labels: ['minor', 'feature', 'enhancement']
+  patch:
+    labels: ['patch', 'fix', 'bug', 'chore', 'docs', 'ci', 'test']
+  default: patch
+
+exclude-labels:
+  - 'skip-changelog'
+
+template: |
+  ## What's changed
+
+  $CHANGES
+
+  **Full changelog**: https://github.com/shahcolate/rift/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+  ---
+  Install/upgrade: `pip install -U rift-eval`
