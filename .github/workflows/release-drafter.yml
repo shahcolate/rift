@@ -18,8 +18,8 @@ permissions:
 jobs:
   update_release_draft:
     permissions:
-      contents: write       # create/update the draft release
-      pull-requests: read   # read merged PR titles/labels for the notes
+      contents: write        # create/update the draft release
+      pull-requests: write   # read PR notes + apply autolabeler labels
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v6

@@ -40,6 +40,30 @@ version-resolver:
 exclude-labels:
   - 'skip-changelog'
 
+# Apply the category/version labels above automatically from each PR's title,
+# branch, and touched files, so categorized notes and semver bumps need no
+# manual labeling. Within one entry the matchers are OR'd; a PR can match
+# several entries and get several labels. release-drafter creates any of these
+# labels that don't yet exist. (Fork PRs get a read-only token and so aren't
+# autolabeled — categorize those by hand if needed.)
+autolabeler:
+  - label: 'docs'
+    files: ['**/*.md']
+  - label: 'ci'
+    files: ['.github/**']
+  - label: 'test'
+    files: ['tests/**']
+  - label: 'stats'
+    files: ['src/rift/comparator.py', 'src/rift/discovery.py']
+  - label: 'feature'
+    title: ['/^(feat|add)\b/i']
+    branch: ['/^(feat|feature)\//']
+  - label: 'fix'
+    title: ['/^(fix|bug)\b/i']
+    branch: ['/^(fix|bugfix)\//']
+  - label: 'chore'
+    title: ['/^(chore|refactor|bump|deps|build)\b/i']
+
 template: |
   ## What's changed
 
