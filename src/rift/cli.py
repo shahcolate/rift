@@ -40,12 +40,14 @@ from .reporter import (
     print_fingerprint_report,
     print_matrix,
     print_replication_report,
+    print_selftest_report,
     print_power_report,
     print_refusal_report,
     print_subgroup_table,
     print_sycophancy_report,
 )
 from .runner import RunResult, run_suite
+from .selftest import self_test
 from .sycophancy import build_pushback_suite, compute_sycophancy
 from .faithfulness import (
     build_control_suite,
@@ -524,6 +526,67 @@ def calibration(baseline_path, challenger_path):
     challenger = RunResult.load(challenger_path)
     comp = compare_calibration(baseline, challenger)
     print_calibration_report(comp)
+
+
+@main.command()
+@click.option("--model", required=True, help="Model identifier")
+@click.option("--suite", required=True, help="Eval suite name or path")
+@click.option("--trials", default=5, type=int,
+              help="Replicates per case (default 5, min 2). More trials give a "
+                   "tighter estimate of the null false-positive rate.")
+@click.option("--reps", default=500, type=int,
+              help="Random self-vs-self splits used to estimate the rate.")
+@click.option("--alpha", default=0.05, type=float, help="Significance threshold.")
+@click.option("--concurrency", default=5, help="Max concurrent API calls")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+@click.option("--output", "-o", default=None, help="Save the run + result to JSON")
+def selftest(model, suite, trials, reps, alpha, concurrency, cache_dir, output):
+    """Calibrate the drift gate: how often does it fire on an UNCHANGED model?
+
+    Runs one model against a suite with replication, then repeatedly splits its
+    own trials into two arms and feeds them through the same statistical test
+    ``compare`` uses. Reports the empirical false-positive rate — most
+    importantly the false-*regression* rate, i.e. how often the CI gate would
+    block a deploy comparing a model to itself. A rate near the nominal alpha
+    means a red gate is trustworthy on this suite; well above it means you need
+    more cases or trials before gating on this suite.
+    """
+    if trials < 2:
+        raise click.UsageError("--trials must be >= 2 for self-test.")
+    suite_config = load_suite(suite)
+    model_config = resolve_model(model)
+    ensure_provider_keys([model_config.provider], console)
+
+    console.print(f"\n[bold]Rift[/bold] self-test (null calibration) on "
+                  f"[cyan]{model}[/cyan]")
+    console.print(
+        f"Suite: [yellow]{suite_config.name}[/yellow] "
+        f"({len(suite_config.cases)} cases × {trials} trials)\n"
+    )
+
+    result = asyncio.run(
+        run_suite(suite_config, model_config, concurrency=concurrency,
+                  cache_dir=cache_dir, trials=trials)
+    )
+    print_fingerprint_report(result, result)
+    trial_scores = [c.trial_scores for c in result.cases if len(c.trial_scores) >= 2]
+    if not trial_scores:
+        raise click.ClickException(
+            "No case produced >=2 successful trials; cannot calibrate. "
+            "Check for API errors above."
+        )
+    st = self_test(trial_scores, model_config.model, suite_config.name,
+                   alpha=alpha, reps=reps)
+    print_selftest_report(st)
+
+    if output:
+        import json
+        from dataclasses import asdict
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump({"selftest": asdict(st),
+                       "run": result.to_dict()}, f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
 
 
 @main.command()

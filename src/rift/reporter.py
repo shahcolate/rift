@@ -541,6 +541,55 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
                             border_style="dim"))
 
 
+def print_selftest_report(result, console: Console | None = None) -> None:
+    """Print the null-calibration result from ``rift selftest``.
+
+    ``result`` is a :class:`rift.selftest.SelfTestResult`. The headline is the
+    false-regression rate — how often the gate would block a deploy comparing a
+    model to itself — judged against the nominal ``alpha``.
+    """
+    if console is None:
+        console = Console()
+    r = result
+    # A well-calibrated one-sided regression gate fires at ~alpha/2 under the
+    # null; allow generous slack before calling it miscalibrated.
+    expected_reg = r.alpha / 2.0
+    if r.false_regression_rate > max(2 * expected_reg, expected_reg + 0.03):
+        border = "red"
+        verdict = "[bold red]GATE MISCALIBRATED ON THIS SUITE[/bold red]"
+    elif r.false_positive_rate > r.alpha + 0.05:
+        border = "yellow"
+        verdict = "[bold yellow]Elevated two-sided false positives[/bold yellow]"
+    else:
+        border = "green"
+        verdict = "[bold green]GATE WELL-CALIBRATED[/bold green]"
+
+    lines = [
+        f"  model:  {r.model}",
+        f"  suite:  {r.suite_name}  ({r.n_cases} cases × {r.n_trials} trials)",
+        f"  reps:   {r.reps} random self-vs-self splits",
+        "",
+        f"  {verdict}",
+        "",
+        f"  False-regression rate:  {r.false_regression_rate:.1%}   "
+        f"(gate exit-1 vs an unchanged model; nominal ≈ {expected_reg:.1%})",
+        f"  Two-sided FP rate:      {r.false_positive_rate:.1%}   "
+        f"(nominal ≈ {r.alpha:.0%})",
+        "",
+        "  [dim]Noise band on the accuracy delta (self vs self):[/dim]",
+        f"  mean |Δ|:  {r.mean_abs_delta:.4f}    "
+        f"p95 |Δ|:  {r.p95_abs_delta:.4f}    max |Δ|:  {r.max_abs_delta:.4f}",
+        "",
+        "  [dim]Read: a real drift delta should clear the p95 band above. A"
+        "\n  false-regression rate near the nominal means a red gate is"
+        "\n  trustworthy on this suite; well above it means widen n or trials."
+        "[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Self-test — null calibration[/bold]",
+                        border_style=border))
+
+
 def print_replication_report(vc: dict, drift: DriftResult | None = None,
                              console: Console | None = None) -> None:
     """Print the run-to-run noise decomposition from a replicated run.
