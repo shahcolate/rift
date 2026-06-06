@@ -1,0 +1,94 @@
+name: Bug report
+description: Report something in Rift that isn't behaving as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in as much as you
+        can — a reproducible report gets fixed far faster.
+
+        Before filing, please search [existing issues](https://github.com/shahcolate/rift/issues)
+        to avoid duplicates.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected instead.
+      placeholder: "rift compare exited 0 even though the report shows a significant regression."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The exact command(s) you ran. Prefer the keyless `rift demo` or a
+        cached/recorded run if you can reproduce it that way — it helps us
+        repro without API keys.
+      placeholder: |
+        1. rift compare --baseline ... --challenger ... --suite ...
+        2. ...
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output / logs
+      description: |
+        Paste the terminal output or traceback. Please scrub any API keys or
+        proprietary suite content before pasting.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: rift-version
+    attributes:
+      label: Rift version
+      description: "Output of `rift --version` (or the commit SHA if running from source)."
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: "Output of `python --version`."
+      placeholder: "3.11.8"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install Rift?
+      options:
+        - pip install rift-eval
+        - editable install (pip install -e .)
+        - from source / git checkout
+        - other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.4 / Ubuntu 22.04 / Windows 11"
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I removed any API keys or proprietary data from the report above.
+          required: true

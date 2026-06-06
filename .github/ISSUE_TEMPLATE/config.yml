@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & discussion
+    url: https://github.com/shahcolate/rift/discussions
+    about: Ask how to use Rift, share results, or discuss ideas before filing an issue.
+  - name: Contributing guide
+    url: https://github.com/shahcolate/rift/blob/main/CONTRIBUTING.md
+    about: How to set up a dev environment, run the checks, and open a pull request.
