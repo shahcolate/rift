@@ -72,6 +72,12 @@ class AnthropicProvider(BaseProvider):
             input_tokens=data.get("usage", {}).get("input_tokens", 0),
             output_tokens=data.get("usage", {}).get("output_tokens", 0),
             raw_response=data,
+            # Anthropic exposes no system_fingerprint, but the response
+            # echoes the *resolved* dated model id (e.g. a request for
+            # "claude-opus-4-8" comes back as "claude-opus-4-8-2025..."),
+            # which changes when the served snapshot behind an alias moves.
+            # Best available drift signal on this API.
+            provider_fingerprint=data.get("model"),
         )
 
     async def close(self) -> None:

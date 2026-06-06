@@ -32,6 +32,7 @@ from .reporter import (
     print_cot_faithfulness_report,
     print_drift_report,
     print_faithfulness_report,
+    print_fingerprint_report,
     print_matrix,
     print_power_report,
     print_refusal_report,
@@ -173,6 +174,7 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         )
 
     print_drift_report(drift, baseline_result, challenger_result)
+    print_fingerprint_report(baseline_result, challenger_result)
     if drift.subgroups:
         print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
 
@@ -330,6 +332,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
         )
 
     print_drift_report(drift, baseline, challenger)
+    print_fingerprint_report(baseline, challenger)
     if drift.subgroups:
         print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
 

@@ -50,7 +50,17 @@ class MissingAPIKeyError(click.ClickException):
 
 @dataclass
 class Completion:
-    """A single model completion result."""
+    """A single model completion result.
+
+    ``provider_fingerprint`` is the server-reported model-version /
+    fingerprint string, when the API exposes one (OpenAI's
+    ``system_fingerprint``, Gemini's ``modelVersion``, the resolved
+    dated ``model`` Anthropic/OpenAI echo back). It is the only reliable
+    signal that the weights behind a *stable* model alias changed
+    server-side — the silent drift a cache keyed on the request alone
+    would otherwise mask. ``None`` when the provider exposes nothing
+    usable.
+    """
 
     model: str
     input_text: str
@@ -59,6 +69,19 @@ class Completion:
     input_tokens: int
     output_tokens: int
     raw_response: dict
+    provider_fingerprint: str | None = None
+
+    @classmethod
+    def from_cache(cls, data: dict) -> "Completion":
+        """Build a Completion from a cached JSON dict, tolerating schema drift.
+
+        Cache blobs written by older Rift versions lack newer fields, and a
+        future version may add fields this one doesn't know. Filtering to the
+        current field set keeps both directions loadable instead of raising
+        ``TypeError`` on an unexpected key.
+        """
+        fields = cls.__dataclass_fields__  # type: ignore[attr-defined]
+        return cls(**{k: v for k, v in data.items() if k in fields})
 
 
 class BaseProvider(ABC):

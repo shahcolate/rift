@@ -155,6 +155,9 @@ class GoogleProvider(BaseProvider):
             input_tokens=int(usage.get("promptTokenCount", 0)),
             output_tokens=output_tokens,
             raw_response=data,
+            # Gemini returns the served version as ``modelVersion`` — the
+            # cleanest fingerprint of the three providers.
+            provider_fingerprint=data.get("modelVersion"),
         )
 
     async def close(self) -> None:

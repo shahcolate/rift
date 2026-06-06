@@ -61,6 +61,10 @@ class OpenAIProvider(BaseProvider):
             input_tokens=data.get("usage", {}).get("prompt_tokens", 0),
             output_tokens=data.get("usage", {}).get("completion_tokens", 0),
             raw_response=data,
+            # OpenAI's system_fingerprint is the canonical backend-version
+            # signal; fall back to the resolved dated model id when the
+            # endpoint (e.g. o-series) omits the fingerprint.
+            provider_fingerprint=data.get("system_fingerprint") or data.get("model"),
         )
 
     async def close(self) -> None:

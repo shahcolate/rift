@@ -78,6 +78,10 @@ class CaseResult:
     tags: list[str] = field(default_factory=list)
     error: str | None = None
     attempts: int = 1
+    # Server-reported model version / fingerprint for this completion (see
+    # ``Completion.provider_fingerprint``). Persisted so a saved run records
+    # exactly which served snapshot produced each score.
+    provider_fingerprint: str | None = None
 
 
 @dataclass
@@ -366,7 +370,7 @@ async def run_suite(
             if cached.exists():
                 try:
                     with open(cached) as f:
-                        completion = Completion(**json.load(f))
+                        completion = Completion.from_cache(json.load(f))
                 except Exception:
                     # Corrupted cache entry — fall through and refetch.
                     cached.unlink(missing_ok=True)
@@ -439,6 +443,7 @@ async def run_suite(
                 tags=list(case.tags),
                 error=error,
                 attempts=attempts,
+                provider_fingerprint=completion.provider_fingerprint,
             )
 
     results: list[CaseResult] = []
@@ -471,11 +476,38 @@ async def run_suite(
     completed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     n_errors = sum(1 for r in results if r.error)
-    metadata = {
+    metadata: dict[str, Any] = {
         "concurrency": concurrency,
         "enterprise_multiplier": enterprise_multiplier,
         "n_errors": n_errors,
     }
+    # Stamp the distinct server-reported fingerprints seen this run. A drift
+    # detector that caches on the request alone is blind to a silent
+    # server-side weight swap behind a stable alias; recording the fingerprint
+    # closes that hole. More than one distinct value means the served snapshot
+    # changed *during* the run (a rollout) — surfaced loudly because it makes
+    # the run internally non-comparable.
+    fingerprints = sorted({
+        r.provider_fingerprint for r in results if r.provider_fingerprint
+    })
+    if fingerprints:
+        metadata["fingerprints"] = fingerprints
+        if len(fingerprints) > 1:
+            metadata["fingerprint_rollout"] = True
+            if show_progress:
+                from rich.panel import Panel
+                from rich.console import Console as _Console
+                _Console().print(Panel(
+                    f"  Model [cyan]{model_config.model}[/cyan] returned "
+                    f"{len(fingerprints)} distinct server fingerprints during "
+                    "this run:\n"
+                    + "\n".join(f"    • {fp}" for fp in fingerprints)
+                    + "\n\n  The served snapshot changed mid-run (a rollout). "
+                    "Scores\n  from before and after the switch are not strictly "
+                    "comparable;\n  re-run once the rollout settles.",
+                    title="[bold yellow]⚠ Model fingerprint rollout[/bold yellow]",
+                    border_style="yellow",
+                ))
     # Stamp the judge / embedding model into metadata so a saved
     # RunResult carries who graded it. Methodology, not decoration.
     if is_async_scorer and hasattr(scorer, "judge_model"):

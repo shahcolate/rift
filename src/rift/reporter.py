@@ -541,6 +541,62 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
                             border_style="dim"))
 
 
+def print_fingerprint_report(baseline: RunResult, challenger: RunResult,
+                             console: Console | None = None) -> bool:
+    """Surface the server-reported model fingerprints behind a comparison.
+
+    Returns ``True`` when an integrity concern was flagged. Two checks:
+
+    * **Alias collision.** Both sides resolved to the *same* single
+      fingerprint despite different requested models — you may be comparing a
+      model to itself (alias overlap, or a not-yet-distinct rollout), so any
+      "no drift" verdict is trivially true and any "drift" is noise.
+    * **Mid-run rollout.** Either side saw more than one fingerprint, meaning
+      the served snapshot changed during that run.
+
+    Silent (returns ``False``, prints nothing) when both sides report exactly
+    one distinct fingerprint and they differ — the clean, comparable case —
+    or when the provider exposes no fingerprint at all.
+    """
+    if console is None:
+        console = Console()
+    b_fps = sorted({c.provider_fingerprint for c in baseline.cases
+                    if c.provider_fingerprint})
+    c_fps = sorted({c.provider_fingerprint for c in challenger.cases
+                    if c.provider_fingerprint})
+    if not b_fps and not c_fps:
+        return False  # provider exposes nothing; nothing to assert
+
+    rollout = len(b_fps) > 1 or len(c_fps) > 1
+    collision = (
+        b_fps and c_fps and b_fps == c_fps and len(b_fps) == 1
+        and baseline.model != challenger.model
+    )
+    lines = [
+        f"  baseline   ({baseline.model}): {', '.join(b_fps) or '—'}",
+        f"  challenger ({challenger.model}): {', '.join(c_fps) or '—'}",
+    ]
+    if collision:
+        lines += [
+            "",
+            "  [bold]Both models resolved to the SAME served fingerprint.[/bold]",
+            "  Different aliases, identical backend — this comparison cannot",
+            "  show real drift. Check your model identifiers.",
+        ]
+    if rollout:
+        lines += [
+            "",
+            "  [bold]A model returned multiple fingerprints[/bold] — the served",
+            "  snapshot rolled over mid-run. Re-run once it settles.",
+        ]
+    if not collision and not rollout:
+        return False
+    console.print(Panel("\n".join(lines),
+                        title="[bold yellow]⚠ Model fingerprint integrity[/bold yellow]",
+                        border_style="yellow"))
+    return True
+
+
 def print_power_report(power: dict, alpha: float = 0.05) -> None:
     """Print a post-hoc power analysis."""
     console = Console()
