@@ -1,0 +1,58 @@
+name: Claude Review
+
+# Runs Claude on each PR as an advisory code-review + security-review gate,
+# posting findings as inline PR comments. Mirrors the local /code-review and
+# /security-review skills (which aren't available inside the action) via an
+# equivalent prompt tailored to this repo's risk areas.
+#
+# Requires one repo secret: ANTHROPIC_API_KEY (Settings → Secrets and
+# variables → Actions). Advisory by design — it comments, it does not block
+# merges. To make it a hard gate, mark the check Required in branch protection.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    # Fork PRs get a read-only token and can't read secrets, so the review
+    # would fail; restrict to same-repo branch PRs.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so Claude can diff against the base
+
+      - name: Code review + security review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 20 --model claude-sonnet-4-6"
+          prompt: |
+            Review this pull request in two passes and post findings as inline
+            PR comments. Follow the conventions and invariants in CLAUDE.md.
+            Label each finding Critical / Important / Nit, and mark anything
+            that already exists on the base branch as Pre-existing so it does
+            not block the PR. If a pass finds nothing material, say so briefly.
+
+            Pass 1 — Correctness. Rift ships statistical drift claims, so scrutinize
+            anything numeric: the significance tests and test-selection in
+            comparator.py (McNemar exact, paired t-test, bootstrap CIs),
+            effect-size math (Cohen's h/g, Hedges' g), Benjamini-Hochberg
+            correction, and power analysis. Verify per-case input_tokens /
+            output_tokens / cost_usd are never dropped (cost-normalized metrics
+            depend on them), that the completion cache key stays
+            (model, model_params, input_hash) and cache writes remain atomic,
+            and watch for logic errors, broken edge cases, and silent failures.
+
+            Pass 2 — Security. The `scoring: custom` and `exec_tests` paths
+            execute user-supplied code — audit that trust boundary and any
+            widening of it. Also check API-key handling (keys.py, ~/.rift/.env
+            file permissions), unsafe YAML/JSON deserialization of suites,
+            SSRF/URL handling in the provider HTTP clients, and any path that
+            could leak per-case inputs/outputs despite --strip-io.
