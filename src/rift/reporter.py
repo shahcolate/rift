@@ -541,6 +541,54 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
                             border_style="dim"))
 
 
+def print_preregistration_report(outcome, console: Console | None = None) -> None:
+    """Print the pre-registered primary-endpoint verdict.
+
+    ``outcome`` is a :class:`rift.preregistration.PreregOutcome`. This is the
+    headline when a comparison was pre-registered; every other number in the
+    report is exploratory by definition.
+    """
+    if console is None:
+        console = Console()
+    o = outcome
+    if o.adverse_confirmed:
+        border = "red"
+        if o.direction == "improvement":
+            verdict = "[bold green]PRE-REGISTERED IMPROVEMENT CONFIRMED[/bold green]"
+            border = "green"
+        else:
+            verdict = "[bold red]PRE-REGISTERED REGRESSION CONFIRMED[/bold red]"
+    else:
+        border = "blue"
+        verdict = "[bold blue]PRE-REGISTERED ENDPOINT: NOT CONFIRMED[/bold blue]"
+
+    lines = [
+        f"  Primary endpoint: [bold]{o.primary}[/bold]  "
+        f"(direction: {o.direction}, α={o.alpha})",
+    ]
+    if o.hypothesis:
+        lines.append(f"  Hypothesis: {o.hypothesis}")
+    lines += [
+        "",
+        f"  {verdict}",
+        "",
+        f"  {o.detail}",
+    ]
+    if not o.honored:
+        lines += ["", "  [bold yellow]⚠ Protocol violations (claim is "
+                  "dishonored):[/bold yellow]"]
+        lines += [f"    • {v}" for v in o.violations]
+    lines += [
+        "",
+        "  [dim]Everything outside this panel (subgroups, refusal, calibration,"
+        "\n  other axes) is EXPLORATORY — hypothesis-generating, not"
+        "\n  confirmatory. Only this endpoint was pre-registered.[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Pre-registered analysis[/bold]",
+                        border_style=border))
+
+
 def print_judge_validation_report(result, console: Console | None = None) -> None:
     """Print an articulation-judge validation result (accuracy + Cohen's kappa).
 

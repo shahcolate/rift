@@ -1,0 +1,43 @@
+# Example Rift pre-registration.
+#
+# Commit this BEFORE running the comparison, then pass it with
+#   rift compare --baseline X --challenger Y --suite Z --preregister this.yaml
+#
+# Rift binds the headline verdict and the CI exit code to the ONE primary
+# endpoint declared here. Every other number it prints (subgroups, refusal,
+# calibration, cost) becomes exploratory — hypothesis-generating, not
+# confirmatory. This is the clean defense against the garden of forking paths:
+# you designate a single test in advance instead of picking the significant one
+# afterwards.
+
+# Which single number the gate and headline bind to: "accuracy" or
+# "cost_per_correct".
+primary: accuracy
+
+# The adverse direction you are testing for:
+#   regression   - gate fires on a significant WORSE value (lower accuracy /
+#                  higher cost-per-correct)   [default]
+#   improvement  - confirm a significant BETTER value
+#   two_sided    - fire on any significant move
+direction: regression
+
+# Significance threshold for the primary endpoint.
+alpha: 0.05
+
+# Minimum paired cases required for the run to honor the plan. A run with
+# fewer cases still reports, but is flagged as a protocol violation.
+min_cases: 50
+
+# Optional: the effect you powered the study for. Reported for the record;
+# not enforced.
+target_effect: 0.05
+
+# Optional identity locks. If the run's suite/models differ from these, the
+# claim is marked dishonored.
+suite: reasoning
+baseline: claude-opus-4-7
+challenger: claude-opus-4-8
+
+# Optional free-text hypothesis, echoed into the report.
+hypothesis: >-
+  Opus 4.8 does not regress accuracy versus 4.7 on the reasoning suite.

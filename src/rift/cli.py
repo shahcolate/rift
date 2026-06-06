@@ -40,6 +40,7 @@ from .reporter import (
     print_fingerprint_report,
     print_judge_validation_report,
     print_matrix,
+    print_preregistration_report,
     print_replication_report,
     print_selftest_report,
     print_power_report,
@@ -115,6 +116,10 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Replicates per case (default 1). >1 re-samples each case to "
                    "measure run-to-run generation noise and report whether the "
                    "drift delta clears that noise band.")
+@click.option("--preregister", default=None,
+              help="Path to a pre-registration YAML pinning the primary "
+                   "endpoint. The headline + exit code bind to it; all other "
+                   "numbers become exploratory.")
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
@@ -130,11 +135,17 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Format for --metrics-out.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power, trials, judge_model, strip_io,
-            metrics_out, metrics_format):
+            refusal, calibration, power, trials, preregister, judge_model,
+            strip_io, metrics_out, metrics_format):
     """Compare two models on an eval suite."""
     if trials < 1:
         raise click.UsageError("--trials must be >= 1.")
+    prereg = None
+    if preregister:
+        from .preregistration import load_preregistration
+        prereg = load_preregistration(preregister)
+        # A pre-registered alpha governs the primary endpoint.
+        alpha = prereg.alpha
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
         # CLI override beats suite-level field beats env var.
@@ -192,6 +203,16 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 
     print_drift_report(drift, baseline_result, challenger_result)
     print_fingerprint_report(baseline_result, challenger_result)
+
+    prereg_outcome = None
+    if prereg is not None:
+        from .preregistration import evaluate as _eval_prereg
+        prereg_outcome = _eval_prereg(
+            prereg, drift, drift.n_cases,
+            baseline_model=baseline, challenger_model=challenger,
+        )
+        print_preregistration_report(prereg_outcome)
+
     if drift.subgroups:
         print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
 
@@ -242,6 +263,8 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             results["power"] = power_result
         if replication is not None:
             results["replication"] = replication
+        if prereg_outcome is not None:
+            results["preregistration"] = asdict(prereg_outcome)
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         with open(output, "w") as f:
             json.dump(results, f, indent=2, default=str)
@@ -263,7 +286,13 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             f"[green]{metrics_out}[/green]"
         )
 
-    if drift.significant and drift.delta < 0:
+    # When pre-registered, the gate binds to the declared primary endpoint —
+    # not whichever axis happened to look significant. Otherwise fall back to
+    # the default accuracy-regression gate.
+    if prereg_outcome is not None:
+        if prereg_outcome.adverse_confirmed and prereg_outcome.direction != "improvement":
+            sys.exit(1)
+    elif drift.significant and drift.delta < 0:
         sys.exit(1)
 
 
