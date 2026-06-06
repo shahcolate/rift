@@ -541,6 +541,54 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
                             border_style="dim"))
 
 
+def print_replication_report(vc: dict, drift: DriftResult | None = None,
+                             console: Console | None = None) -> None:
+    """Print the run-to-run noise decomposition from a replicated run.
+
+    ``vc`` is :func:`rift.comparator.variance_components`. When ``drift`` is
+    given, compare the drift delta against the noise floor so the reader can
+    see whether the headline change clears the band of simply re-running an
+    unchanged model.
+    """
+    if console is None:
+        console = Console()
+    if vc.get("n_cases", 0) == 0 or vc.get("mean_trials", 0) < 2:
+        return  # nothing to say without replication
+    lines = [
+        f"  Trials per case (mean):  {vc['mean_trials']:.1f}",
+        f"  Run-to-run noise (SD):   {vc['mean_within_sd']:.4f}   "
+        "(same model, same prompt, re-asked)",
+        f"  Stable case spread (SD): {vc['between_case_var'] ** 0.5:.4f}",
+        f"  ICC (signal fraction):   {vc['icc']:.3f}   "
+        "(1 = reproducible, 0 = all noise)",
+        f"  Noise floor on mean:     ±{vc['noise_floor']:.4f}",
+    ]
+    border = "blue"
+    if drift is not None and vc["noise_floor"] > 0:
+        ratio = abs(drift.delta) / vc["noise_floor"]
+        lines += [
+            "",
+            f"  Drift delta:             {drift.delta:+.4f}",
+            f"  Delta / noise floor:     {ratio:.1f}×",
+        ]
+        if ratio < 2.0:
+            border = "yellow"
+            lines.append(
+                "  [yellow]Delta is within ~2× the run-to-run noise band — "
+                "it may not\n  survive a re-run of the same models.[/yellow]"
+            )
+    if vc["icc"] < 0.5:
+        border = "yellow"
+        lines.append(
+            "  [yellow]Low ICC: most variance is resampling noise, not stable\n"
+            "  case differences. Add trials or cases before trusting a verdict."
+            "[/yellow]"
+        )
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Replication / run-to-run noise[/bold]",
+                        border_style=border))
+
+
 def print_fingerprint_report(baseline: RunResult, challenger: RunResult,
                              console: Console | None = None) -> bool:
     """Surface the server-reported model fingerprints behind a comparison.

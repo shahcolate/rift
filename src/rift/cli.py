@@ -12,7 +12,12 @@ from rich.console import Console
 
 from . import __version__
 from .calibration import compare_calibration
-from .comparator import compare_runs, compare_by_subgroup, power_analysis
+from .comparator import (
+    compare_runs,
+    compare_by_subgroup,
+    power_analysis,
+    variance_components,
+)
 from .config import load_suite, resolve_model
 from .context_rot import expand_suite
 from .demo import (
@@ -34,6 +39,7 @@ from .reporter import (
     print_faithfulness_report,
     print_fingerprint_report,
     print_matrix,
+    print_replication_report,
     print_power_report,
     print_refusal_report,
     print_subgroup_table,
@@ -102,6 +108,10 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Parse 'Confidence: X' from outputs and report Brier/ECE drift.")
 @click.option("--power/--no-power", default=True,
               help="Include post-hoc power and minimum-detectable-effect analysis.")
+@click.option("--trials", default=1, type=int,
+              help="Replicates per case (default 1). >1 re-samples each case to "
+                   "measure run-to-run generation noise and report whether the "
+                   "drift delta clears that noise band.")
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
@@ -117,9 +127,11 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Format for --metrics-out.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power, judge_model, strip_io,
+            refusal, calibration, power, trials, judge_model, strip_io,
             metrics_out, metrics_format):
     """Compare two models on an eval suite."""
+    if trials < 1:
+        raise click.UsageError("--trials must be >= 1.")
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
         # CLI override beats suite-level field beats env var.
@@ -140,11 +152,13 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 
     baseline_result = asyncio.run(
         run_suite(suite_config, baseline_config, concurrency=concurrency,
-                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier)
+                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier,
+                  trials=trials)
     )
     challenger_result = asyncio.run(
         run_suite(suite_config, challenger_config, concurrency=concurrency,
-                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier)
+                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier,
+                  trials=trials)
     )
 
     drift = compare_runs(
@@ -195,6 +209,17 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         )
         print_power_report(power_result, alpha=alpha)
 
+    replication = None
+    if trials > 1:
+        # Pool both sides' per-case trial scores: the noise floor is a property
+        # of the measurement, estimated from all available replicates.
+        pooled = (
+            [c.trial_scores for c in baseline_result.cases if c.trial_scores]
+            + [c.trial_scores for c in challenger_result.cases if c.trial_scores]
+        )
+        replication = variance_components(pooled)
+        print_replication_report(replication, drift)
+
     if output:
         import json
         from dataclasses import asdict
@@ -212,6 +237,8 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             results["calibration"] = asdict(calibration_analysis)
         if power_result is not None:
             results["power"] = power_result
+        if replication is not None:
+            results["replication"] = replication
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         with open(output, "w") as f:
             json.dump(results, f, indent=2, default=str)
@@ -246,6 +273,9 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--context-rot", is_flag=True, default=False,
               help="Expand suite with distractor-context variants per case.")
 @click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--trials", default=1, type=int,
+              help="Replicates per case (default 1). >1 re-samples each case so "
+                   "the saved run carries per-trial scores for noise analysis.")
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
@@ -259,9 +289,11 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
               default="json", show_default=True,
               help="Format for --metrics-out.")
 def run(model, suite, concurrency, output, cache_dir, context_rot,
-        enterprise_multiplier, judge_model, strip_io,
+        enterprise_multiplier, trials, judge_model, strip_io,
         metrics_out, metrics_format):
     """Run a single model against an eval suite and save results."""
+    if trials < 1:
+        raise click.UsageError("--trials must be >= 1.")
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
         suite_config.judge_model = judge_model
@@ -276,10 +308,15 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
     result = asyncio.run(
         run_suite(suite_config, model_config, concurrency=concurrency,
                   cache_dir=cache_dir,
-                  enterprise_multiplier=enterprise_multiplier)
+                  enterprise_multiplier=enterprise_multiplier, trials=trials)
     )
 
     result.save(output, strip_io=strip_io)
+    if trials > 1:
+        vc = variance_components(
+            [c.trial_scores for c in result.cases if c.trial_scores]
+        )
+        print_replication_report(vc)
     console.print(f"\nMean score: [bold]{result.mean_score:.4f}[/bold]")
     console.print(f"Spend: [bold]${result.total_cost_usd:.4f}[/bold]  "
                   f"$/correct: [bold]${result.cost_per_correct():.4f}[/bold]")
