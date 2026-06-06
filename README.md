@@ -138,6 +138,89 @@ Three numbers carry the story:
    equivalent if one costs 3× more; `$/correct` folds quality and price
    into one line.
 
+## Trust the tool before you trust the verdict
+
+A drift detector is only as good as its own false-positive rate. Rift ships
+the machinery to audit itself — because "no vibes, just p-values" has to
+survive the question *whose p-values, and are they calibrated?*
+
+### Is the gate calibrated? — `rift selftest`
+
+Before you gate a deploy on Rift, ask the only question that matters: **how
+often does the gate fire when nothing changed?** `rift selftest` compares a
+model to *itself* across replicate runs and reports the empirical
+false-regression rate — the rate at which the CI gate would block a deploy on
+an unchanged model — against the nominal α.
+
+```bash
+rift selftest --model opus-4-8 --suite reasoning --trials 5
+```
+
+A rate near α means a red gate is trustworthy on that suite; well above it
+means widen `n` or `--trials` before gating. This is the experiment most eval
+tools never run on themselves.
+
+### Did the delta clear the noise? — `--trials`
+
+Even at temperature 0, LLM decoding is non-deterministic (MoE routing,
+batch-dependent kernels, non-associative float reduction). A single-trial
+paired test silently assumes that noise is zero. `--trials k` re-samples each
+case and decomposes the variance into **run-to-run noise vs. real signal**
+(within/between-case variance, ICC, and a noise floor on the mean):
+
+```bash
+rift compare --baseline opus-4-7 --challenger opus-4-8 --suite reasoning --trials 5
+```
+
+Rift then tells you whether the drift delta clears ~2× the noise band — i.e.
+whether it would survive a re-run of the *same* two models.
+
+### Did the model change behind a stable name? — fingerprints
+
+Providers ship silent weight updates behind a stable alias. A cache keyed on
+the request alone would serve stale completions and mask exactly that drift.
+Rift captures the server-reported fingerprint (OpenAI `system_fingerprint`,
+Gemini `modelVersion`, the resolved dated id Anthropic/OpenAI echo back) on
+every completion, persists it through the cache, and flags **alias collisions**
+(both sides resolved to one backend) and **mid-run rollouts** (the snapshot
+changed during a run). A green Rift run now carries evidence the model didn't
+move underneath it.
+
+### Is the LLM judge reliable? — `rift validate-judge`
+
+The faithfulness probe's verdict is decided by an LLM judge. An unvalidated
+judge measures the judge, not the model. Rift scores the articulation judge
+against a committed, balanced human gold set and reports **Cohen's κ**
+(chance-corrected), not bare accuracy:
+
+```bash
+rift validate-judge --judge-model sonnet-4-6
+```
+
+Cite the κ alongside any faithfulness number: *"judge validated at κ=0.74,
+n=14."*
+
+### Did you pick the significant number after the fact? — `--preregister`
+
+A single comparison surfaces many numbers; reading the headline off whichever
+crossed p<0.05 is the garden of forking paths. Pre-register the **one** primary
+endpoint before the run and Rift binds the headline and the exit code to it,
+labelling everything else exploratory:
+
+```bash
+rift compare --baseline opus-4-7 --challenger opus-4-8 --suite reasoning \
+    --preregister examples/preregistration_example.yaml
+```
+
+See [`examples/preregistration_example.yaml`](examples/preregistration_example.yaml).
+
+> **The moat isn't the t-test.** The genuinely hard-to-copy parts of Rift are
+> [`rift discover`](#power-stratified-case-discovery) (adversarial,
+> power-targeted eval-set construction) and the
+> [context-rot suite](#context-rot-benchmark) (capability-stress under injected
+> distractors). The statistics above make the verdicts *defensible*; those two
+> make the verdicts *worth having*.
+
 ## Worked studies
 
 Paired runs against live APIs, one for each question in the
@@ -608,6 +691,11 @@ release notes typically hand-wave around:
 - [x] User-defined `custom` scoring functions (`scoring: custom`)
 - [x] Observability metrics export (flat JSON / Prometheus)
 - [x] CI/CD drift gate (reusable GitHub Action)
+- [x] Replication (`--trials`) + run-to-run noise decomposition
+- [x] Null calibration of the gate (`rift selftest`)
+- [x] Model-fingerprint capture + alias-collision / rollout detection
+- [x] Articulation-judge validation against human gold (`rift validate-judge`, Cohen's κ)
+- [x] Pre-registered primary endpoint (`compare --preregister`)
 - [ ] Hosted monitoring (continuous drift alerts)
 - [ ] More CI/CD integrations (Jenkins, GitLab CI)
 - [ ] Observability integrations (Datadog, W&B)

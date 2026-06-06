@@ -15,6 +15,9 @@ rift/
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
 │   ├── observability.py     # Flat metrics export (JSON / Prometheus) for dashboards
+│   ├── selftest.py          # Null calibration: gate false-positive rate (self-vs-self)
+│   ├── judge_validation.py  # Articulation-judge gold set + Cohen's kappa
+│   ├── preregistration.py   # Pre-registered primary endpoint (anti forking-paths)
 │   ├── pricing.py           # Token price catalog + enterprise multiplier
 │   ├── prompts.py           # Registry of user-overridable probe prompt templates
 │   ├── context_rot.py       # Distractor-injection suite expansion
@@ -60,6 +63,31 @@ rift/
 - **Run**: One execution of a suite against a single model
 - **Comparison**: Statistical analysis of two runs (baseline vs challenger)
 - **Drift Score**: Per-task and aggregate metric quantifying behavioral change
+- **Replication / noise floor** (`--trials k`): re-sample each case k times to
+  estimate run-to-run generation noise. `comparator.variance_components`
+  decomposes scores into within-case (noise) vs between-case (signal) + ICC +
+  a noise floor; a drift delta within ~2× that floor may not survive a re-run.
+- **Self-test / null calibration** (`rift selftest`): compare a model to
+  *itself* across trials and report the empirical false-positive rate of the
+  drift gate (esp. the false-*regression* rate the CI gate exit-1s on). The
+  credibility artifact: a green gate means little if it's red on unchanged
+  models. See `selftest.py`.
+- **Model fingerprint**: server-reported version (`Completion.provider_fingerprint`
+  — OpenAI `system_fingerprint`, Gemini `modelVersion`, the resolved dated
+  `model` Anthropic/OpenAI echo back). Captured on every completion, persisted
+  through the cache, stamped into run metadata. Closes the integrity hole where
+  a cache keyed on the request alone masks a silent server-side weight swap.
+  `compare`/`diff` flag alias collisions (both sides → one fingerprint) and
+  mid-run rollouts (>1 fingerprint in a run).
+- **Judge validation** (`rift validate-judge`): the faithfulness articulation
+  judge is scored against a committed, balanced human gold set
+  (`judge_validation.py`); reports Cohen's kappa (`comparator.cohens_kappa`),
+  not bare accuracy. Cite kappa alongside any faithfulness number.
+- **Pre-registration** (`compare --preregister spec.yaml`): pin ONE primary
+  endpoint (accuracy | cost_per_correct), direction, alpha, min_cases before
+  the run. The headline + exit code bind to it; everything else is exploratory.
+  The clean multiplicity defense — designate one test, don't correct twenty.
+  See `preregistration.py` and `examples/preregistration_example.yaml`.
 - **Faithfulness**: Whether a model's stated reasoning reflects what drove its
   answer. `rift faithfulness --mode hint|cot|both`:
   - **hint** plants a biasing cue toward a generated plausible-wrong answer; a
@@ -168,8 +196,8 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   This keyless guarantee covers `rift demo` and code that calls
   `run_suite` directly (benchmarks, demo replay), which do not
   preflight. The live CLI commands (`compare`/`run`/`matrix`/
-  `sycophancy`/`discover`/`faithfulness`) DO preflight keys via
-  `ensure_provider_keys`
+  `sycophancy`/`discover`/`faithfulness`/`selftest`/`validate-judge`)
+  DO preflight keys via `ensure_provider_keys`
   for a clean fail-fast prompt, so they require a key even when a run
   would have been fully cached. A missing key raised lazily anywhere
   (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
@@ -233,7 +261,8 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
 Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
 (real env vars always win — `os.environ.setdefault`). `rift setup`
 writes `~/.rift/.env` (mode 0600); see `keys.py`. Live commands
-(`compare`/`run`/`matrix`/`sycophancy`/`discover`/`faithfulness`)
+(`compare`/`run`/`matrix`/`sycophancy`/`discover`/`faithfulness`/
+`selftest`/`validate-judge`)
 preflight the
 needed keys via `ensure_provider_keys` — interactive TTY prompts for a
 missing key, non-interactive raises `MissingAPIKeyError` (a
