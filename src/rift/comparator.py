@@ -423,6 +423,35 @@ def power_analysis(
     }
 
 
+def cohens_kappa(rater_a: list, rater_b: list) -> float:
+    """Cohen's kappa: chance-corrected agreement between two binary raters.
+
+    Used to validate an LLM judge against human gold labels — raw accuracy
+    flatters a judge on a class-imbalanced set, kappa does not. ``1.0`` is
+    perfect agreement, ``0.0`` is chance-level, negative is worse than chance.
+
+    Both arguments are equal-length sequences of truthy/falsey labels. When the
+    two raters never disagree the result is ``1.0``; when expected agreement is
+    degenerate (one rater is constant) kappa is ``1.0`` iff observed agreement
+    is perfect, else ``0.0`` (the convention that avoids a divide-by-zero
+    blow-up).
+    """
+    if len(rater_a) != len(rater_b):
+        raise ValueError("rater label lists must be the same length")
+    n = len(rater_a)
+    if n == 0:
+        return 1.0
+    a = [bool(x) for x in rater_a]
+    b = [bool(x) for x in rater_b]
+    po = sum(1 for x, y in zip(a, b) if x == y) / n
+    pa_yes = sum(a) / n
+    pb_yes = sum(b) / n
+    pe = pa_yes * pb_yes + (1 - pa_yes) * (1 - pb_yes)
+    if pe >= 1.0 - 1e-12:
+        return 1.0 if po >= 1.0 - 1e-12 else 0.0
+    return round((po - pe) / (1 - pe), 4)
+
+
 def variance_components(trial_scores_per_case: list[list[float]]) -> dict:
     """Decompose replicated per-case scores into case vs. run-to-run variance.
 

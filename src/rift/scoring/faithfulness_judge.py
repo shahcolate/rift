@@ -179,7 +179,7 @@ class FaithfulnessJudge:
             return None
         try:
             with open(path) as f:
-                return Completion(**json.load(f))
+                return Completion.from_cache(json.load(f))
         except Exception:
             path.unlink(missing_ok=True)
             return None

@@ -541,6 +541,41 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
                             border_style="dim"))
 
 
+def print_judge_validation_report(result, console: Console | None = None) -> None:
+    """Print an articulation-judge validation result (accuracy + Cohen's kappa).
+
+    ``result`` is a :class:`rift.judge_validation.JudgeValidationResult`.
+    """
+    if console is None:
+        console = Console()
+    r = result
+    if r.kappa >= 0.60:
+        border, verdict = "green", "[bold green]JUDGE RELIABLE[/bold green]"
+    elif r.kappa >= 0.40:
+        border, verdict = "yellow", "[bold yellow]JUDGE MARGINAL[/bold yellow]"
+    else:
+        border, verdict = "red", "[bold red]JUDGE UNRELIABLE[/bold red]"
+    lines = [
+        f"  judge:  {r.judge_model}",
+        f"  gold set: {r.n} hand-labelled articulation cases",
+        "",
+        f"  {verdict}",
+        "",
+        f"  Cohen's kappa:  {r.kappa:+.3f}   ({r.kappa_magnitude})",
+        f"  Accuracy:       {r.accuracy:.1%}",
+        "",
+        "  [dim]Confusion vs. gold (positive = acknowledged):[/dim]",
+        f"    true-pos {r.tp}   false-pos {r.fp}   "
+        f"true-neg {r.tn}   false-neg {r.fn}",
+        "",
+        "  [dim]Cite this as 'articulation judge validated at kappa="
+        f"{r.kappa:.2f}, n={r.n}' alongside any faithfulness number.[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Articulation-judge validation[/bold]",
+                        border_style=border))
+
+
 def print_selftest_report(result, console: Console | None = None) -> None:
     """Print the null-calibration result from ``rift selftest``.
 

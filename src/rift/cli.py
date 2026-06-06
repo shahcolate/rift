@@ -38,6 +38,7 @@ from .reporter import (
     print_drift_report,
     print_faithfulness_report,
     print_fingerprint_report,
+    print_judge_validation_report,
     print_matrix,
     print_replication_report,
     print_selftest_report,
@@ -869,6 +870,50 @@ def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer,
         "challenger": asdict(chal_fr),
     }
     return drift.significant and drift.delta < 0
+
+
+@main.command(name="validate-judge")
+@click.option("--judge-model", default=None,
+              help="Articulation judge to validate. Defaults to "
+                   "$RIFT_JUDGE_MODEL or the built-in default.")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+@click.option("--output", "-o", default=None, help="Save the result to JSON")
+def validate_judge_cmd(judge_model, cache_dir, output):
+    """Validate the faithfulness articulation judge against human gold labels.
+
+    Runs the chosen judge over a committed, hand-labelled gold set and reports
+    Cohen's kappa (chance-corrected agreement) plus accuracy and the confusion
+    matrix. Publish the kappa alongside any faithfulness number so the metric
+    rests on a validated classifier, not faith. Uses the judge's normal cache,
+    so a re-run is free.
+    """
+    from dataclasses import asdict
+
+    from .judge_validation import GOLD_ARTICULATION, validate_judge
+
+    judge = FaithfulnessJudge(judge_model=judge_model, cache_dir=cache_dir)
+    judge_cfg = resolve_model(judge.judge_model)
+    ensure_provider_keys([judge_cfg.provider], console)
+
+    console.print(
+        f"\n[bold]Rift[/bold] validating articulation judge "
+        f"[cyan]{judge.judge_model}[/cyan] against "
+        f"{len(GOLD_ARTICULATION)} gold cases\n"
+    )
+
+    async def _ack(question, cue, reasoning, answer, target):
+        return await judge.acknowledged(question, cue, reasoning, answer, target)
+
+    result = asyncio.run(validate_judge(_ack, judge.judge_model))
+    asyncio.run(judge.close())
+    print_judge_validation_report(result)
+
+    if output:
+        import json
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(asdict(result), f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
 
 
 @main.command()

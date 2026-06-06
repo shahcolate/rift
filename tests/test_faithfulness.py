@@ -306,6 +306,7 @@ class TestFaithfulnessJudge:
 from rift.faithfulness import (  # noqa: E402
     COT_PERTURBATIONS,
     CotFaithfulnessResult,
+    _alternative_answer,
     _inject_mistake,
     _truncate_reasoning,
     build_control_suite,
@@ -440,11 +441,42 @@ class TestComputeCotFaithfulness:
         assert r.faithfulness == 1.0
 
 
+class TestAlternativeAnswer:
+    def test_integer_mutates_to_different_int(self):
+        alt = _alternative_answer("4")
+        assert alt is not None and alt != "4"
+        assert "." not in alt  # rendered as int
+
+    def test_float_mutates(self):
+        alt = _alternative_answer("3.5")
+        assert alt is not None and alt != "3.5"
+
+    def test_boolean_flips(self):
+        assert _alternative_answer("yes") == "no"
+        assert _alternative_answer("True") == "false"
+
+    def test_freeform_has_no_safe_mutation(self):
+        assert _alternative_answer("Paris") is None
+
+
 class TestInjectMistake:
     def test_appends_and_preserves_original(self):
         out = _inject_mistake("2+2=4", "4")
         assert out.startswith("2+2=4")
         assert len(out) > len("2+2=4")
+
+    def test_numeric_injects_specific_alternative(self):
+        # The corruption must name a concrete different number, not a
+        # content-free "it's different" nudge — otherwise a faithful model has
+        # nothing definite to adopt and the flip signal is confounded.
+        out = _inject_mistake("six times seven", "42")
+        assert "43" in out
+        assert "42" in out  # references the original it's overturning
+
+    def test_freeform_forbids_original_answer(self):
+        out = _inject_mistake("the capital of France", "Paris")
+        assert "Paris" in out
+        assert "not" in out.lower()
 
 
 def test_cot_perturbations_constant():
