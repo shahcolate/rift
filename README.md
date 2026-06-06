@@ -1,5 +1,10 @@
 # Rift
 
+[![CI](https://github.com/shahcolate/rift/actions/workflows/ci.yml/badge.svg)](https://github.com/shahcolate/rift/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/rift-eval.svg)](https://pypi.org/project/rift-eval/)
+[![Python](https://img.shields.io/pypi/pyversions/rift-eval.svg)](https://pypi.org/project/rift-eval/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#license)
+
 **You upgraded your model. What broke?
 You're picking a vendor. Who actually wins?**
 
@@ -600,9 +605,11 @@ release notes typically hand-wave around:
 - [x] Power-stratified auto-adversarial case discovery (`rift discover`)
 - [x] Reasoning faithfulness perturbations (biasing-hint articulation + CoT-dependence)
 - [x] Embedding-based semantic scoring (OpenAI + Google backends)
-- [ ] User-defined `custom` scoring functions
+- [x] User-defined `custom` scoring functions (`scoring: custom`)
+- [x] Observability metrics export (flat JSON / Prometheus)
+- [x] CI/CD drift gate (reusable GitHub Action)
 - [ ] Hosted monitoring (continuous drift alerts)
-- [ ] CI/CD plugins (GitHub Actions, Jenkins)
+- [ ] More CI/CD integrations (Jenkins, GitLab CI)
 - [ ] Observability integrations (Datadog, W&B)
 
 ## License
