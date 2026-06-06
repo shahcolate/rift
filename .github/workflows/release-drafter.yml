@@ -1,0 +1,29 @@
+name: Release Drafter
+
+# Maintains a single rolling *draft* GitHub Release whose notes are
+# regenerated from merged PRs on every push to main. Publishing that draft
+# (manually, when you're ready to ship) emits the `release: published` event
+# that triggers publish.yml → PyPI. Config: .github/release-drafter.yml.
+
+on:
+  push:
+    branches: [main]
+  # Re-run on PR changes so the draft (and any autolabels) stay current.
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    permissions:
+      contents: write       # create/update the draft release
+      pull-requests: read   # read merged PR titles/labels for the notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
