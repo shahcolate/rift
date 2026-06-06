@@ -115,7 +115,10 @@ def _maybe_expand(suite_config, context_rot: bool):
 @click.option("--trials", default=1, type=int,
               help="Replicates per case (default 1). >1 re-samples each case to "
                    "measure run-to-run generation noise and report whether the "
-                   "drift delta clears that noise band.")
+                   "drift delta clears that noise band. NOTE: with >1, per-case "
+                   "scores become trial means (continuous), so the paired test "
+                   "switches from McNemar to the paired t-test and $/correct "
+                   "counts only all-trials-correct cases.")
 @click.option("--preregister", default=None,
               help="Path to a pre-registration YAML pinning the primary "
                    "endpoint. The headline + exit code bind to it; all other "

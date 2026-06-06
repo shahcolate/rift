@@ -131,3 +131,47 @@ class TestRunnerTrials:
                                     show_progress=False, trials=1))
         assert all(c.trial_scores == [] for c in run.cases)
         assert "trials" not in run.metadata
+
+    def test_partial_trial_failure_is_not_an_error(self, tmp_path, monkeypatch):
+        # First trial of every case fails with a NON-transient error (so it
+        # fails fast, no retry); later trials succeed. The case has a valid mean
+        # score and must NOT be counted as an error (regression test).
+        class _FlakyFirst:
+            def __init__(self):
+                self.model = "stub"
+                self.seen: set[str] = set()
+
+            async def complete(self, prompt, **kwargs):
+                if prompt not in self.seen:
+                    self.seen.add(prompt)
+                    raise ValueError("non-transient boom")  # not retried
+                return Completion(
+                    model="stub", input_text=prompt, output_text="4",
+                    latency_ms=1.0, input_tokens=1, output_tokens=1,
+                    raw_response={}, provider_fingerprint="fp",
+                )
+
+            async def close(self):
+                pass
+
+        monkeypatch.setattr("rift.runner._get_provider", lambda cfg: _FlakyFirst())
+        cfg = ModelConfig(provider="local", model="stub")
+        run = asyncio.run(run_suite(_suite(n=2), cfg, cache_dir=str(tmp_path),
+                                    show_progress=False, trials=3))
+        for c in run.cases:
+            # trial 0 failed, trials 1-2 succeeded -> mean 1.0, no error.
+            assert c.score == pytest.approx(1.0)
+            assert c.error is None
+            assert c.attempts == 1  # real attempt count of the successful work
+        assert run.metadata["n_errors"] == 0
+
+    def test_attempts_reflect_cache_hit(self, tmp_path, monkeypatch):
+        # Cache hits report attempts=0 (the audit-trail invariant).
+        prov = _CountingProvider()
+        monkeypatch.setattr("rift.runner._get_provider", lambda cfg: prov)
+        cfg = ModelConfig(provider="local", model="stub")
+        asyncio.run(run_suite(_suite(n=2), cfg, cache_dir=str(tmp_path),
+                              show_progress=False, trials=2))
+        run = asyncio.run(run_suite(_suite(n=2), cfg, cache_dir=str(tmp_path),
+                                    show_progress=False, trials=2))
+        assert all(c.attempts == 0 for c in run.cases)  # fully cached

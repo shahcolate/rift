@@ -101,18 +101,33 @@ def evaluate(prereg: Preregistration, drift, n_cases: int,
     mismatches are recorded as ``violations`` (the plan is dishonored) but do
     not by themselves flip the gate — they qualify the claim.
     """
+    # Resolve aliases on both sides so a plan pinning the full id
+    # ('claude-opus-4-7') is honored by a run that used the alias ('opus-4-7'),
+    # and vice versa — otherwise every aliased run is a spurious violation.
+    from .config import resolve_model
+
+    def _canon(name: str | None) -> str | None:
+        if not name:
+            return None
+        try:
+            return resolve_model(name).model
+        except Exception:
+            return name
+
     violations: list[str] = []
     if prereg.suite and drift.suite_name and prereg.suite not in drift.suite_name:
         violations.append(
             f"suite mismatch: pre-registered '{prereg.suite}', "
             f"ran '{drift.suite_name}'"
         )
-    if prereg.baseline and baseline_model and prereg.baseline != baseline_model:
+    if (prereg.baseline and baseline_model
+            and _canon(prereg.baseline) != _canon(baseline_model)):
         violations.append(
             f"baseline mismatch: pre-registered '{prereg.baseline}', "
             f"ran '{baseline_model}'"
         )
-    if prereg.challenger and challenger_model and prereg.challenger != challenger_model:
+    if (prereg.challenger and challenger_model
+            and _canon(prereg.challenger) != _canon(challenger_model)):
         violations.append(
             f"challenger mismatch: pre-registered '{prereg.challenger}', "
             f"ran '{challenger_model}'"

@@ -95,6 +95,18 @@ class TestViolations:
         o = evaluate(Preregistration(suite="extraction"), d, d.n_cases)
         assert any("suite mismatch" in v for v in o.violations)
 
+    def test_alias_matches_resolved_id_no_violation(self):
+        # Plan pins the full dated id; run used the short alias. Same model ->
+        # must NOT be flagged as a mismatch (regression test).
+        d = _regression_drift()
+        o = evaluate(
+            Preregistration(baseline="claude-opus-4-7",
+                            challenger="claude-opus-4-8"),
+            d, d.n_cases, baseline_model="opus-4-7", challenger_model="opus-4-8",
+        )
+        assert o.violations == []
+        assert o.honored is True
+
     def test_model_mismatch(self):
         d = _regression_drift()
         o = evaluate(

@@ -342,7 +342,12 @@ async def run_suite(
         completion. The resulting ``CaseResult.score`` is the mean over
         trials and ``trial_scores`` holds the per-trial values — the raw
         material for the run-to-run noise floor a single-trial paired test
-        cannot estimate. Cost/token fields are per-trial means.
+        cannot estimate. Cost/token fields are per-trial means. Note the
+        downstream consequence: trial-mean scores are continuous, so
+        ``compare_runs`` selects the paired t-test rather than McNemar, and
+        ``cost_per_correct`` (threshold 0.999) counts only all-trials-correct
+        cases. A case that succeeds on some trials but fails others still
+        produces a valid mean score and is NOT counted as an error.
 
     Returns
     -------
@@ -397,9 +402,11 @@ async def run_suite(
 
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    async def _fetch_trial(case, trial: int) -> Completion:
-        """Return one completion for ``case``'s ``trial``, caching it.
+    async def _fetch_trial(case, trial: int) -> tuple[Completion, int]:
+        """Return ``(completion, attempts)`` for ``case``'s ``trial``, caching it.
 
+        ``attempts`` is 0 when served from cache, else the real retry count from
+        :func:`_complete_with_retry` — preserving the attempt-count audit trail.
         Raises on a missing key (fatal, user-fixable) or an exhausted retry —
         the caller decides how a failed trial folds into the aggregate.
         """
@@ -408,10 +415,10 @@ async def run_suite(
         if cached.exists():
             try:
                 with open(cached) as f:
-                    return Completion.from_cache(json.load(f))
+                    return Completion.from_cache(json.load(f)), 0  # cache hit
             except Exception:
                 cached.unlink(missing_ok=True)  # corrupted — refetch
-        completion, _attempts = await _complete_with_retry(
+        completion, attempts = await _complete_with_retry(
             _provider(), case.input, dict(suite.model_params)
         )
         # Write cache atomically (tmp + rename) so a crashed writer never
@@ -420,7 +427,7 @@ async def run_suite(
         with open(tmp, "w") as f:
             json.dump(asdict(completion), f, default=str)
         tmp.replace(cached)
-        return completion
+        return completion, attempts
 
     async def _score_completion(case, completion: Completion) -> float:
         if is_async_scorer:
@@ -439,12 +446,12 @@ async def run_suite(
             fingerprints: list[str] = []
             first_output = ""
             first_error: str | None = None
-            attempts_made = 0
+            failed_attempts = 0  # attempts of the first failing trial, if any
+            success_attempts = 0  # max attempts among successful trials
 
             for trial in range(max(1, trials)):
                 try:
-                    completion = await _fetch_trial(case, trial)
-                    attempts_made = 1
+                    completion, attempts = await _fetch_trial(case, trial)
                 except MissingAPIKeyError:
                     # Fatal + user-fixable — surface as the clean
                     # ClickException rather than burying it as score 0.0.
@@ -452,8 +459,9 @@ async def run_suite(
                 except Exception as exc:
                     if first_error is None:
                         first_error = f"{type(exc).__name__}: {exc}"
-                        attempts_made = getattr(exc, "rift_attempts", MAX_RETRIES)
+                        failed_attempts = getattr(exc, "rift_attempts", MAX_RETRIES)
                     continue  # a failed trial drops out of the aggregate
+                success_attempts = max(success_attempts, attempts)
                 sc = await _score_completion(case, completion)
                 trial_scores.append(sc)
                 costs.append(cost_of(
@@ -470,12 +478,12 @@ async def run_suite(
                     first_output = completion.output_text
 
             if not trial_scores:
-                # Every trial failed.
+                # Every trial failed — this case genuinely errored.
                 return CaseResult(
                     case_index=idx, input_text=case.input, expected=case.expected,
                     output="", score=0.0, latency_ms=0.0, input_tokens=0,
                     output_tokens=0, cost_usd=0.0, tags=list(case.tags),
-                    error=first_error, attempts=attempts_made,
+                    error=first_error, attempts=failed_attempts,
                 )
 
             all_fingerprints.update(fingerprints)
@@ -491,10 +499,14 @@ async def run_suite(
                 output_tokens=round(mean(out_toks)),
                 cost_usd=mean(costs),
                 tags=list(case.tags),
-                error=first_error,
-                attempts=attempts_made,
+                # At least one trial succeeded, so this case produced a real
+                # score — it must NOT be counted as an error even if an earlier
+                # trial failed (that would inflate n_errors and flag a scored
+                # case). attempts is the real retry count of the successful work.
+                error=None,
+                attempts=success_attempts,
                 # First distinct fingerprint is stored per-case; the run-level
-                # set below sees every trial's so a mid-run rollout still shows.
+                # set above sees every trial's so a mid-run rollout still shows.
                 provider_fingerprint=fingerprints[0] if fingerprints else None,
                 trial_scores=trial_scores if trials > 1 else [],
             )

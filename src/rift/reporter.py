@@ -688,6 +688,9 @@ def print_replication_report(vc: dict, drift: DriftResult | None = None,
         return  # nothing to say without replication
     lines = [
         f"  Trials per case (mean):  {vc['mean_trials']:.1f}",
+        "  [dim]With trials>1, per-case scores are trial means → the paired "
+        "test\n  is the t-test (not McNemar) and $/correct counts only "
+        "all-trials-correct cases.[/dim]",
         f"  Run-to-run noise (SD):   {vc['mean_within_sd']:.4f}   "
         "(same model, same prompt, re-asked)",
         f"  Stable case spread (SD): {vc['between_case_var'] ** 0.5:.4f}",
