@@ -24,11 +24,28 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
+      # Secrets can't be used in a job-level `if`, so gate here: when the key
+      # is unset the job stays green and just emits a notice (no scary red X),
+      # and auto-activates once ANTHROPIC_API_KEY is added.
+      - name: Check for API key
+        id: gate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY secret not set — skipping Claude review."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.enabled == 'true'
         with:
           fetch-depth: 0  # full history so Claude can diff against the base
 
       - name: Code review + security review
+        if: steps.gate.outputs.enabled == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
