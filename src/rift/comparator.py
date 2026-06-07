@@ -423,6 +423,92 @@ def power_analysis(
     }
 
 
+def cohens_kappa(rater_a: list, rater_b: list) -> float:
+    """Cohen's kappa: chance-corrected agreement between two binary raters.
+
+    Used to validate an LLM judge against human gold labels — raw accuracy
+    flatters a judge on a class-imbalanced set, kappa does not. ``1.0`` is
+    perfect agreement, ``0.0`` is chance-level, negative is worse than chance.
+
+    Both arguments are equal-length sequences of truthy/falsey labels. When the
+    two raters never disagree the result is ``1.0``; when expected agreement is
+    degenerate (one rater is constant) kappa is ``1.0`` iff observed agreement
+    is perfect, else ``0.0`` (the convention that avoids a divide-by-zero
+    blow-up).
+    """
+    if len(rater_a) != len(rater_b):
+        raise ValueError("rater label lists must be the same length")
+    n = len(rater_a)
+    if n == 0:
+        return 1.0
+    a = [bool(x) for x in rater_a]
+    b = [bool(x) for x in rater_b]
+    po = sum(1 for x, y in zip(a, b) if x == y) / n
+    pa_yes = sum(a) / n
+    pb_yes = sum(b) / n
+    pe = pa_yes * pb_yes + (1 - pa_yes) * (1 - pb_yes)
+    if pe >= 1.0 - 1e-12:
+        return 1.0 if po >= 1.0 - 1e-12 else 0.0
+    return round((po - pe) / (1 - pe), 4)
+
+
+def variance_components(trial_scores_per_case: list[list[float]]) -> dict:
+    """Decompose replicated per-case scores into case vs. run-to-run variance.
+
+    Given one list of per-trial scores per case (from a ``trials>1`` run),
+    estimate where the variance lives:
+
+    * ``within_case_var`` — mean of the per-case sample variances. This is the
+      **run-to-run (generation) noise**: how much one case's score wobbles when
+      you ask the *same* model the *same* prompt again. A single-trial paired
+      test assumes this is zero; it is not (MoE routing, batch-dependent
+      kernels, non-associative float reduction make even temperature-0
+      decoding non-deterministic).
+    * ``between_case_var`` — variance of the per-case mean scores: real,
+      stable differences between prompts.
+    * ``icc`` — intraclass correlation ``between / (between + within)``: the
+      fraction of total variance that is signal (stable case differences)
+      rather than noise. Near 1 ⇒ scores are reproducible; near 0 ⇒ the metric
+      is mostly resampling noise and any single-run drift verdict is suspect.
+    * ``noise_floor`` — the standard error of the *run-level mean accuracy*
+      attributable purely to generation noise, ``sqrt(mean_within_var / (n*k))``.
+      A drift delta smaller than a couple of these is within the noise band of
+      re-running an unchanged model.
+
+    Returns zeros (and ``icc=1.0`` — no measurable noise) when there are fewer
+    than two trials per case to estimate within-case variance from.
+    """
+    cases = [xs for xs in trial_scores_per_case if xs]
+    n = len(cases)
+    if n == 0:
+        return {
+            "n_cases": 0, "mean_trials": 0.0, "within_case_var": 0.0,
+            "between_case_var": 0.0, "icc": 1.0, "mean_within_sd": 0.0,
+            "noise_floor": 0.0,
+        }
+    case_means = np.array([float(np.mean(xs)) for xs in cases])
+    # Per-case sample variance (ddof=1); 0 for any single-trial case.
+    case_vars = np.array([
+        float(np.var(xs, ddof=1)) if len(xs) > 1 else 0.0 for xs in cases
+    ])
+    total_trials = sum(len(xs) for xs in cases)
+    mean_trials = total_trials / n
+    within = float(np.mean(case_vars))
+    between = float(np.var(case_means, ddof=1)) if n > 1 else 0.0
+    denom = between + within
+    icc = float(between / denom) if denom > 1e-12 else 1.0
+    noise_floor = float(np.sqrt(within / total_trials)) if total_trials else 0.0
+    return {
+        "n_cases": n,
+        "mean_trials": round(mean_trials, 2),
+        "within_case_var": round(within, 6),
+        "between_case_var": round(between, 6),
+        "icc": round(icc, 4),
+        "mean_within_sd": round(float(np.sqrt(within)), 4),
+        "noise_floor": round(noise_floor, 4),
+    }
+
+
 def compare_runs(
     baseline_scores: list[float],
     challenger_scores: list[float],
@@ -475,7 +561,11 @@ def compare_runs(
         test_used = "no_variation"
 
     # --- CI: bootstrap regardless of test used (non-parametric, robust) ---
-    if n >= 2 and float(np.std(diffs)) > 1e-10:
+    # ``bootstrap_n <= 0`` skips the resample entirely (CI collapses to the
+    # point estimate). Callers that only need the p-value / delta — e.g.
+    # ``rift selftest`` running this hundreds of times — pass 0 to avoid
+    # computing a 1000-sample CI they immediately discard.
+    if n >= 2 and float(np.std(diffs)) > 1e-10 and bootstrap_n > 0:
         ci_lower, ci_upper = _bootstrap_ci(diffs, n, bootstrap_n)
     else:
         ci_lower = ci_upper = float(diffs.mean()) if n > 0 else 0.0

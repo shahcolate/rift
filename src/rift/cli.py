@@ -12,7 +12,12 @@ from rich.console import Console
 
 from . import __version__
 from .calibration import compare_calibration
-from .comparator import compare_runs, compare_by_subgroup, power_analysis
+from .comparator import (
+    compare_runs,
+    compare_by_subgroup,
+    power_analysis,
+    variance_components,
+)
 from .config import load_suite, resolve_model
 from .context_rot import expand_suite
 from .demo import (
@@ -32,13 +37,19 @@ from .reporter import (
     print_cot_faithfulness_report,
     print_drift_report,
     print_faithfulness_report,
+    print_fingerprint_report,
+    print_judge_validation_report,
     print_matrix,
+    print_preregistration_report,
+    print_replication_report,
+    print_selftest_report,
     print_power_report,
     print_refusal_report,
     print_subgroup_table,
     print_sycophancy_report,
 )
 from .runner import RunResult, run_suite
+from .selftest import self_test
 from .sycophancy import build_pushback_suite, compute_sycophancy
 from .faithfulness import (
     build_control_suite,
@@ -101,6 +112,17 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Parse 'Confidence: X' from outputs and report Brier/ECE drift.")
 @click.option("--power/--no-power", default=True,
               help="Include post-hoc power and minimum-detectable-effect analysis.")
+@click.option("--trials", default=1, type=int,
+              help="Replicates per case (default 1). >1 re-samples each case to "
+                   "measure run-to-run generation noise and report whether the "
+                   "drift delta clears that noise band. NOTE: with >1, per-case "
+                   "scores become trial means (continuous), so the paired test "
+                   "switches from McNemar to the paired t-test and $/correct "
+                   "counts only all-trials-correct cases.")
+@click.option("--preregister", default=None,
+              help="Path to a pre-registration YAML pinning the primary "
+                   "endpoint. The headline + exit code bind to it; all other "
+                   "numbers become exploratory.")
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
@@ -116,9 +138,17 @@ def _maybe_expand(suite_config, context_rot: bool):
               help="Format for --metrics-out.")
 def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
-            refusal, calibration, power, judge_model, strip_io,
-            metrics_out, metrics_format):
+            refusal, calibration, power, trials, preregister, judge_model,
+            strip_io, metrics_out, metrics_format):
     """Compare two models on an eval suite."""
+    if trials < 1:
+        raise click.UsageError("--trials must be >= 1.")
+    prereg = None
+    if preregister:
+        from .preregistration import load_preregistration
+        prereg = load_preregistration(preregister)
+        # A pre-registered alpha governs the primary endpoint.
+        alpha = prereg.alpha
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
         # CLI override beats suite-level field beats env var.
@@ -139,11 +169,13 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 
     baseline_result = asyncio.run(
         run_suite(suite_config, baseline_config, concurrency=concurrency,
-                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier)
+                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier,
+                  trials=trials)
     )
     challenger_result = asyncio.run(
         run_suite(suite_config, challenger_config, concurrency=concurrency,
-                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier)
+                  cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier,
+                  trials=trials)
     )
 
     drift = compare_runs(
@@ -173,6 +205,17 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         )
 
     print_drift_report(drift, baseline_result, challenger_result)
+    print_fingerprint_report(baseline_result, challenger_result)
+
+    prereg_outcome = None
+    if prereg is not None:
+        from .preregistration import evaluate as _eval_prereg
+        prereg_outcome = _eval_prereg(
+            prereg, drift, drift.n_cases,
+            baseline_model=baseline, challenger_model=challenger,
+        )
+        print_preregistration_report(prereg_outcome)
+
     if drift.subgroups:
         print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
 
@@ -193,6 +236,17 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
         )
         print_power_report(power_result, alpha=alpha)
 
+    replication = None
+    if trials > 1:
+        # Pool both sides' per-case trial scores: the noise floor is a property
+        # of the measurement, estimated from all available replicates.
+        pooled = (
+            [c.trial_scores for c in baseline_result.cases if c.trial_scores]
+            + [c.trial_scores for c in challenger_result.cases if c.trial_scores]
+        )
+        replication = variance_components(pooled)
+        print_replication_report(replication, drift)
+
     if output:
         import json
         from dataclasses import asdict
@@ -210,6 +264,10 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             results["calibration"] = asdict(calibration_analysis)
         if power_result is not None:
             results["power"] = power_result
+        if replication is not None:
+            results["replication"] = replication
+        if prereg_outcome is not None:
+            results["preregistration"] = asdict(prereg_outcome)
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         with open(output, "w") as f:
             json.dump(results, f, indent=2, default=str)
@@ -231,7 +289,13 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             f"[green]{metrics_out}[/green]"
         )
 
-    if drift.significant and drift.delta < 0:
+    # When pre-registered, the gate binds to the declared primary endpoint —
+    # not whichever axis happened to look significant. Otherwise fall back to
+    # the default accuracy-regression gate.
+    if prereg_outcome is not None:
+        if prereg_outcome.adverse_confirmed and prereg_outcome.direction != "improvement":
+            sys.exit(1)
+    elif drift.significant and drift.delta < 0:
         sys.exit(1)
 
 
@@ -244,6 +308,9 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--context-rot", is_flag=True, default=False,
               help="Expand suite with distractor-context variants per case.")
 @click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--trials", default=1, type=int,
+              help="Replicates per case (default 1). >1 re-samples each case so "
+                   "the saved run carries per-trial scores for noise analysis.")
 @click.option("--judge-model", default=None,
               help="Judge model for llm_judge scoring. Overrides the suite's "
                    "`judge_model` field and $RIFT_JUDGE_MODEL.")
@@ -257,9 +324,11 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
               default="json", show_default=True,
               help="Format for --metrics-out.")
 def run(model, suite, concurrency, output, cache_dir, context_rot,
-        enterprise_multiplier, judge_model, strip_io,
+        enterprise_multiplier, trials, judge_model, strip_io,
         metrics_out, metrics_format):
     """Run a single model against an eval suite and save results."""
+    if trials < 1:
+        raise click.UsageError("--trials must be >= 1.")
     suite_config = _maybe_expand(load_suite(suite), context_rot)
     if judge_model:
         suite_config.judge_model = judge_model
@@ -274,10 +343,15 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
     result = asyncio.run(
         run_suite(suite_config, model_config, concurrency=concurrency,
                   cache_dir=cache_dir,
-                  enterprise_multiplier=enterprise_multiplier)
+                  enterprise_multiplier=enterprise_multiplier, trials=trials)
     )
 
     result.save(output, strip_io=strip_io)
+    if trials > 1:
+        vc = variance_components(
+            [c.trial_scores for c in result.cases if c.trial_scores]
+        )
+        print_replication_report(vc)
     console.print(f"\nMean score: [bold]{result.mean_score:.4f}[/bold]")
     console.print(f"Spend: [bold]${result.total_cost_usd:.4f}[/bold]  "
                   f"$/correct: [bold]${result.cost_per_correct():.4f}[/bold]")
@@ -330,6 +404,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
         )
 
     print_drift_report(drift, baseline, challenger)
+    print_fingerprint_report(baseline, challenger)
     if drift.subgroups:
         print_subgroup_table(drift.subgroups, title=f"By {subgroup}", alpha=alpha)
 
@@ -484,6 +559,67 @@ def calibration(baseline_path, challenger_path):
     challenger = RunResult.load(challenger_path)
     comp = compare_calibration(baseline, challenger)
     print_calibration_report(comp)
+
+
+@main.command()
+@click.option("--model", required=True, help="Model identifier")
+@click.option("--suite", required=True, help="Eval suite name or path")
+@click.option("--trials", default=5, type=int,
+              help="Replicates per case (default 5, min 2). More trials give a "
+                   "tighter estimate of the null false-positive rate.")
+@click.option("--reps", default=500, type=int,
+              help="Random self-vs-self splits used to estimate the rate.")
+@click.option("--alpha", default=0.05, type=float, help="Significance threshold.")
+@click.option("--concurrency", default=5, help="Max concurrent API calls")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+@click.option("--output", "-o", default=None, help="Save the run + result to JSON")
+def selftest(model, suite, trials, reps, alpha, concurrency, cache_dir, output):
+    """Calibrate the drift gate: how often does it fire on an UNCHANGED model?
+
+    Runs one model against a suite with replication, then repeatedly splits its
+    own trials into two arms and feeds them through the same statistical test
+    ``compare`` uses. Reports the empirical false-positive rate — most
+    importantly the false-*regression* rate, i.e. how often the CI gate would
+    block a deploy comparing a model to itself. A rate near the nominal alpha
+    means a red gate is trustworthy on this suite; well above it means you need
+    more cases or trials before gating on this suite.
+    """
+    if trials < 2:
+        raise click.UsageError("--trials must be >= 2 for self-test.")
+    suite_config = load_suite(suite)
+    model_config = resolve_model(model)
+    ensure_provider_keys([model_config.provider], console)
+
+    console.print(f"\n[bold]Rift[/bold] self-test (null calibration) on "
+                  f"[cyan]{model}[/cyan]")
+    console.print(
+        f"Suite: [yellow]{suite_config.name}[/yellow] "
+        f"({len(suite_config.cases)} cases × {trials} trials)\n"
+    )
+
+    result = asyncio.run(
+        run_suite(suite_config, model_config, concurrency=concurrency,
+                  cache_dir=cache_dir, trials=trials)
+    )
+    print_fingerprint_report(result, result)
+    trial_scores = [c.trial_scores for c in result.cases if len(c.trial_scores) >= 2]
+    if not trial_scores:
+        raise click.ClickException(
+            "No case produced >=2 successful trials; cannot calibrate. "
+            "Check for API errors above."
+        )
+    st = self_test(trial_scores, model_config.model, suite_config.name,
+                   alpha=alpha, reps=reps)
+    print_selftest_report(st)
+
+    if output:
+        import json
+        from dataclasses import asdict
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump({"selftest": asdict(st),
+                       "run": result.to_dict()}, f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
 
 
 @main.command()
@@ -766,6 +902,50 @@ def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer,
         "challenger": asdict(chal_fr),
     }
     return drift.significant and drift.delta < 0
+
+
+@main.command(name="validate-judge")
+@click.option("--judge-model", default=None,
+              help="Articulation judge to validate. Defaults to "
+                   "$RIFT_JUDGE_MODEL or the built-in default.")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+@click.option("--output", "-o", default=None, help="Save the result to JSON")
+def validate_judge_cmd(judge_model, cache_dir, output):
+    """Validate the faithfulness articulation judge against human gold labels.
+
+    Runs the chosen judge over a committed, hand-labelled gold set and reports
+    Cohen's kappa (chance-corrected agreement) plus accuracy and the confusion
+    matrix. Publish the kappa alongside any faithfulness number so the metric
+    rests on a validated classifier, not faith. Uses the judge's normal cache,
+    so a re-run is free.
+    """
+    from dataclasses import asdict
+
+    from .judge_validation import GOLD_ARTICULATION, validate_judge
+
+    judge = FaithfulnessJudge(judge_model=judge_model, cache_dir=cache_dir)
+    judge_cfg = resolve_model(judge.judge_model)
+    ensure_provider_keys([judge_cfg.provider], console)
+
+    console.print(
+        f"\n[bold]Rift[/bold] validating articulation judge "
+        f"[cyan]{judge.judge_model}[/cyan] against "
+        f"{len(GOLD_ARTICULATION)} gold cases\n"
+    )
+
+    async def _ack(question, cue, reasoning, answer, target):
+        return await judge.acknowledged(question, cue, reasoning, answer, target)
+
+    result = asyncio.run(validate_judge(_ack, judge.judge_model))
+    asyncio.run(judge.close())
+    print_judge_validation_report(result)
+
+    if output:
+        import json
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(asdict(result), f, indent=2, default=str)
+        console.print(f"\nResults saved to [green]{output}[/green]")
 
 
 @main.command()

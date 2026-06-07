@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -539,6 +540,249 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
         console.print(Panel("\n".join(ex_lines),
                             title="[dim]Post-hoc examples (answer unchanged when reasoning corrupted)[/dim]",
                             border_style="dim"))
+
+
+def print_preregistration_report(outcome, console: Console | None = None) -> None:
+    """Print the pre-registered primary-endpoint verdict.
+
+    ``outcome`` is a :class:`rift.preregistration.PreregOutcome`. This is the
+    headline when a comparison was pre-registered; every other number in the
+    report is exploratory by definition.
+    """
+    if console is None:
+        console = Console()
+    o = outcome
+    if o.adverse_confirmed:
+        border = "red"
+        if o.direction == "improvement":
+            verdict = "[bold green]PRE-REGISTERED IMPROVEMENT CONFIRMED[/bold green]"
+            border = "green"
+        else:
+            verdict = "[bold red]PRE-REGISTERED REGRESSION CONFIRMED[/bold red]"
+    else:
+        border = "blue"
+        verdict = "[bold blue]PRE-REGISTERED ENDPOINT: NOT CONFIRMED[/bold blue]"
+
+    lines = [
+        f"  Primary endpoint: [bold]{o.primary}[/bold]  "
+        f"(direction: {o.direction}, α={o.alpha})",
+    ]
+    if o.hypothesis:
+        lines.append(f"  Hypothesis: {o.hypothesis}")
+    lines += [
+        "",
+        f"  {verdict}",
+        "",
+        f"  {o.detail}",
+    ]
+    if not o.honored:
+        lines += ["", "  [bold yellow]⚠ Protocol violations (claim is "
+                  "dishonored):[/bold yellow]"]
+        lines += [f"    • {v}" for v in o.violations]
+    lines += [
+        "",
+        "  [dim]Everything outside this panel (subgroups, refusal, calibration,"
+        "\n  other axes) is EXPLORATORY — hypothesis-generating, not"
+        "\n  confirmatory. Only this endpoint was pre-registered.[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Pre-registered analysis[/bold]",
+                        border_style=border))
+
+
+def print_judge_validation_report(result, console: Console | None = None) -> None:
+    """Print an articulation-judge validation result (accuracy + Cohen's kappa).
+
+    ``result`` is a :class:`rift.judge_validation.JudgeValidationResult`.
+    """
+    if console is None:
+        console = Console()
+    r = result
+    if r.kappa >= 0.60:
+        border, verdict = "green", "[bold green]JUDGE RELIABLE[/bold green]"
+    elif r.kappa >= 0.40:
+        border, verdict = "yellow", "[bold yellow]JUDGE MARGINAL[/bold yellow]"
+    else:
+        border, verdict = "red", "[bold red]JUDGE UNRELIABLE[/bold red]"
+    lines = [
+        f"  judge:  {r.judge_model}",
+        f"  gold set: {r.n} hand-labelled articulation cases",
+        "",
+        f"  {verdict}",
+        "",
+        f"  Cohen's kappa:  {r.kappa:+.3f}   ({r.kappa_magnitude})",
+        f"  Accuracy:       {r.accuracy:.1%}",
+        "",
+        "  [dim]Confusion vs. gold (positive = acknowledged):[/dim]",
+        f"    true-pos {r.tp}   false-pos {r.fp}   "
+        f"true-neg {r.tn}   false-neg {r.fn}",
+        "",
+        "  [dim]Cite this as 'articulation judge validated at kappa="
+        f"{r.kappa:.2f}, n={r.n}' alongside any faithfulness number.[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Articulation-judge validation[/bold]",
+                        border_style=border))
+
+
+def print_selftest_report(result, console: Console | None = None) -> None:
+    """Print the null-calibration result from ``rift selftest``.
+
+    ``result`` is a :class:`rift.selftest.SelfTestResult`. The headline is the
+    false-regression rate — how often the gate would block a deploy comparing a
+    model to itself — judged against the nominal ``alpha``.
+    """
+    if console is None:
+        console = Console()
+    r = result
+    # A well-calibrated one-sided regression gate fires at ~alpha/2 under the
+    # null; allow generous slack before calling it miscalibrated.
+    expected_reg = r.alpha / 2.0
+    if r.false_regression_rate > max(2 * expected_reg, expected_reg + 0.03):
+        border = "red"
+        verdict = "[bold red]GATE MISCALIBRATED ON THIS SUITE[/bold red]"
+    elif r.false_positive_rate > r.alpha + 0.05:
+        border = "yellow"
+        verdict = "[bold yellow]Elevated two-sided false positives[/bold yellow]"
+    else:
+        border = "green"
+        verdict = "[bold green]GATE WELL-CALIBRATED[/bold green]"
+
+    lines = [
+        f"  model:  {r.model}",
+        f"  suite:  {r.suite_name}  ({r.n_cases} cases × {r.n_trials} trials)",
+        f"  reps:   {r.reps} random self-vs-self splits",
+        "",
+        f"  {verdict}",
+        "",
+        f"  False-regression rate:  {r.false_regression_rate:.1%}   "
+        f"(gate exit-1 vs an unchanged model; nominal ≈ {expected_reg:.1%})",
+        f"  Two-sided FP rate:      {r.false_positive_rate:.1%}   "
+        f"(nominal ≈ {r.alpha:.0%})",
+        "",
+        "  [dim]Noise band on the accuracy delta (self vs self):[/dim]",
+        f"  mean |Δ|:  {r.mean_abs_delta:.4f}    "
+        f"p95 |Δ|:  {r.p95_abs_delta:.4f}    max |Δ|:  {r.max_abs_delta:.4f}",
+        "",
+        "  [dim]Read: a real drift delta should clear the p95 band above. A"
+        "\n  false-regression rate near the nominal means a red gate is"
+        "\n  trustworthy on this suite; well above it means widen n or trials."
+        "[/dim]",
+    ]
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Self-test — null calibration[/bold]",
+                        border_style=border))
+
+
+def print_replication_report(vc: dict, drift: DriftResult | None = None,
+                             console: Console | None = None) -> None:
+    """Print the run-to-run noise decomposition from a replicated run.
+
+    ``vc`` is :func:`rift.comparator.variance_components`. When ``drift`` is
+    given, compare the drift delta against the noise floor so the reader can
+    see whether the headline change clears the band of simply re-running an
+    unchanged model.
+    """
+    if console is None:
+        console = Console()
+    if vc.get("n_cases", 0) == 0 or vc.get("mean_trials", 0) < 2:
+        return  # nothing to say without replication
+    lines = [
+        f"  Trials per case (mean):  {vc['mean_trials']:.1f}",
+        "  [dim]With trials>1, per-case scores are trial means → the paired "
+        "test\n  is the t-test (not McNemar) and $/correct counts only "
+        "all-trials-correct cases.[/dim]",
+        f"  Run-to-run noise (SD):   {vc['mean_within_sd']:.4f}   "
+        "(same model, same prompt, re-asked)",
+        f"  Stable case spread (SD): {vc['between_case_var'] ** 0.5:.4f}",
+        f"  ICC (signal fraction):   {vc['icc']:.3f}   "
+        "(1 = reproducible, 0 = all noise)",
+        f"  Noise floor on mean:     ±{vc['noise_floor']:.4f}",
+    ]
+    border = "blue"
+    if drift is not None and vc["noise_floor"] > 0:
+        ratio = abs(drift.delta) / vc["noise_floor"]
+        lines += [
+            "",
+            f"  Drift delta:             {drift.delta:+.4f}",
+            f"  Delta / noise floor:     {ratio:.1f}×",
+        ]
+        if ratio < 2.0:
+            border = "yellow"
+            lines.append(
+                "  [yellow]Delta is within ~2× the run-to-run noise band — "
+                "it may not\n  survive a re-run of the same models.[/yellow]"
+            )
+    if vc["icc"] < 0.5:
+        border = "yellow"
+        lines.append(
+            "  [yellow]Low ICC: most variance is resampling noise, not stable\n"
+            "  case differences. Add trials or cases before trusting a verdict."
+            "[/yellow]"
+        )
+    console.print(Panel("\n".join(lines),
+                        title="[bold]Replication / run-to-run noise[/bold]",
+                        border_style=border))
+
+
+def print_fingerprint_report(baseline: RunResult, challenger: RunResult,
+                             console: Console | None = None) -> bool:
+    """Surface the server-reported model fingerprints behind a comparison.
+
+    Returns ``True`` when an integrity concern was flagged. Two checks:
+
+    * **Alias collision.** Both sides resolved to the *same* single
+      fingerprint despite different requested models — you may be comparing a
+      model to itself (alias overlap, or a not-yet-distinct rollout), so any
+      "no drift" verdict is trivially true and any "drift" is noise.
+    * **Mid-run rollout.** Either side saw more than one fingerprint, meaning
+      the served snapshot changed during that run.
+
+    Silent (returns ``False``, prints nothing) when both sides report exactly
+    one distinct fingerprint and they differ — the clean, comparable case —
+    or when the provider exposes no fingerprint at all.
+    """
+    if console is None:
+        console = Console()
+    b_fps = sorted({c.provider_fingerprint for c in baseline.cases
+                    if c.provider_fingerprint})
+    c_fps = sorted({c.provider_fingerprint for c in challenger.cases
+                    if c.provider_fingerprint})
+    if not b_fps and not c_fps:
+        return False  # provider exposes nothing; nothing to assert
+
+    rollout = len(b_fps) > 1 or len(c_fps) > 1
+    collision = (
+        b_fps and c_fps and b_fps == c_fps and len(b_fps) == 1
+        and baseline.model != challenger.model
+    )
+    # Fingerprints come from the provider's API response — escape any Rich
+    # markup so a crafted value can't distort or break the panel rendering.
+    b_show = ", ".join(escape(fp) for fp in b_fps) or "—"
+    c_show = ", ".join(escape(fp) for fp in c_fps) or "—"
+    lines = [
+        f"  baseline   ({escape(baseline.model)}): {b_show}",
+        f"  challenger ({escape(challenger.model)}): {c_show}",
+    ]
+    if collision:
+        lines += [
+            "",
+            "  [bold]Both models resolved to the SAME served fingerprint.[/bold]",
+            "  Different aliases, identical backend — this comparison cannot",
+            "  show real drift. Check your model identifiers.",
+        ]
+    if rollout:
+        lines += [
+            "",
+            "  [bold]A model returned multiple fingerprints[/bold] — the served",
+            "  snapshot rolled over mid-run. Re-run once it settles.",
+        ]
+    if not collision and not rollout:
+        return False
+    console.print(Panel("\n".join(lines),
+                        title="[bold yellow]⚠ Model fingerprint integrity[/bold yellow]",
+                        border_style="yellow"))
+    return True
 
 
 def print_power_report(power: dict, alpha: float = 0.05) -> None:
