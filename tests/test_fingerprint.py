@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from rift.config import EvalCase, ModelConfig, SuiteConfig
 from rift.providers import Completion
 from rift.reporter import print_fingerprint_report
