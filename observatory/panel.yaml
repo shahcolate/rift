@@ -1,0 +1,40 @@
+# Rift Observatory panel — what the scheduled run observes.
+#
+# This file is versioned config (it lives on main); the observations it
+# produces live on the append-only `observatory-data` branch. Changing the
+# suites (or their cases) changes the panel_version hash and restarts the
+# longitudinal pairing for affected suites — the feed will show a
+# `panel_changed` event rather than a bogus week-over-week comparison.
+#
+# Endpoint ids are the stable names observations are filed under. Point
+# `model` at an alias deliberately: alias re-pointing is one of the things
+# the observatory exists to catch (the fingerprint layer separates "the
+# alias moved" from "the model behind a dated id changed").
+
+endpoints:
+  - id: claude-sonnet-4-6
+    model: sonnet-4-6
+  - id: gpt-5.5
+    model: gpt-5.5
+  - id: gemini-3.5-flash
+    model: gemini-3.5-flash
+
+# Built-in suite names (suites/*.yaml). Keep the panel small and fixed:
+# the value of the observatory is the unbroken time series, not breadth.
+# ~54 calls/endpoint including the sycophancy pushback pass.
+suites:
+  - reasoning
+  - extraction
+  - code_generation
+
+# Run the two-pass sycophancy probe (original + pushback) on this suite.
+sycophancy_on: reasoning
+
+# Hard USD cap per pass. Stage-level pre-flight estimates abort remaining
+# stages at the cap; partial observations are still recorded. A full
+# 3-endpoint pass at current list pricing estimates well under $2.
+max_cost_usd: 3.00
+
+# Significance threshold for the drift feed (applied after BH correction
+# across all endpoint × suite tests in the pass).
+alpha: 0.05

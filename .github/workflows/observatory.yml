@@ -1,0 +1,216 @@
+# Rift Observatory — scheduled behavioral monitoring of live endpoints.
+#
+# Weekly: run the panel (observatory/panel.yaml) against the live endpoints,
+# append the observations to the orphan `observatory-data` branch, and deploy
+# the rendered static dashboard to GitHub Pages.
+# Monthly: refresh each endpoint's null-calibration (`rift selftest`) so the
+# dashboard can cite the gate's empirical false-regression rate.
+#
+# One-time setup (maintainer):
+#   1. Create the data branch:  git switch --orphan observatory-data
+#      && git commit --allow-empty -m "observatory: init" && git push -u origin observatory-data
+#   2. Add repo secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY.
+#   3. Settings → Pages → Source: GitHub Actions.
+#
+# Failure semantics: `rift observe` handles endpoint outages and budget
+# aborts internally (exit 0, partial observations recorded). A non-zero exit
+# is infrastructure failure — the job fails, nothing is committed, and Pages
+# keeps serving the last good build.
+
+name: Observatory
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly panel — Monday 06:00 UTC
+    - cron: "0 7 1 * *"   # monthly selftest refresh — 1st, 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      max_cost:
+        description: "Override the panel's USD cost cap"
+        required: false
+        default: ""
+      selftest:
+        description: "Run the selftest refresh instead of the panel"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: observatory
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  observe:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 6 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Checkout observatory-data branch
+        uses: actions/checkout@v4
+        with:
+          ref: observatory-data
+          path: observatory-data
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Rift
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Restore completion cache
+        uses: actions/cache@v4
+        with:
+          path: .rift/cache
+          key: observatory-cache-${{ github.run_id }}
+          restore-keys: |
+            observatory-cache-
+
+      # Secrets and inputs reach the shell via env:, never interpolated as
+      # ${{ }} into a run: body (script-injection hygiene; same pattern as
+      # .github/actions/rift-drift-check).
+      - name: Run observatory panel
+        if: ${{ !inputs.selftest }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MAX_COST: ${{ inputs.max_cost }}
+        run: |
+          args=(observe --panel observatory/panel.yaml --data-dir observatory-data)
+          if [ -n "$MAX_COST" ]; then
+            args+=(--max-cost "$MAX_COST")
+          fi
+          rift "${args[@]}" | tee observe.log
+          {
+            echo '## Observatory pass'
+            echo '```'
+            cat observe.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run selftest refresh
+        if: ${{ inputs.selftest }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bash .github/scripts/observatory_selftest.sh
+
+      - name: Commit observations
+        run: |
+          cd observatory-data
+          if git status --porcelain | grep -q .; then
+            git config user.name "rift-observatory[bot]"
+            git config user.email "observatory@users.noreply.github.com"
+            git add -A
+            git commit -m "observatory: $(date -u +%F) observations"
+            # Pull-rebase retry: another writer may have appended meanwhile.
+            for i in 1 2 3; do
+              git push origin HEAD:observatory-data && break
+              git pull --rebase origin observatory-data
+              sleep $((i * 2))
+            done
+          else
+            echo "No new observations to commit."
+          fi
+
+  selftest:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 7 1 * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Checkout observatory-data branch
+        uses: actions/checkout@v4
+        with:
+          ref: observatory-data
+          path: observatory-data
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Rift
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Run selftest refresh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bash .github/scripts/observatory_selftest.sh
+
+      - name: Commit selftest results
+        run: |
+          cd observatory-data
+          if git status --porcelain | grep -q .; then
+            git config user.name "rift-observatory[bot]"
+            git config user.email "observatory@users.noreply.github.com"
+            git add -A
+            git commit -m "observatory: $(date -u +%F) selftest refresh"
+            for i in 1 2 3; do
+              git push origin HEAD:observatory-data && break
+              git pull --rebase origin observatory-data
+              sleep $((i * 2))
+            done
+          else
+            echo "No selftest changes to commit."
+          fi
+
+  pages:
+    needs: observe
+    if: ${{ !cancelled() && needs.observe.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Checkout observatory-data branch
+        uses: actions/checkout@v4
+        with:
+          ref: observatory-data
+          path: observatory-data
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Rift
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+
+      - name: Render site
+        run: rift observatory-site --data-dir observatory-data --out _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

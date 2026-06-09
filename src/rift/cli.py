@@ -40,6 +40,7 @@ from .reporter import (
     print_fingerprint_report,
     print_judge_validation_report,
     print_matrix,
+    print_observation_report,
     print_preregistration_report,
     print_replication_report,
     print_selftest_report,
@@ -1129,6 +1130,131 @@ def demo(scenario, auto, beat_multiplier, export_html, export_md,
     if export_svg:
         export_demo_svg(script, export_svg)
         console.print(f"  SVG capture: [green]{export_svg}[/green]")
+
+
+@main.command()
+@click.option("--panel", "panel_path", default="observatory/panel.yaml",
+              show_default=True,
+              help="Panel YAML defining endpoints, suites, and the cost cap.")
+@click.option("--data-dir", required=True,
+              help="Observatory data directory (append-only; typically a "
+                   "checkout of the observatory-data branch).")
+@click.option("--date", default=None,
+              help="Observation date YYYY-MM-DD (default: today UTC; replay "
+                   "mode defaults to each run's completed_at date).")
+@click.option("--max-cost", default=None, type=float,
+              help="Hard USD cap for this pass. Overrides the panel's "
+                   "max_cost_usd. Remaining stages are skipped at the cap; "
+                   "partial observations are still recorded.")
+@click.option("--endpoint", "endpoints", multiple=True,
+              help="Observe only these endpoint ids (repeatable). "
+                   "Default: every endpoint in the panel.")
+@click.option("--from-runs", "from_runs", multiple=True,
+              type=click.Path(exists=True),
+              help="Replay mode: build observations from saved RunResult "
+                   "JSONs instead of live calls (repeatable, keyless). A run "
+                   "whose suite ends in '__pushback' pairs as the sycophancy "
+                   "follow-up of the same model's base run.")
+@click.option("--alpha", default=None, type=float,
+              help="Significance threshold for drift events (default: the "
+                   "panel's alpha, or 0.05 in replay mode).")
+@click.option("--concurrency", default=5, help="Max concurrent API calls")
+@click.option("--cache-dir", default=None, help="Cache directory for completions")
+def observe(panel_path, data_dir, date, max_cost, endpoints, from_runs,
+            alpha, concurrency, cache_dir):
+    """Record one observatory observation and update the drift feed.
+
+    Runs the observatory panel (a fixed set of suites + behavioral probes)
+    against every configured endpoint, appends the results to the
+    append-only data directory, and compares each new observation against
+    the previous one with the same paired statistics ``compare`` uses —
+    pooled through Benjamini–Hochberg across the whole panel. Server
+    fingerprint changes are tracked independently of scores, so a silent
+    model swap behind a stable alias shows up even when accuracy holds.
+
+    Always exits 0 when the pass completes (drift is a finding, not a
+    failure); a non-zero exit means infrastructure failure.
+    """
+    from .observatory import (
+        append_events,
+        append_records,
+        detect_drift,
+        load_panel,
+        replay_panel,
+        run_panel,
+    )
+
+    epoch_baselines: dict[str, str] = {}
+    budget = None
+    if from_runs:
+        records = replay_panel(list(from_runs), date=date)
+        alpha = 0.05 if alpha is None else alpha
+    else:
+        panel = load_panel(panel_path)
+        alpha = panel.alpha if alpha is None else alpha
+        epoch_baselines = {
+            ep.id: ep.epoch_baseline for ep in panel.endpoints
+            if ep.epoch_baseline
+        }
+        selected = [ep for ep in panel.endpoints
+                    if not endpoints or ep.id in endpoints]
+        if not selected:
+            raise click.UsageError(
+                f"--endpoint matched nothing; panel defines "
+                f"{[ep.id for ep in panel.endpoints]}."
+            )
+        ensure_provider_keys(
+            [resolve_model(ep.model).provider for ep in selected], console
+        )
+        console.print(
+            f"\n[bold]Rift[/bold] observatory pass: "
+            f"{len(selected)} endpoint(s) × {len(panel.suites)} suite(s)"
+        )
+        records, budget = asyncio.run(run_panel(
+            panel, data_dir, date=date, cache_dir=cache_dir,
+            concurrency=concurrency, max_cost_usd=max_cost,
+            endpoints=[ep.id for ep in selected],
+        ))
+
+    if not records:
+        console.print("[yellow]No observations were produced "
+                      "(budget cap hit before the first stage, or no input "
+                      "runs).[/yellow]")
+        return
+
+    entries = append_records(records, data_dir)
+    events = []
+    for obs_date in sorted({r.date for r in records}):
+        date_events = detect_drift(data_dir, obs_date, alpha=alpha,
+                                   epoch_baselines=epoch_baselines)
+        append_events(date_events, data_dir)
+        events.extend(date_events)
+    print_observation_report(entries, events, budget=budget)
+    console.print(f"\nObservations appended to [green]{data_dir}[/green]")
+
+
+@main.command(name="observatory-site")
+@click.option("--data-dir", required=True,
+              help="Observatory data directory to render.")
+@click.option("--out", "out_dir", default="_site", show_default=True,
+              help="Output directory for the static site.")
+def observatory_site_cmd(data_dir, out_dir):
+    """Render the observatory data directory into a static dashboard.
+
+    Produces a self-contained site (no JavaScript, no external assets):
+    a front page with the drift feed and per-endpoint summaries, one
+    timeline page per endpoint with fingerprint-change markers, and the
+    raw JSONL data for machine consumption. Deploy anywhere static —
+    GitHub Pages, an artifact viewer, or file://.
+    """
+    from .observatory_site import render_site
+
+    written = render_site(data_dir, out_dir)
+    console.print(
+        f"Observatory site rendered: [bold]{len(written)}[/bold] files "
+        f"under [green]{out_dir}[/green]"
+    )
+    console.print(f"Open [cyan]{Path(out_dir) / 'index.html'}[/cyan]")
 
 
 if __name__ == "__main__":
