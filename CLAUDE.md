@@ -15,6 +15,8 @@ rift/
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
 │   ├── observability.py     # Flat metrics export (JSON / Prometheus) for dashboards
+│   ├── observatory.py       # Longitudinal monitoring: records, budget guard, drift feed
+│   ├── observatory_site.py  # Static observatory dashboard (hand-rolled SVG, zero JS)
 │   ├── selftest.py          # Null calibration: gate false-positive rate (self-vs-self)
 │   ├── judge_validation.py  # Articulation-judge gold set + Cohen's kappa
 │   ├── preregistration.py   # Pre-registered primary endpoint (anti forking-paths)
@@ -47,12 +49,18 @@ rift/
 │   ├── context_rot_outcomes.yaml       # Recorded outcomes (committed for repro)
 │   ├── context_rot_opus47.md           # Raw Rift drift report
 │   └── context_rot_opus47_analysis.md  # Methodology + findings writeup
+├── observatory/
+│   └── panel.yaml                 # Observatory panel: endpoints, suites, cost cap
 ├── tests/
 ├── .github/
 │   ├── actions/rift-drift-check/  # Reusable composite action (drift gate in CI)
-│   └── workflows/publish.yml      # Build + PyPI publish on GitHub Release (OIDC)
+│   ├── scripts/observatory_selftest.sh  # Monthly per-endpoint selftest refresh
+│   └── workflows/
+│       ├── publish.yml            # Build + PyPI publish on GitHub Release (OIDC)
+│       └── observatory.yml        # Weekly panel → data branch commit → Pages deploy
 ├── pyproject.toml
 ├── README.md
+├── STRATEGY.md                    # Product strategy: positioning, pivot, roadmap
 └── CLAUDE.md
 ```
 
@@ -105,6 +113,32 @@ rift/
   judged on the *parsed* `Answer:` line (`_score_answer`), not the raw
   step-by-step output. See `faithfulness.py`.
 
+- **Observatory** (`rift observe` / `rift observatory-site`): scheduled
+  longitudinal monitoring of live endpoints. Each pass runs a fixed panel
+  (suites + sycophancy probe; calibration/refusal derived offline from the
+  same outputs), appends strip-io records + a compact `index.jsonl` line per
+  (date, endpoint, suite) to an append-only data dir (the orphan
+  `observatory-data` branch in CI), then pairs each observation against the
+  previous one via `compare_runs` with BH pooling across the whole pass.
+  Event kinds in `events.jsonl`: `score_drift` (BH-significant),
+  `silent_swap` (fingerprint changed, scores held), `fingerprint_change`,
+  `rollout`, `panel_changed` (suite hash mismatch — pairing restarts, no
+  bogus comparison), `notice` (probe shifts ≥10pp, never gated). Paired
+  tests exclude cases errored on either side (outage ≠ drift) and skip
+  majority-errored (`aborted`) records. `panel_version` = sha256 over
+  `(input, expected)` pairs; budget guard = stage-level pre-flight estimates
+  vs `max_cost_usd` (prior observation's tokens when available, else
+  chars/4 + 300/case). Anything needing raw output text (confidence parse,
+  refusal flags, sycophancy flip vectors) is computed pre-strip into the
+  record's `derived` block. Replay mode (`--from-runs run.json ...`) builds
+  records from saved RunResults, keyless — a run whose suite ends in
+  `__pushback` pairs as the sycophancy follow-up. The site renderer
+  (`observatory_site.py`) follows demo.py's hand-rolled-SVG idiom: zero JS,
+  fingerprint-change markers as dashed verticals, selftest false-regression
+  rate cited in the footer. See `observatory/panel.yaml` and
+  `.github/workflows/observatory.yml` (weekly cron + monthly selftest
+  refresh + Pages deploy).
+
 ## CLI Interface
 
 ```bash
@@ -119,6 +153,10 @@ rift diff results/run_a.json results/run_b.json
 
 # Generate a markdown report
 rift report results/comparison.json --format markdown --output drift_report.md
+
+# Observatory: one panel pass + render the dashboard
+rift observe --panel observatory/panel.yaml --data-dir observatory-data
+rift observatory-site --data-dir observatory-data --out _site
 ```
 
 ## Config Format (suite YAML)
@@ -196,8 +234,8 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   This keyless guarantee covers `rift demo` and code that calls
   `run_suite` directly (benchmarks, demo replay), which do not
   preflight. The live CLI commands (`compare`/`run`/`matrix`/
-  `sycophancy`/`discover`/`faithfulness`/`selftest`/`validate-judge`)
-  DO preflight keys via `ensure_provider_keys`
+  `sycophancy`/`discover`/`faithfulness`/`selftest`/`validate-judge`/
+  `observe` in live mode) DO preflight keys via `ensure_provider_keys`
   for a clean fail-fast prompt, so they require a key even when a run
   would have been fully cached. A missing key raised lazily anywhere
   (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
@@ -262,7 +300,7 @@ Provider keys are also auto-loaded from `~/.rift/.env` then `./.env`
 (real env vars always win — `os.environ.setdefault`). `rift setup`
 writes `~/.rift/.env` (mode 0600); see `keys.py`. Live commands
 (`compare`/`run`/`matrix`/`sycophancy`/`discover`/`faithfulness`/
-`selftest`/`validate-judge`)
+`selftest`/`validate-judge`/`observe` in live mode)
 preflight the
 needed keys via `ensure_provider_keys` — interactive TTY prompts for a
 missing key, non-interactive raises `MissingAPIKeyError` (a
