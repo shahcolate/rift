@@ -16,12 +16,17 @@ can never produce broken markup.
 from __future__ import annotations
 
 import html
-import math
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .observatory import load_events, load_index, load_selftest
+from .observatory import (
+    endpoint_slug,
+    finite_or_none as _finite,
+    load_events,
+    load_index,
+    load_selftest,
+)
 
 # Shared palette with rift.demo's HTML memo — one visual identity.
 _SERIES_COLORS = ("#6c5ce7", "#00b894", "#d63031", "#e17055",
@@ -99,17 +104,6 @@ footer { margin-top: 28px; color: var(--mute); font-size: 12px; text-align: cent
 footer a { color: var(--mute); }
 .empty { color: var(--mute); font-style: italic; }
 """
-
-
-def _finite(v) -> float | None:
-    """Coerce to a finite float or None — the chart's only accepted inputs."""
-    if v is None:
-        return None
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return None
-    return f if math.isfinite(f) else None
 
 
 def _svg_line_chart(
@@ -295,7 +289,7 @@ def _metric_by_date(index: list[dict], endpoint: str, suite: str,
     return [_finite(by_date.get(d, {}).get(key)) for d in dates]
 
 
-def _feed_html(events: list[dict], index_by_key: bool = False) -> str:
+def _feed_html(events: list[dict]) -> str:
     if not events:
         return '<p class="empty">No drift events recorded yet.</p>'
     items: list[str] = []
@@ -310,11 +304,6 @@ def _feed_html(events: list[dict], index_by_key: bool = False) -> str:
     return f'<ul class="feed">{"".join(items)}</ul>'
 
 
-def _slug(endpoint: str) -> str:
-    from .observatory import endpoint_slug
-    return endpoint_slug(endpoint)
-
-
 def _index_page(index: list[dict], events: list[dict],
                 selftests: dict[str, dict]) -> str:
     endpoints = sorted({e["endpoint"] for e in index})
@@ -325,10 +314,14 @@ def _index_page(index: list[dict], events: list[dict],
     for ep in endpoints:
         ep_dates = _endpoint_dates(index, ep)
         latest = ep_dates[-1]
-        latest_entries = [e for e in index
-                          if e["endpoint"] == ep and e["date"] == latest]
-        mean_vals = [_finite(e.get("mean_score")) for e in latest_entries]
-        mean_vals = [v for v in mean_vals if v is not None]
+        # Headline mean uses the same aborted-exclusion as the sparkline:
+        # a majority-errored outage pass must not headline as a collapse.
+        mean_vals = [
+            v for e in index
+            if e["endpoint"] == ep and e["date"] == latest
+            and not e.get("aborted")
+            if (v := _finite(e.get("mean_score"))) is not None
+        ]
         latest_mean = sum(mean_vals) / len(mean_vals) if mean_vals else None
         # Sparkline: cross-suite mean accuracy per date.
         spark_vals: list[float | None] = []
@@ -345,7 +338,7 @@ def _index_page(index: list[dict], events: list[dict],
         )
         fps = _fingerprint_union(index, ep, latest)
         cards.append(
-            f'<div class="card"><a href="model/{html.escape(_slug(ep))}.html">'
+            f'<div class="card"><a href="model/{html.escape(endpoint_slug(ep))}.html">'
             f'{html.escape(ep)}</a>'
             f'<div class="meta">latest {html.escape(latest)} · mean '
             f'{f"{latest_mean:.3f}" if latest_mean is not None else "n/a"}'
@@ -522,7 +515,7 @@ def render_site(data_dir: str | Path, out_dir: str | Path) -> list[Path]:
     model_dir = out_dir / "model"
     model_dir.mkdir(exist_ok=True)
     for ep in endpoints:
-        page = model_dir / f"{_slug(ep)}.html"
+        page = model_dir / f"{endpoint_slug(ep)}.html"
         page.write_text(
             _model_page(index, events, ep, selftests.get(ep)),
             encoding="utf-8",

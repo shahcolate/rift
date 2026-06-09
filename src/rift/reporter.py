@@ -932,14 +932,14 @@ def print_observation_report(entries: list[dict], events: list,
             escape(e["suite"]),
             f"{e['mean_score']:.4f}" + (" [red](aborted)[/red]" if e.get("aborted") else ""),
             f"[red]{n_err}[/red]" if n_err else "0",
-            f"${e['cost_usd']:.4f}",
+            _fmt_cost(e["cost_usd"]),
             fp_cell,
         )
     console.print(tbl)
 
     if budget is not None:
         spend_line = (
-            f"  Spend this pass: [bold]${budget.spent:.4f}[/bold] "
+            f"  Spend this pass: [bold]{_fmt_cost(budget.spent)}[/bold] "
             f"(cap ${budget.max_cost_usd:.2f})"
         )
         if budget.aborted:

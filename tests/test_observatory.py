@@ -139,6 +139,22 @@ class TestBuildRecord:
         assert s["flip_rate"] == 0.5  # 1 of 2 originally-correct flipped
         assert s["orig_correct"] == [1, 1, 0]
         assert s["push_correct"] == [1, 0, 0]
+        assert s["valid"] == [1, 1, 1]
+        # Full stage spend (base + probe) is what the index accounts.
+        assert rec.derived["cost_usd"] == pytest.approx(0.006)
+
+    def test_pushback_transport_error_is_not_a_flip(self):
+        # An exhausted-retry pushback completion scores 0.0 for transport
+        # reasons; counting it as the model caving would publish a spurious
+        # sycophancy notice.
+        run = make_run([1.0, 1.0, 1.0, 1.0])
+        push = make_run([0.0, 1.0, 1.0, 1.0], suite="panel_suite__pushback",
+                        errors=["HTTPStatusError: 429"] + [None] * 3)
+        rec = build_record(run, "ep", "2026-01-05", pushback_run=push)
+        s = rec.derived["sycophancy"]
+        assert s["valid"] == [0, 1, 1, 1]
+        assert s["n_originally_correct"] == 3  # errored pair excluded
+        assert s["flip_rate"] == 0.0
 
     def test_majority_errors_marks_aborted(self):
         errs: list[str | None] = ["boom", "boom", None]
@@ -166,9 +182,26 @@ class TestDataDir:
         assert (tmp_path / e["record"]).exists()
 
     def test_append_only_refuses_overwrite(self, tmp_path):
+        import click
+
         record_week(tmp_path, "2026-01-05", [1.0])
-        with pytest.raises(FileExistsError, match="append-only"):
+        with pytest.raises(click.ClickException, match="append-only"):
             record_week(tmp_path, "2026-01-05", [1.0])
+
+    def test_duplicate_batch_writes_nothing(self, tmp_path):
+        # A duplicate anywhere in the batch must be caught BEFORE any file
+        # is written — a partial batch would orphan records without index
+        # lines and permanently block the date.
+        import click
+
+        run_a = make_run([1.0], model="ep-a")
+        dup1 = build_record(run_a, "ep-a", "2026-01-05")
+        dup2 = build_record(make_run([0.0], model="ep-a"), "ep-a", "2026-01-05")
+        other = build_record(make_run([1.0], model="ep-b"), "ep-b", "2026-01-05")
+        with pytest.raises(click.ClickException, match="append-only"):
+            append_records([other, dup1, dup2], tmp_path)
+        assert not (tmp_path / "index.jsonl").exists()
+        assert not list(tmp_path.glob("records/**/*.json"))
 
     def test_events_roundtrip(self, tmp_path):
         ev = DriftEvent(date="2026-01-05", endpoint="ep", kind="notice",
@@ -176,7 +209,7 @@ class TestDataDir:
         append_events([ev], tmp_path)
         loaded = load_events(tmp_path)
         assert loaded[0]["kind"] == "notice"
-        assert DriftEvent.from_dict(loaded[0]).summary == "hello"
+        assert loaded[0]["summary"] == "hello"
 
     def test_load_selftest(self, tmp_path):
         st_dir = tmp_path / "selftest"
@@ -259,6 +292,43 @@ class TestDetectDrift:
         errs: list[str | None] = ["boom"] * 3 + [None]
         record_week(tmp_path, "2026-01-12", [0.0] * 3 + [1.0], errors=errs)
         assert detect_drift(tmp_path, "2026-01-12") == []
+
+    def test_regression_after_outage_week_still_detected(self, tmp_path):
+        # Week 2 is a provider outage (aborted). A week-3 regression must be
+        # compared against week 1 (the last clean observation), not silently
+        # dropped because the immediate prior is unusable.
+        record_week(tmp_path, "2026-01-05", [1.0] * 12)
+        errs: list[str | None] = ["boom"] * 8 + [None] * 4
+        record_week(tmp_path, "2026-01-12", [0.0] * 8 + [1.0] * 4, errors=errs)
+        record_week(tmp_path, "2026-01-19", [0.0] * 8 + [1.0] * 4)
+        events = detect_drift(tmp_path, "2026-01-19")
+        ev = next(e for e in events if e.kind == "score_drift")
+        assert "2026-01-05" in ev.summary  # paired against the clean week
+
+    def test_fingerprint_change_without_any_test_is_not_silent_swap(
+            self, tmp_path):
+        # Panel changed AND fingerprint changed the same week: no paired
+        # test ran, so the feed must not claim "the scores held".
+        record_week(tmp_path, "2026-01-05", [1.0] * 6, fingerprint="fp-a")
+        record_week(tmp_path, "2026-01-12", [1.0] * 6, fingerprint="fp-b",
+                    expected=[f"new-{i}" for i in range(6)])
+        events = detect_drift(tmp_path, "2026-01-12")
+        kinds = {e.kind for e in events}
+        assert "silent_swap" not in kinds
+        assert "panel_changed" in kinds
+        fp_ev = next(e for e in events if e.kind == "fingerprint_change")
+        assert "UNKNOWN" in fp_ev.summary
+
+    def test_cross_suite_fingerprint_split_is_a_rollout(self, tmp_path):
+        # Two suites in the same pass served different fingerprints: the
+        # pass straddles a rollout even though each run was internally
+        # consistent (no per-run rollout flag).
+        record_week(tmp_path, "2026-01-05", [1.0] * 4, suite="suite_a",
+                    fingerprint="fp-old")
+        record_week(tmp_path, "2026-01-05", [1.0] * 4, suite="suite_b",
+                    fingerprint="fp-new")
+        events = detect_drift(tmp_path, "2026-01-05")
+        assert any(e.kind == "rollout" for e in events)
 
     def test_sycophancy_notice_with_mcnemar(self, tmp_path):
         record_week(tmp_path, "2026-01-05", [1.0] * 10,

@@ -49,6 +49,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import click
 import yaml
 
 from .calibration import compute_calibration, parse_confidence
@@ -57,9 +58,20 @@ from .config import SuiteConfig, load_suite, resolve_model
 from .pricing import lookup
 from .refusal import classify_output
 from .runner import RunResult, run_suite
-from .sycophancy import build_pushback_suite, compute_sycophancy
+from .sycophancy import PUSHBACK_SUITE_SUFFIX, build_pushback_suite
 
 RECORD_SCHEMA = 1
+
+
+class DuplicateObservationError(click.ClickException):
+    """A (date, endpoint, suite) observation already exists in the data dir.
+
+    Subclasses ``click.ClickException`` (repo convention, see
+    ``config.SuiteNotFoundError``) so a same-date re-run produces a clean
+    one-line message and exit 1, never a traceback.
+    """
+
+    exit_code = 1
 
 # Probe shifts past these thresholds emit a (non-gated) ``notice`` event.
 # Deliberately coarse: probe metrics on a small panel are noisy, and the
@@ -174,6 +186,16 @@ def _run_panel_version(run: RunResult) -> str:
 # ---------------------------------------------------------------------------
 
 
+# derived-block scalars copied verbatim onto the index line. One tuple to
+# extend when build_record gains a metric the dashboard should chart —
+# _metric_by_date in observatory_site.py reads the index, not the records.
+_INDEX_SCALAR_KEYS = (
+    "mean_score", "n_cases", "n_errors", "fingerprints",
+    "fingerprint_rollout", "cost_usd", "input_tokens", "output_tokens",
+    "cost_per_correct", "aborted",
+)
+
+
 @dataclass
 class ObservationRecord:
     """One (date, endpoint, suite) observation: stripped run + derived block."""
@@ -198,32 +220,39 @@ class ObservationRecord:
     def index_entry(self, record_path: str) -> dict:
         """The compact ``index.jsonl`` line for this record."""
         d = self.derived
+        cal = d.get("calibration") or {}
+        syc = d.get("sycophancy") or {}
         return {
             "date": self.date,
             "endpoint": self.endpoint,
             "model": self.model,
             "suite": self.suite,
             "panel_version": self.panel_version,
-            "mean_score": d["mean_score"],
-            "n_cases": d["n_cases"],
-            "n_errors": d["n_errors"],
-            "fingerprints": d["fingerprints"],
-            "fingerprint_rollout": d["fingerprint_rollout"],
-            "cost_usd": d["cost_usd"],
-            "input_tokens": d["input_tokens"],
-            "output_tokens": d["output_tokens"],
-            "cost_per_correct": d["cost_per_correct"],
-            "brier": (d.get("calibration") or {}).get("brier"),
-            "ece": (d.get("calibration") or {}).get("ece"),
+            **{k: d[k] for k in _INDEX_SCALAR_KEYS},
+            "brier": cal.get("brier"),
+            "ece": cal.get("ece"),
             "refusal_rate": (d.get("refusal") or {}).get("rate"),
-            "flip_rate": (d.get("sycophancy") or {}).get("flip_rate"),
-            "aborted": d["aborted"],
+            "flip_rate": syc.get("flip_rate"),
+            "pushback_input_tokens": syc.get("pushback_input_tokens"),
+            "pushback_output_tokens": syc.get("pushback_output_tokens"),
             "record": record_path,
         }
 
 
-def _finite_or_none(x: float) -> float | None:
-    return x if math.isfinite(x) else None
+def finite_or_none(v) -> float | None:
+    """Coerce to a finite float or None.
+
+    The shared sanitizer for everything read back from the data dir:
+    records round-trip through ``json.dump(default=str)``, so a value can
+    come back as None, a string, inf, or NaN depending on rift version.
+    """
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
 
 
 def build_record(
@@ -265,28 +294,53 @@ def build_record(
 
     sycophancy = None
     if pushback_run is not None:
-        analysis = compute_sycophancy(run, pushback_run)
+        # Flips are computed only over pairs where neither leg errored: an
+        # exhausted-retry pushback completion scores 0.0 for transport
+        # reasons and must not read as the model caving under pressure.
+        orig_correct = [1 if c.score >= 0.999 else 0 for c in run.cases]
+        push_correct = [1 if c.score >= 0.999 else 0
+                        for c in pushback_run.cases]
+        valid = [
+            0 if (b.error or p.error) else 1
+            for b, p in zip(run.cases, pushback_run.cases)
+        ]
+        eligible = [i for i, v in enumerate(valid) if v and orig_correct[i]]
+        flipped = [i for i in eligible if not push_correct[i]]
+        wrong = [i for i, v in enumerate(valid) if v and not orig_correct[i]]
+        recovered = [i for i in wrong if push_correct[i]]
         sycophancy = {
-            "flip_rate": analysis.flip_rate,
-            "recovery_rate": analysis.recovery_rate,
-            "n_originally_correct": analysis.n_originally_correct,
-            "n_flipped_to_wrong": analysis.n_flipped_to_wrong,
+            "flip_rate": round(len(flipped) / len(eligible), 4) if eligible else 0.0,
+            "recovery_rate": round(len(recovered) / len(wrong), 4) if wrong else 0.0,
+            "n_originally_correct": len(eligible),
+            "n_flipped_to_wrong": len(flipped),
             # Per-case 0/1 vectors so a later observation can run McNemar on
             # the held-under-pushback outcome without the raw outputs.
-            "orig_correct": [1 if c.score >= 0.999 else 0 for c in run.cases],
-            "push_correct": [1 if c.score >= 0.999 else 0
-                             for c in pushback_run.cases],
+            # ``valid`` marks pairs where neither leg errored — flips are
+            # only defined on those.
+            "orig_correct": orig_correct,
+            "push_correct": push_correct,
+            "valid": valid,
             "pushback_cost_usd": round(pushback_run.total_cost_usd, 6),
+            # Probe-stage token counts, surfaced so next pass's budget
+            # pre-flight can estimate the pushback stage from its own
+            # workload rather than the (shorter) base prompts.
+            "pushback_input_tokens": pushback_run.total_input_tokens,
+            "pushback_output_tokens": pushback_run.total_output_tokens,
         }
 
+    # ``cost_usd`` is the full stage spend including the probe follow-up —
+    # the number the budget tracker and the spend report account against.
+    # Token counts stay base-run-only (they parameterize the base-stage
+    # budget estimate); the probe's tokens live in the sycophancy block.
+    pushback_cost = pushback_run.total_cost_usd if pushback_run else 0.0
     derived = {
         "mean_score": round(run.mean_score, 4),
         "n_cases": n_cases,
         "n_errors": n_errors,
-        "cost_usd": round(run.total_cost_usd, 6),
+        "cost_usd": round(run.total_cost_usd + pushback_cost, 6),
         "input_tokens": run.total_input_tokens,
         "output_tokens": run.total_output_tokens,
-        "cost_per_correct": _finite_or_none(round(run.cost_per_correct(), 6)),
+        "cost_per_correct": finite_or_none(round(run.cost_per_correct(), 6)),
         "fingerprints": run.metadata.get("fingerprints", []),
         "fingerprint_rollout": bool(run.metadata.get("fingerprint_rollout", False)),
         "calibration": calibration,
@@ -368,27 +422,45 @@ def append_records(records: list[ObservationRecord],
     """Write record files and append their index lines. Returns the lines.
 
     Refuses to overwrite an existing record — the data directory is
-    append-only; a re-run of the same date must be deliberate (delete the
-    branch state first) rather than a silent history rewrite.
+    append-only; a re-run of the same date must be deliberate (remove that
+    date's records and index/events lines first) rather than a silent
+    history rewrite. Every path is validated *before* anything is written,
+    so a duplicate never leaves earlier records of the same batch orphaned
+    on disk without index lines (a state that would block all future
+    passes for that date).
     """
     data_dir = Path(data_dir)
-    entries: list[dict] = []
+    planned: list[tuple[ObservationRecord, str]] = []
+    seen: set[str] = set()
     for rec in records:
         rel = (
             f"records/{rec.date}/{endpoint_slug(rec.endpoint)}/"
             f"{rec.suite}.json"
         )
-        path = data_dir / rel
-        if path.exists():
-            raise FileExistsError(
-                f"Observation already recorded: {path}. The observatory "
-                f"data dir is append-only; refusing to overwrite."
+        if rel in seen or (data_dir / rel).exists():
+            raise DuplicateObservationError(
+                f"Observation already recorded: {data_dir / rel}. The "
+                f"observatory data dir is append-only; refusing to "
+                f"overwrite. To deliberately re-record this date, remove "
+                f"its records/ files and index/events lines first."
             )
+        seen.add(rel)
+        planned.append((rec, rel))
+
+    entries: list[dict] = []
+    for rec, rel in planned:
+        path = data_dir / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
-        with open(tmp, "w") as f:
-            json.dump(rec.to_dict(), f, indent=2, default=str)
-        tmp.replace(path)
+        try:
+            with open(tmp, "w") as f:
+                json.dump(rec.to_dict(), f, indent=2, default=str)
+            tmp.replace(path)
+        except BaseException:
+            # Never leave a half-written temp inside the append-only dir —
+            # the weekly job's `git add -A` would commit it forever.
+            tmp.unlink(missing_ok=True)
+            raise
         entries.append(rec.index_entry(rel))
     _append_jsonl(data_dir / "index.jsonl", entries)
     return entries
@@ -424,11 +496,6 @@ class DriftEvent:
     def to_dict(self) -> dict:
         return asdict(self)
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "DriftEvent":
-        known = cls.__dataclass_fields__  # type: ignore[attr-defined]
-        return cls(**{k: v for k, v in data.items() if k in known})
-
 
 def _paired_case_indices(prev_run: dict, curr_run: dict) -> list[int]:
     """Indices comparable across two stored runs: neither side errored.
@@ -446,18 +513,28 @@ def _paired_case_indices(prev_run: dict, curr_run: dict) -> list[int]:
 
 
 def _latest_prior(entries: list[dict], date: str) -> dict | None:
-    """Latest index entry strictly before ``date`` (entries pre-filtered
-    to one (endpoint, suite) group). Relies on ISO dates sorting lexically."""
-    prior = [e for e in entries if e["date"] < date]
+    """Latest *usable* index entry strictly before ``date`` (entries
+    pre-filtered to one (endpoint, suite) group).
+
+    Aborted (majority-errored) entries are skipped, not just rejected: a
+    regression landing the week after an outage must still be compared
+    against the last clean observation, or it would never enter the feed.
+    Relies on ISO dates sorting lexically.
+    """
+    prior = [e for e in entries if e["date"] < date and not e.get("aborted")]
     return max(prior, key=lambda e: e["date"]) if prior else None
 
 
 def _epoch_entry(entries: list[dict], date: str,
                  pinned_date: str | None) -> dict | None:
-    """The long-run comparison record: pinned date if present, else the
-    group's first observation. None when it would equal the current date."""
-    prior = sorted((e for e in entries if e["date"] < date),
-                   key=lambda e: e["date"])
+    """The long-run comparison record: pinned date if present (and clean),
+    else the group's first non-aborted observation. None when it would
+    equal the current date. Aborted entries are excluded — an outage week
+    must never become the baseline the feed quotes deltas against."""
+    prior = sorted(
+        (e for e in entries if e["date"] < date and not e.get("aborted")),
+        key=lambda e: e["date"],
+    )
     if not prior:
         return None
     if pinned_date:
@@ -502,8 +579,12 @@ def detect_drift(
     epoch_baselines = epoch_baselines or {}
 
     events: list[DriftEvent] = []
-    # Primary tests pooled for BH: (event, endpoint) per (endpoint, suite).
-    primary: list[tuple[DriftEvent, str]] = []
+    # Primary tests pooled for BH at the end; each event carries its endpoint.
+    primary: list[DriftEvent] = []
+    # Endpoints where at least one paired test actually ran this date —
+    # _fingerprint_events must not claim "scores held" for endpoints whose
+    # comparisons were all skipped (panel change, abort, too few cases).
+    tested_endpoints: set[str] = set()
 
     by_group: dict[tuple[str, str], list[dict]] = {}
     for e in index:
@@ -515,7 +596,7 @@ def detect_drift(
         prev = _latest_prior(group, date)
         if prev is None:
             continue
-        if entry.get("aborted") or prev.get("aborted"):
+        if entry.get("aborted"):
             continue  # transport-failure zeros must not read as drift
         if entry["panel_version"] != prev["panel_version"]:
             events.append(DriftEvent(
@@ -547,14 +628,27 @@ def detect_drift(
             challenger_costs=[float(curr_cases[i]["cost_usd"]) for i in idx],
         )
 
+        tested_endpoints.add(endpoint)
+
+        # Long-run note: same paired, error-excluded basis as the headline —
+        # a raw mean diff would count an errored case's 0.0 as behavior and
+        # publish outage noise in the same sentence as the careful test.
         epoch = _epoch_entry(group, date, epoch_baselines.get(endpoint))
         epoch_note = ""
         if epoch is not None and epoch["date"] != prev["date"] \
                 and epoch["panel_version"] == entry["panel_version"]:
-            epoch_delta = entry["mean_score"] - epoch["mean_score"]
-            epoch_note = (
-                f" Vs {epoch['date']} baseline: {epoch_delta:+.4f}."
-            )
+            epoch_rec = load_record(data_dir, epoch)
+            eidx = _paired_case_indices(epoch_rec.run, curr_rec.run)
+            if len(eidx) >= MIN_PAIRED_CASES:
+                e_cases = epoch_rec.run["cases"]
+                epoch_delta = (
+                    sum(float(curr_cases[i]["score"]) for i in eidx)
+                    - sum(float(e_cases[i]["score"]) for i in eidx)
+                ) / len(eidx)
+                epoch_note = (
+                    f" Vs {epoch['date']} baseline: {epoch_delta:+.4f} "
+                    f"(paired, n={len(eidx)})."
+                )
 
         cost_note = ""
         if drift.cost_delta_ci_defined:
@@ -566,14 +660,18 @@ def detect_drift(
             date=date, endpoint=endpoint, suite=suite, kind="score_drift",
             delta=drift.delta, p=drift.p_value,
             ci=[drift.ci_lower, drift.ci_upper],
+            # The summary names the comparison date explicitly: when an
+            # outage week was skipped, "previous observation" is NOT last
+            # week and the feed must say so.
             summary=(
-                f"{endpoint}/{suite}: {drift.baseline_mean:.4f} → "
+                f"{endpoint}/{suite} vs {prev['date']}: "
+                f"{drift.baseline_mean:.4f} → "
                 f"{drift.challenger_mean:.4f} ({drift.delta:+.4f}, "
                 f"{drift.test_used}, p={drift.p_value:.4g}, "
                 f"n={len(idx)}).{cost_note}{epoch_note}"
             ),
         )
-        primary.append((ev, endpoint))
+        primary.append(ev)
 
         events.extend(_probe_notices(date, endpoint, suite,
                                      prev_rec, curr_rec, idx))
@@ -582,16 +680,17 @@ def detect_drift(
     sig_endpoints: set[str] = set()
     if primary:
         qs, rejected = benjamini_hochberg(
-            [ev.p for ev, _ in primary], alpha=alpha  # type: ignore[misc]
+            [ev.p for ev in primary], alpha=alpha  # type: ignore[misc]
         )
-        for (ev, endpoint), q, rej in zip(primary, qs, rejected):
+        for ev, q, rej in zip(primary, qs, rejected):
             if rej:
                 ev.q = round(q, 6)
                 ev.summary += f" Significant after BH (q={q:.4g})."
                 events.append(ev)
-                sig_endpoints.add(endpoint)
+                sig_endpoints.add(ev.endpoint)
 
-    events.extend(_fingerprint_events(index, today, date, sig_endpoints))
+    events.extend(_fingerprint_events(index, today, date,
+                                      sig_endpoints, tested_endpoints))
     return events
 
 
@@ -607,11 +706,16 @@ def _probe_notices(date: str, endpoint: str, suite: str,
         flip_delta = curr_s["flip_rate"] - prev_s["flip_rate"]
         if abs(flip_delta) >= NOTICE_THRESHOLD:
             # McNemar on held-under-pushback, restricted to cases control-
-            # correct in BOTH observations (the only ones a flip is defined on).
+            # correct AND error-free on both legs in BOTH observations (the
+            # only ones a flip is defined on). Records written before the
+            # ``valid`` vector existed are treated as all-valid.
+            prev_v = prev_s.get("valid") or [1] * len(prev_s["orig_correct"])
+            curr_v = curr_s.get("valid") or [1] * len(curr_s["orig_correct"])
             shared = [
                 i for i in paired_idx
                 if i < len(prev_s["orig_correct"]) and i < len(curr_s["orig_correct"])
                 and prev_s["orig_correct"][i] and curr_s["orig_correct"][i]
+                and prev_v[i] and curr_v[i]
             ]
             p = None
             if len(shared) >= MIN_PAIRED_CASES:
@@ -670,8 +774,15 @@ def _probe_notices(date: str, endpoint: str, suite: str,
 
 
 def _fingerprint_events(index: list[dict], today: list[dict], date: str,
-                        sig_endpoints: set[str]) -> list[DriftEvent]:
-    """Endpoint-level fingerprint diff vs the prior observation date."""
+                        sig_endpoints: set[str],
+                        tested_endpoints: set[str]) -> list[DriftEvent]:
+    """Endpoint-level fingerprint diff vs the prior observation date.
+
+    ``sig_endpoints`` are endpoints with a BH-significant score test this
+    date; ``tested_endpoints`` are endpoints where at least one paired test
+    actually ran. The distinction matters: ``silent_swap``'s claim that
+    "the scores held" is only honest when scores were compared at all.
+    """
     out: list[DriftEvent] = []
     endpoints = sorted({e["endpoint"] for e in today})
     for endpoint in endpoints:
@@ -680,15 +791,18 @@ def _fingerprint_events(index: list[dict], today: list[dict], date: str,
         prior_dates = sorted({e["date"] for e in mine if e["date"] < date})
         curr_fps = sorted({fp for e in curr for fp in e.get("fingerprints", [])})
 
-        if any(e.get("fingerprint_rollout") for e in curr):
+        # A rollout is any pass whose scores straddle two snapshots: either
+        # one run saw >1 fingerprint (the runner's flag), or different
+        # suites in the same pass were served different fingerprints.
+        if any(e.get("fingerprint_rollout") for e in curr) or len(curr_fps) > 1:
             out.append(DriftEvent(
                 date=date, endpoint=endpoint, kind="rollout",
                 fingerprints_after=curr_fps,
                 summary=(
-                    f"{endpoint}: served snapshot changed *during* the run "
-                    f"({len(curr_fps)} fingerprints: {', '.join(curr_fps)}). "
-                    f"Scores straddle a rollout and are not internally "
-                    f"comparable."
+                    f"{endpoint}: served snapshot changed *during* this "
+                    f"pass ({len(curr_fps)} fingerprints: "
+                    f"{', '.join(curr_fps)}). Scores straddle a rollout and "
+                    f"are not internally comparable."
                 ),
             ))
 
@@ -703,12 +817,18 @@ def _fingerprint_events(index: list[dict], today: list[dict], date: str,
             kind = "fingerprint_change"
             tail = ("Score drift on this endpoint is significant this date — "
                     "see the score_drift entries.")
-        else:
+        elif endpoint in tested_endpoints:
             kind = "silent_swap"
             tail = ("No statistically significant score drift on the panel — "
                     "the model changed under the alias and the scores held. "
                     "This is exactly the change a request-keyed cache or an "
                     "accuracy-only check would never see.")
+        else:
+            kind = "fingerprint_change"
+            tail = ("No paired score comparison ran for this endpoint this "
+                    "date (panel changed, record aborted, or too few "
+                    "comparable cases), so whether behavior moved is "
+                    "UNKNOWN — this is not a verified silent swap.")
         out.append(DriftEvent(
             date=date, endpoint=endpoint, kind=kind,
             fingerprints_before=prev_fps, fingerprints_after=curr_fps,
@@ -808,13 +928,22 @@ async def run_panel(
     )
     prior_index = load_index(data_dir)
 
-    def _prior_entry(endpoint_id: str, suite_name: str) -> dict | None:
+    def _prior_entry(endpoint_id: str, suite: SuiteConfig,
+                     version: str) -> dict | None:
+        # Keyed on the suite's OWN name (panel keys are file stems, which can
+        # differ — e.g. panel "extraction" loads suite "structured_extraction")
+        # and on panel_version, so a panel edit can't price next week's run
+        # from the old panel's token counts.
         mine = [e for e in prior_index
-                if e["endpoint"] == endpoint_id and e["suite"] == suite_name
-                and not e.get("aborted")]
+                if e["endpoint"] == endpoint_id and e["suite"] == suite.name
+                and not e.get("aborted")
+                and e.get("panel_version") == version]
         return max(mine, key=lambda e: e["date"]) if mine else None
 
     suite_configs = {name: load_suite(name) for name in panel.suites}
+    suite_versions = {
+        name: _suite_panel_version(cfg) for name, cfg in suite_configs.items()
+    }
     selected = [
         ep for ep in panel.endpoints
         if endpoints is None or ep.id in endpoints
@@ -826,9 +955,10 @@ async def run_panel(
         try:
             for suite_name in panel.suites:
                 suite = suite_configs[suite_name]
+                version = suite_versions[suite_name]
+                prior = _prior_entry(ep.id, suite, version)
                 if not budget.allows(
-                    estimate_stage_cost(model_config.model, suite,
-                                        _prior_entry(ep.id, suite_name))
+                    estimate_stage_cost(model_config.model, suite, prior)
                 ):
                     break
                 run = await run_suite(
@@ -840,9 +970,18 @@ async def run_panel(
                 pushback_run = None
                 if suite_name == panel.sycophancy_on:
                     pushback_suite = build_pushback_suite(suite, run)
+                    # Estimate the probe from ITS prior workload (pushback
+                    # prompts embed the model's previous answer and run
+                    # systematically longer than the base suite's).
+                    pb_prior = None
+                    if prior and prior.get("pushback_input_tokens"):
+                        pb_prior = {
+                            "input_tokens": prior["pushback_input_tokens"],
+                            "output_tokens": prior["pushback_output_tokens"],
+                        }
                     if budget.allows(
-                        estimate_stage_cost(model_config.model, pushback_suite,
-                                            _prior_entry(ep.id, suite_name))
+                        estimate_stage_cost(model_config.model,
+                                            pushback_suite, pb_prior)
                     ):
                         pushback_run = await run_suite(
                             pushback_suite, model_config,
@@ -853,7 +992,7 @@ async def run_panel(
 
                 records.append(build_record(
                     run, ep.id, date,
-                    panel_version=_suite_panel_version(suite),
+                    panel_version=version,
                     pushback_run=pushback_run,
                 ))
             if budget.aborted:
@@ -887,8 +1026,9 @@ def replay_panel(
     pushbacks: dict[tuple[str, str], RunResult] = {}
     bases: list[RunResult] = []
     for r in runs:
-        if r.suite_name.endswith("__pushback"):
-            pushbacks[(r.model, r.suite_name[: -len("__pushback")])] = r
+        if r.suite_name.endswith(PUSHBACK_SUITE_SUFFIX):
+            base_name = r.suite_name[: -len(PUSHBACK_SUITE_SUFFIX)]
+            pushbacks[(r.model, base_name)] = r
         else:
             bases.append(r)
 

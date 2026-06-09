@@ -9,25 +9,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from rift.runner import CaseResult, RunResult
+from ..test_observatory import make_run
 
 
-def _run(scores: list[float], *, model: str, fingerprint: str,
-         completed_at: str) -> RunResult:
-    cases = [
-        CaseResult(
-            case_index=i, input_text=f"q{i}", expected=f"a{i}",
-            output=f"Answer: a{i}\nConfidence: 0.8", score=s,
-            latency_ms=5.0, input_tokens=50, output_tokens=20,
-            cost_usd=0.001, provider_fingerprint=fingerprint,
-        )
-        for i, s in enumerate(scores)
-    ]
-    return RunResult(
-        model=model, suite_name="e2e_suite", scoring_method="exact_match",
-        cases=cases, completed_at=completed_at,
-        metadata={"fingerprints": [fingerprint]},
-    )
+def _run(scores, *, model, fingerprint, completed_at):
+    # Same synthetic-run builder the unit tests use, so the replay path is
+    # exercised with the exact metadata shape the live runner produces.
+    return make_run(scores, model=model, suite="e2e_suite",
+                    fingerprint=fingerprint, completed_at=completed_at)
 
 
 def test_observe_replay_then_site(workdir: Path, run_rift):
@@ -57,10 +46,11 @@ def test_observe_replay_then_site(workdir: Path, run_rift):
     events = [json.loads(line) for line in
               (data_dir / "events.jsonl").read_text().strip().splitlines()]
     kinds = {e["kind"] for e in events}
-    # The accuracy collapse also moves Brier/ECE → a calibration notice
-    # rides along with the gated score_drift.
-    assert {"score_drift", "fingerprint_change"} <= kinds
-    assert "silent_swap" not in kinds
+    # Exact event vocabulary for this scenario: the gated regression, the
+    # concurrent fingerprint change, and the calibration notice the
+    # accuracy collapse drags along (Brier/ECE move with it). Anything
+    # else appearing here is a detector bug.
+    assert kinds == {"score_drift", "fingerprint_change", "notice"}
 
     site = workdir / "site"
     run_rift("observatory-site", "--data-dir", str(data_dir),

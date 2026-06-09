@@ -3,8 +3,9 @@
 # Weekly: run the panel (observatory/panel.yaml) against the live endpoints,
 # append the observations to the orphan `observatory-data` branch, and deploy
 # the rendered static dashboard to GitHub Pages.
-# Monthly: refresh each endpoint's null-calibration (`rift selftest`) so the
-# dashboard can cite the gate's empirical false-regression rate.
+# Monthly (or dispatch with selftest=true): refresh each endpoint's null
+# calibration (`rift selftest`) so the dashboard can cite the gate's
+# empirical false-regression rate.
 #
 # One-time setup (maintainer):
 #   1. Create the data branch:  git switch --orphan observatory-data
@@ -16,6 +17,13 @@
 # aborts internally (exit 0, partial observations recorded). A non-zero exit
 # is infrastructure failure — the job fails, nothing is committed, and Pages
 # keeps serving the last good build.
+#
+# DELIBERATELY NO completion-cache persistence (actions/cache) across runs:
+# the runner caches completions by (model, params, prompt), and the panel's
+# prompts are fixed week to week — a restored cache would turn every
+# subsequent "observation" into a replay of week 1 (scores AND fingerprints
+# round-trip through the cache), structurally blinding the observatory to
+# the very drift it exists to detect. Each pass must hit the live endpoint.
 
 name: Observatory
 
@@ -44,7 +52,9 @@ permissions:
 
 jobs:
   observe:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 6 * * 1'
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * 1') ||
+      (github.event_name == 'workflow_dispatch' && !inputs.selftest)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -67,25 +77,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install .
 
-      - name: Restore completion cache
-        uses: actions/cache@v4
-        with:
-          path: .rift/cache
-          key: observatory-cache-${{ github.run_id }}
-          restore-keys: |
-            observatory-cache-
-
       # Secrets and inputs reach the shell via env:, never interpolated as
       # ${{ }} into a run: body (script-injection hygiene; same pattern as
       # .github/actions/rift-drift-check).
       - name: Run observatory panel
-        if: ${{ !inputs.selftest }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MAX_COST: ${{ inputs.max_cost }}
         run: |
+          # Without pipefail, `| tee` would mask a crashed observe pass and
+          # let the commit step push partial data to the permanent record.
+          set -o pipefail
           args=(observe --panel observatory/panel.yaml --data-dir observatory-data)
           if [ -n "$MAX_COST" ]; then
             args+=(--max-cost "$MAX_COST")
@@ -98,34 +102,15 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run selftest refresh
-        if: ${{ inputs.selftest }}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: bash .github/scripts/observatory_selftest.sh
-
       - name: Commit observations
-        run: |
-          cd observatory-data
-          if git status --porcelain | grep -q .; then
-            git config user.name "rift-observatory[bot]"
-            git config user.email "observatory@users.noreply.github.com"
-            git add -A
-            git commit -m "observatory: $(date -u +%F) observations"
-            # Pull-rebase retry: another writer may have appended meanwhile.
-            for i in 1 2 3; do
-              git push origin HEAD:observatory-data && break
-              git pull --rebase origin observatory-data
-              sleep $((i * 2))
-            done
-          else
-            echo "No new observations to commit."
-          fi
+        run: >-
+          bash .github/scripts/observatory_commit.sh
+          "observatory: $(date -u +%F) observations"
 
   selftest:
-    if: github.event_name == 'schedule' && github.event.schedule == '0 7 1 * *'
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 7 1 * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.selftest)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -156,25 +141,17 @@ jobs:
         run: bash .github/scripts/observatory_selftest.sh
 
       - name: Commit selftest results
-        run: |
-          cd observatory-data
-          if git status --porcelain | grep -q .; then
-            git config user.name "rift-observatory[bot]"
-            git config user.email "observatory@users.noreply.github.com"
-            git add -A
-            git commit -m "observatory: $(date -u +%F) selftest refresh"
-            for i in 1 2 3; do
-              git push origin HEAD:observatory-data && break
-              git pull --rebase origin observatory-data
-              sleep $((i * 2))
-            done
-          else
-            echo "No selftest changes to commit."
-          fi
+        run: >-
+          bash .github/scripts/observatory_commit.sh
+          "observatory: $(date -u +%F) selftest refresh"
 
+  # Deploys after EITHER job so a monthly selftest refresh also updates the
+  # published calibration figures, not just the weekly panel.
   pages:
-    needs: observe
-    if: ${{ !cancelled() && needs.observe.result == 'success' }}
+    needs: [observe, selftest]
+    if: >-
+      !cancelled() &&
+      (needs.observe.result == 'success' || needs.selftest.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       pages: write

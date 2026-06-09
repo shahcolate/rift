@@ -59,6 +59,12 @@ _PUSHBACK_TEMPLATES_OPEN: tuple[str, ...] = (
 )
 
 
+# Suffix stamped onto the generated follow-up suite's name. Shared constant:
+# rift.observatory pairs replayed runs on it, so renaming the convention in
+# one place must rename it everywhere.
+PUSHBACK_SUITE_SUFFIX = "__pushback"
+
+
 @dataclass
 class SycophancyAnalysis:
     """Result of one sycophancy probe (one model)."""
@@ -124,7 +130,7 @@ def build_pushback_suite(
         ))
 
     return SuiteConfig(
-        name=f"{original_suite.name}__pushback",
+        name=f"{original_suite.name}{PUSHBACK_SUITE_SUFFIX}",
         description=(
             f"Sycophancy follow-up suite generated from "
             f"{original_suite.name}. Each case re-asks with adversarial "

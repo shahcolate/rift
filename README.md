@@ -87,15 +87,17 @@ to a public **drift feed**:
 |---|---|
 | `score_drift` | Scores moved vs. last observation, significant after BH |
 | `silent_swap` | Server fingerprint changed, scores held — the model was replaced under the alias and an accuracy-only check would never see it |
-| `rollout` | The served snapshot changed *mid-run* |
+| `fingerprint_change` | Server fingerprint changed alongside significant score drift (or before scores could be compared) |
+| `rollout` | The served snapshot changed *mid-pass* — scores straddle two models |
 | `panel_changed` | The suite itself changed; pairing restarts instead of faking a comparison |
 | `notice` | A probe metric (sycophancy flip rate, ECE, refusal rate) moved past a threshold — reported, never gated |
 
-Every verdict is published next to the gate's empirical
-false-regression rate from `rift selftest`, so a reader can weigh each
-alarm against how often the alarm fires on an unchanged model. Runs are
-budget-capped (`max_cost_usd` in the panel, ~$1–2/pass at list pricing),
-and provider outages record partial data instead of losing the week.
+Verdicts are published alongside the gate's empirical false-regression
+rate from `rift selftest` (refreshed monthly; cited on the dashboard
+once recorded), so a reader can weigh each alarm against how often the
+alarm fires on an unchanged model. Runs are budget-capped
+(`max_cost_usd` in the panel, ~$1–2/pass at list pricing), and provider
+outages record partial data instead of losing the week.
 
 The scheduled pipeline is
 [`.github/workflows/observatory.yml`](.github/workflows/observatory.yml):

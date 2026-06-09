@@ -18,6 +18,7 @@ from rift.cli import main
 ROOT = Path(__file__).parent.parent
 WORKFLOW = ROOT / ".github" / "workflows" / "observatory.yml"
 SELFTEST_SCRIPT = ROOT / ".github" / "scripts" / "observatory_selftest.sh"
+COMMIT_SCRIPT = ROOT / ".github" / "scripts" / "observatory_commit.sh"
 
 
 def _workflow() -> dict:
@@ -32,6 +33,7 @@ def _all_steps() -> list[dict]:
 def test_workflow_files_exist():
     assert WORKFLOW.is_file()
     assert SELFTEST_SCRIPT.is_file()
+    assert COMMIT_SCRIPT.is_file()
 
 
 def test_schedule_and_dispatch_triggers():
@@ -74,9 +76,56 @@ def test_concurrency_guard_present():
 
 def test_pages_job_permissions():
     pages = _workflow()["jobs"]["pages"]
-    assert pages["needs"] == "observe"
+    # Deploys after either producer so the monthly selftest refresh also
+    # updates the published calibration figures.
+    assert pages["needs"] == ["observe", "selftest"]
     assert pages["permissions"]["pages"] == "write"
     assert pages["permissions"]["id-token"] == "write"
+
+
+def test_no_completion_cache_persisted_across_runs():
+    # Restoring .rift/cache between scheduled runs would turn every later
+    # "observation" into a cache replay of week 1 (scores AND fingerprints
+    # round-trip through the cache), structurally blinding the observatory.
+    # The panel must hit the live endpoint on every pass.
+    for step in _all_steps():
+        assert not step.get("uses", "").startswith("actions/cache"), (
+            f"step '{step.get('name')}' persists a cache across scheduled "
+            f"runs — the observatory must re-query live endpoints every pass"
+        )
+
+
+def test_observe_step_sets_pipefail():
+    # `rift observe | tee` under the default Actions shell (`bash -e {0}`,
+    # no pipefail) would mask a crashed pass and commit partial data.
+    observe_steps = [s for s in _all_steps() if "rift" in s.get("run", "")
+                     and "observe " in s.get("run", "")]
+    assert observe_steps
+    for step in observe_steps:
+        if "| tee" in step["run"]:
+            assert "set -o pipefail" in step["run"]
+
+
+def test_commit_script_fails_when_push_never_lands():
+    # A green job whose push silently failed loses the week's observations.
+    text = COMMIT_SCRIPT.read_text()
+    assert "set -euo pipefail" in text
+    assert "exit 1" in text
+    # Both jobs commit through the shared script — retry semantics can't drift.
+    commit_steps = [s for s in _all_steps()
+                    if "observatory_commit.sh" in s.get("run", "")]
+    assert len(commit_steps) == 2
+
+
+def test_observe_and_selftest_jobs_are_mutually_exclusive():
+    jobs = _workflow()["jobs"]
+    observe_if, selftest_if = jobs["observe"]["if"], jobs["selftest"]["if"]
+    # Weekly cron → observe only; monthly cron → selftest only; dispatch
+    # routes on the selftest input.
+    assert "0 6 * * 1" in observe_if and "0 6 * * 1" not in selftest_if
+    assert "0 7 1 * *" in selftest_if and "0 7 1 * *" not in observe_if
+    assert "!inputs.selftest" in observe_if
+    assert "inputs.selftest" in selftest_if
 
 
 def _cli_flags(command: str) -> set[str]:
