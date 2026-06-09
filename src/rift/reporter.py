@@ -899,3 +899,72 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
         lines.append("")
 
     return "\n".join(lines)
+
+
+def print_observation_report(entries: list[dict], events: list,
+                             budget=None,
+                             console: Console | None = None) -> None:
+    """Print the result of one ``rift observe`` pass.
+
+    ``entries`` are the index lines just appended; ``events`` are
+    :class:`rift.observatory.DriftEvent` objects from ``detect_drift``.
+    ``budget`` is the :class:`rift.observatory.BudgetTracker` for a live
+    run (None on replay).
+    """
+    if console is None:
+        console = Console()
+
+    tbl = Table(title="Observatory — new observations")
+    tbl.add_column("Endpoint", style="bold")
+    tbl.add_column("Suite")
+    tbl.add_column("Mean")
+    tbl.add_column("Errors")
+    tbl.add_column("Spend")
+    tbl.add_column("Fingerprint")
+    for e in entries:
+        fps = e.get("fingerprints") or []
+        fp_cell = escape(fps[-1]) if fps else "[dim]—[/dim]"
+        if e.get("fingerprint_rollout"):
+            fp_cell = f"[yellow]{fp_cell} (rollout)[/yellow]"
+        n_err = e.get("n_errors", 0)
+        tbl.add_row(
+            escape(e["endpoint"]),
+            escape(e["suite"]),
+            f"{e['mean_score']:.4f}" + (" [red](aborted)[/red]" if e.get("aborted") else ""),
+            f"[red]{n_err}[/red]" if n_err else "0",
+            _fmt_cost(e["cost_usd"]),
+            fp_cell,
+        )
+    console.print(tbl)
+
+    if budget is not None:
+        spend_line = (
+            f"  Spend this pass: [bold]{_fmt_cost(budget.spent)}[/bold] "
+            f"(cap ${budget.max_cost_usd:.2f})"
+        )
+        if budget.aborted:
+            console.print(Panel(
+                spend_line + "\n\n  [bold yellow]Budget cap reached — remaining "
+                "stages were skipped.[/bold yellow]\n  Partial observations above "
+                "were still recorded; raise --max-cost to run the full panel.",
+                title="[bold yellow]⚠ Budget abort[/bold yellow]",
+                border_style="yellow",
+            ))
+        else:
+            console.print(spend_line)
+
+    if not events:
+        console.print("\n[green]No drift events.[/green] The panel is "
+                      "consistent with the previous observation.")
+        return
+    warn_kinds = {"score_drift", "silent_swap", "rollout"}
+    lines = []
+    for ev in events:
+        style = "yellow" if ev.kind in warn_kinds else "cyan"
+        lines.append(f"  [[bold {style}]{ev.kind}[/bold {style}]] "
+                     f"{escape(ev.summary)}")
+    console.print(Panel(
+        "\n".join(lines),
+        title=f"[bold]Drift feed — {len(events)} event(s)[/bold]",
+        border_style="yellow" if any(e.kind in warn_kinds for e in events) else "cyan",
+    ))

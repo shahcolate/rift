@@ -6,16 +6,29 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#license)
 
 **You upgraded your model. What broke?
-You're picking a vendor. Who actually wins?**
+The model behind your API alias changed last Tuesday. Who told you?**
 
-Rift compares any two (or three+) LLM endpoints on structured eval
-suites and returns statistically rigorous drift reports with
-cost-per-correct. Use it to catch silent regressions on a same-family
-upgrade — or to settle a cross-vendor procurement call with real
-numbers instead of list-price math.
+Rift is the public record of model behavior: statistically rigorous
+drift detection between any LLM endpoints, plus a scheduled
+[Observatory](#the-observatory-a-public-record-of-model-behavior) that
+tracks live endpoints week over week — paired significance tests on
+every change, server-fingerprint tracking for silent model swaps, and
+`$/correct` with confidence intervals on every verdict.
+
+- **For researchers:** a behavioral panel (reasoning faithfulness,
+  sycophancy, calibration, refusal, context rot) with publishable
+  methodology — pre-registration, FDR correction, judge validation,
+  and a gate that measures its own false-positive rate.
+- **For engineering teams:** a CI drift gate (GitHub Action) that
+  blocks deploys on statistically significant regressions, not vibes.
+- **For PMs and executives:** procurement-grade `$/correct` deltas
+  with error bars, a forwardable one-page memo, and an answer to
+  "are we still getting the model we're paying for?"
 
 No vibes. No "it feels dumber." Just p-values, confidence intervals,
 and `$/correct`.
+
+See [STRATEGY.md](STRATEGY.md) for where the project is headed and why.
 
 ## Try the demo (no API key needed)
 
@@ -45,6 +58,53 @@ rift demo --paced                      # press Enter between acts (live)
   <source media="(prefers-color-scheme: dark)" srcset="assets/demo.svg">
   <img alt="Rift demo screenshot — four-act terminal walkthrough" src="assets/demo.svg">
 </picture>
+
+## The Observatory: a public record of model behavior
+
+A drift report answers "did this upgrade break anything?" once. The
+Observatory asks a harder question on a schedule: **has the model behind
+this endpoint changed since last week — and would anyone have told you?**
+
+```bash
+# One pass of the panel (suites + sycophancy probe) against live endpoints,
+# appended to an append-only data directory:
+rift observe --panel observatory/panel.yaml --data-dir observatory-data
+
+# Render the data into a static dashboard (no JS, no external assets):
+rift observatory-site --data-dir observatory-data --out _site
+
+# Replay mode — build observations from saved runs, keyless:
+rift observe --from-runs week1.json --from-runs week2.json --data-dir observatory-data
+```
+
+Each pass compares every endpoint × suite against the previous
+observation with the same paired tests `compare` uses, pools the
+p-values through a Benjamini–Hochberg correction (a weekly panel is
+exactly the multiple-testing setting BH exists for), and appends events
+to a public **drift feed**:
+
+| Event | Meaning |
+|---|---|
+| `score_drift` | Scores moved vs. last observation, significant after BH |
+| `silent_swap` | Server fingerprint changed, scores held — the model was replaced under the alias and an accuracy-only check would never see it |
+| `fingerprint_change` | Server fingerprint changed alongside significant score drift (or before scores could be compared) |
+| `rollout` | The served snapshot changed *mid-pass* — scores straddle two models |
+| `panel_changed` | The suite itself changed; pairing restarts instead of faking a comparison |
+| `notice` | A probe metric (sycophancy flip rate, ECE, refusal rate) moved past a threshold — reported, never gated |
+
+Verdicts are published alongside the gate's empirical false-regression
+rate from `rift selftest` (refreshed monthly; cited on the dashboard
+once recorded), so a reader can weigh each alarm against how often the
+alarm fires on an unchanged model. Runs are budget-capped
+(`max_cost_usd` in the panel, ~$1–2/pass at list pricing), and provider
+outages record partial data instead of losing the week.
+
+The scheduled pipeline is
+[`.github/workflows/observatory.yml`](.github/workflows/observatory.yml):
+weekly panel → commit to the orphan `observatory-data` branch → deploy
+the dashboard to GitHub Pages, plus a monthly selftest refresh. The
+longitudinal record is the point — fork the code in an afternoon, but
+not the time series.
 
 ## Quick Start
 
@@ -696,9 +756,16 @@ release notes typically hand-wave around:
 - [x] Model-fingerprint capture + alias-collision / rollout detection
 - [x] Articulation-judge validation against human gold (`rift validate-judge`, Cohen's κ)
 - [x] Pre-registered primary endpoint (`compare --preregister`)
-- [ ] Hosted monitoring (continuous drift alerts)
+- [x] Observatory: scheduled longitudinal monitoring (`rift observe`, drift feed, silent-swap detection)
+- [x] Observatory static dashboard + GitHub Pages pipeline (`rift observatory-site`)
+- [ ] Suite adapters (`rift import --from promptfoo|inspect|lm-eval`)
+- [ ] Agentic / tool-use drift (tool-call selection, argument fidelity, multi-turn)
+- [ ] Exec report mode (one-page model-upgrade brief from any comparison)
+- [ ] Drift-feed subscriptions (RSS / webhook on Observatory events)
 - [ ] More CI/CD integrations (Jenkins, GitLab CI)
 - [ ] Observability integrations (Datadog, W&B)
+
+See [STRATEGY.md](STRATEGY.md) for the reasoning behind this ordering.
 
 ## License
 

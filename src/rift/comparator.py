@@ -197,11 +197,12 @@ def _bootstrap_cost_per_correct_delta_ci(
         return None
     b_cost_per_sample = b_costs[idx].sum(axis=1)
     c_cost_per_sample = c_costs[idx].sum(axis=1)
-    # Avoid div-by-zero on the invalid mask; compute then filter.
+    # Avoid div-by-zero / inf−inf noise on the invalid mask; compute then
+    # filter — invalid samples are dropped by the mask below either way.
     with np.errstate(divide="ignore", invalid="ignore"):
         b_cpc = b_cost_per_sample / b_correct_per_sample
         c_cpc = c_cost_per_sample / c_correct_per_sample
-    deltas = (c_cpc - b_cpc)[valid]
+        deltas = (c_cpc - b_cpc)[valid]
     if deltas.size == 0:
         return None
     return float(np.percentile(deltas, 2.5)), float(np.percentile(deltas, 97.5))
