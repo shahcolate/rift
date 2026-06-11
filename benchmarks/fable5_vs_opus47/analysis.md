@@ -195,9 +195,13 @@ bite.
 ## Where the 2× actually comes from
 
 Fable 5's documentation warns its new tokenizer yields ~30% more tokens
-for the same content. **Measured here, that penalty does not exist**:
-the paired input-token ratio on byte-identical prompts is **0.958**
-(range 0.87–0.98 across suites) — slightly *cheaper*. Don't pre-multiply
+than prior-generation models. **Measured against Opus 4.7, that penalty
+does not exist**: the paired input-token ratio on byte-identical
+prompts is **0.958** (range 0.87–0.98 across suites) — slightly
+*cheaper*. The parity makes sense once you read the pricing docs
+closely: the new-generation tokenizer ships with **Opus 4.7 and
+later**, so our baseline already carries it; the ~30–35% warning
+applies against *older* models, not against 4.7. Don't pre-multiply
 your cost model by 1.3; re-baseline on your own corpus.
 
 | Driver | Measured |
@@ -210,6 +214,42 @@ your cost model by 1.3; re-baseline on your own corpus.
 
 Latency rides with the thinking: median per-call latency ×3–4 (4.0–4.6s
 vs 1.1–1.5s; max 33s on a 32k-distractor case).
+
+### The price in context: "2×" depends on which serving configuration you compare
+
+Per-token list price is one cell in a matrix of serving configurations,
+and the "Fable premium" looks very different from other cells
+(per-MTok input/output, Anthropic list pricing as of 2026-06-11):
+
+| Configuration | Opus 4.7 | Opus 4.8 | Fable 5 |
+|---|---|---|---|
+| Standard | $5 / $25 | $5 / $25 | **$10 / $50** |
+| Fast mode (research preview) | $30 / $150 | $10 / $50 | not offered |
+| Batch API (−50%, async) | $2.50 / $12.50 | $2.50 / $12.50 | $5 / $25 |
+
+Three equivalences worth knowing before calling Fable "the expensive
+option":
+
+- **Fable 5 standard costs exactly what Opus 4.8 fast mode costs**
+  ($10/$50). At that price point the real tradeoff is *capability vs
+  speed*: Fable-with-thinking at ×3–4 latency, or Opus 4.8 at premium
+  speed. Fable's tier price is not unprecedented — it's the same money
+  buying a different axis.
+- **Opus 4.7 in fast mode ($30/$150) costs 3× Fable.** If a workload
+  needs low latency from the older Opus, Fable standard is the *cheap*
+  option in that comparison.
+- **Fable on the Batch API ($5/$25) costs exactly what Opus 4.7 costs
+  live.** For async workloads (which evals are), batched Fable erases
+  the headline 2× entirely — the remaining premium is just its higher
+  output-token volume from thinking.
+
+Multipliers stack on top of all of this: cache reads at 0.1× input
+(cache writes 1.25×/2×), US-only `inference_geo` at 1.1×, and fast mode
+is incompatible with Batch. **Every $/correct figure in this analysis
+is standard-mode list price** — re-derive against your own
+configuration before quoting a premium. The raw token counts in the
+committed JSONs are configuration-independent, so the arithmetic is a
+multiplication away.
 
 ---
 
@@ -225,10 +265,14 @@ vs 1.1–1.5s; max 33s on a 32k-distractor case).
    reproducible behavior change is unrequested explanation appended to
    format-constrained answers. Tighten prompts ("final answer only") or
    loosen parsers before flipping the default.
-3. **Budget for thinking and latency, not the tokenizer.** Input
-   tokenization is cost-neutral-to-favorable; the real adders are the
-   2× list price, thinking at 37% of output (scaling up with
-   difficulty), and ×3–4 latency.
+3. **Budget for thinking and latency, not the tokenizer — and price
+   the configuration, not the model.** Input tokenization is
+   cost-neutral-to-favorable; the real adders are the 2× list price,
+   thinking at 37% of output (scaling up with difficulty), and ×3–4
+   latency. But check the serving-configuration matrix before quoting
+   the 2×: batched Fable costs what live Opus 4.7 costs, and Fable
+   standard costs what Opus 4.8 *fast* costs (see "The price in
+   context" above).
 ## What is NOT in this writeup
 
 - **Fable-tier tasks.** Nothing here exercises long-horizon agentic
