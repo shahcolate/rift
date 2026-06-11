@@ -1,4 +1,4 @@
-# Fable 5 vs Opus 4.7: quality is a statistical tie — you pay ~2× for it (and we almost published a fake regression)
+# Fable 5 vs Opus 4.7: quality is a statistical tie — you pay ~2× for it
 
 > **Provenance.** Numbers below are from a **live API run on 2026-06-11**
 > against the production Anthropic API, pairing `claude-fable-5` against
@@ -31,14 +31,15 @@ I ran it through [Rift](https://github.com/shahcolate/rift) against Opus
    CI (summarization's is undefined — zero "correct" on both sides) is
    strictly positive. For these workloads, Fable 5 buys nothing
    measurable and costs double.
-3. **The first pass of this benchmark "detected" a catastrophic Fable
-   regression — −46.9pp, p = 0.000061 — that was 100% infrastructure.**
-   19 of 32 Fable calls got transient HTTP 400s, which Rift's `compare`
-   path scored as zeros without disclosing. The giveaway: the
-   "regression" was *inverted* across difficulty — Fable "failed" 8/8 on
-   the easiest no-distractor cases while passing the 32k-distractor
-   ones. A clean re-run erased the entire effect. Two fixes shipped from
-   this (see "The fake regression" below). **Outage ≠ drift.**
+3. **A useful tooling stress-test happened by accident: the API
+   account ran out of credits mid-run.** Anthropic bills exhausted
+   credit as an HTTP **400** ("credit balance too low"), not a 429 —
+   so 19 of 32 Fable calls in the first context-rot pass hard-failed,
+   and Rift's `compare` path scored each one 0 without disclosing it,
+   producing a phantom −46.9pp "regression" at p = 0.000061. After a
+   top-up, a clean re-run (cache replays the successes, only the
+   errored cases re-fetch) erased the entire effect. Two fixes shipped
+   from this (see below). **Billing ≠ drift.**
 
 The headline isn't "Fable 5 is bad." On these suites the frontier-tier
 model is *at ceiling parity* with Opus 4.7 — these tasks don't reach the
@@ -127,10 +128,14 @@ Latency rides along with the thinking: Fable's median per-call latency
 is ~3–4× Opus 4.7's (4.0–4.6s vs 1.1–1.5s median; max 33s on a
 32k-distractor case).
 
-## The fake regression: what a transient 400 burst looks like in a drift report
+## When the credit balance dies mid-benchmark: what it looks like in a drift report
 
-The first pass of the context-rot comparison produced this (preserved
-verbatim from the run log — do not cite these numbers):
+Mid-way through the first context-rot pass, the API account's credit
+balance ran out. Anthropic surfaces that as **HTTP 400**, not 429 — so
+the runner's retry logic (correctly) treated it as non-transient and
+each affected call failed once, permanently. The first-pass report
+looked like this (preserved verbatim from the run log — do not cite
+these numbers):
 
 | Metric | First pass (bad) | Clean re-run |
 |---|---|---|
@@ -140,10 +145,11 @@ verbatim from the run log — do not cite these numbers):
 | distractor:0k subgroup | Fable 0/8 | 6/8 |
 | distractor:8k subgroup | Fable 6/8 | 7/8 |
 
-19 of 32 Fable calls returned HTTP 400 (transient — every one
-succeeded on replay; Opus had zero). Rift scored each errored case 0
-and the report's status line read "🔴 Regression Detected" with no
-mention of errors anywhere in the markdown.
+19 of 32 Fable calls returned the 400 (Opus had zero — its half of the
+suite ran before the balance hit bottom; every Fable call succeeded on
+replay after a top-up). Rift scored each errored case 0 and the
+report's status line read "🔴 Regression Detected" with no mention of
+errors anywhere in the markdown.
 
 Two tells that should have been (and now are) automatic:
 
@@ -163,9 +169,10 @@ Fixes shipped in this PR:
   ("outage ≠ drift"); `compare` now at least refuses to let them pass
   silently.
 - **The Anthropic provider now preserves 4xx response bodies** in the
-  raised error (`providers/anthropic.py`). The 400s in this run are
-  undiagnosable because `raise_for_status()` discarded the API's
-  explanation; that can't happen again.
+  raised error (`providers/anthropic.py`). The cause here took real
+  digging to establish because `raise_for_status()` discarded the
+  API's explanation ("credit balance is too low") — with the body
+  attached, the first errored case would have named it immediately.
 
 Open question for a follow-up: whether `compare` should exclude
 errored-on-either-side pairs from the paired test outright, as
@@ -186,10 +193,12 @@ errored-on-either-side pairs from the paired test outright, as
    new tokenizer is cost-neutral-to-favorable; the real adders are the
    2× list price and the ~37%-of-output thinking spend, plus 3–4×
    latency.
-4. **Gate your drift dashboards on error counts.** A transient 4xx
-   burst on one side of a paired comparison manufactures arbitrarily
-   significant "regressions." If your eval tooling scores errors as
-   zeros silently, it has a false-alarm generator built in.
+4. **Gate your drift dashboards on error counts.** Anything that fails
+   API calls on one side of a paired comparison — an outage, a rate
+   limit, or (as here) a credit balance hitting zero mid-run —
+   manufactures arbitrarily significant "regressions" if errors are
+   scored as zeros silently. Note the failure mode: exhausted credit
+   is a **400**, so a retry-on-429 policy won't save you.
 
 ## What is NOT in this writeup
 
@@ -204,8 +213,6 @@ errored-on-either-side pairs from the paired test outright, as
   (`--trials k` exists for this). The all-ties conclusion is robust to
   noise in the direction that matters (nothing significant to begin
   with), but the small per-suite deltas should not be over-read.
-- **A diagnosis of the 400 burst.** The bodies were lost (see above);
-  cause unknown. All 19 replayed successfully ~30 minutes later.
 
 ## Reproduce
 
@@ -228,8 +235,8 @@ eval suites cannot distinguish from Opus 4.7** — identical accuracy on
 long-context distractor reasoning, ties everywhere else, zero refusals
 — at 2.06× the spend, 3–4× the latency, and with one real behavioral
 regression for pipeline builders: it explains itself even when told not
-to. And the run's most reusable lesson wasn't about either model: a
-burst of transient API errors on one side produced a p = 0.000061
-"regression" that survived until someone asked why the model was
-failing the *easy* cases. Score your outages separately from your
-drift.
+to. And the run's most reusable lesson wasn't about either model: when
+the account's credit balance ran out mid-run, the resulting 400s scored
+as zeros and read as a p = 0.000061 "regression" until the inverted
+difficulty gradient gave it away. Score your billing and availability
+events separately from your drift — Rift's reports now disclose them.
