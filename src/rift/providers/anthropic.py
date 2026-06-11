@@ -15,8 +15,20 @@ from . import BaseProvider, Completion, MissingAPIKeyError
 # call site, while still preserving paired determinism: the dropped
 # param wasn't honored by the model anyway, so the comparison is fair.
 DEPRECATED_PARAMS: dict[str, set[str]] = {
+    # Fable 5 additionally rejects any explicit `thinking` config
+    # (thinking is always on); we never send one, so only the sampler
+    # knobs need stripping.
+    "claude-fable-5":  {"temperature", "top_p", "top_k"},
     "claude-opus-4-8": {"temperature", "top_p", "top_k"},
     "claude-opus-4-7": {"temperature", "top_p", "top_k"},
+}
+
+# Models whose reasoning tokens are always on and billed against
+# ``max_tokens``: a 4096 default that fits Opus answers can truncate a
+# Fable answer after the (invisible) thinking spend. Floor, don't cap —
+# an explicit larger suite value still wins.
+MIN_MAX_TOKENS: dict[str, int] = {
+    "claude-fable-5": 16000,
 }
 
 
@@ -51,6 +63,9 @@ class AnthropicProvider(BaseProvider):
         params.pop("max_tokens_override", None)
         for dropped in DEPRECATED_PARAMS.get(self.model, ()):
             params.pop(dropped, None)
+        floor = MIN_MAX_TOKENS.get(self.model)
+        if floor is not None:
+            params["max_tokens"] = max(params["max_tokens"], floor)
 
         start = time.perf_counter()
         resp = await self.client.post("/v1/messages", json=params)
