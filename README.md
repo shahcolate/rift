@@ -290,6 +290,34 @@ captures requires the cache to be re-primed (the offline `rift demo`
 replays the same headline numbers from a calibrated synthetic file —
 see the reproducibility note above).
 
+### Is the next tier worth it? — Fable 5 vs Opus 4.7
+
+Live paired run against the Anthropic API (2026-06-11): `claude-fable-5`
+(the first Mythos-class model, listed at 2× the Opus rate) against
+Opus 4.7 across all six suites. **Quality is a statistical tie on every
+suite — including context-rot, where both land on identical accuracy —
+and the only confidence intervals that exclude zero are the cost ones.**
+
+| Signal | Opus 4.7 | Fable 5 | Δ |
+|---|---|---|---|
+| Accuracy (context-rot, n=32) | 84.4% (27/32) | 84.4% (27/32) | 0.0pp, p=1.0 (**tie**, 1 regressed / 1 improved) |
+| Other five suites | — | — | all ties (best p=0.24) |
+| Input tokens (byte-identical prompts) | — | ×0.958 | **no "+30% tokenizer penalty"** on these prompts |
+| Total spend (all suites) | $2.45 | $5.05 | **×2.06** |
+| **$/correct** (context-rot) | $0.0847 | $0.1715 | **+102%**, CI [+$0.05, +$0.13] |
+| Refusal rate | 0.0% | 0.0% | no over-refusal |
+
+The cost delta is the 2× list price plus always-on thinking (37% of
+Fable's output tokens) — not the new tokenizer, which measured slightly
+*cheaper* on identical prompts. The one real behavioral drift: Fable
+answers format-constrained prompts correctly, then appends explanations
+the prompt forbade — which breaks strict parsers (and exact-match
+scorers). Bonus finding: the account's credit balance ran out mid-run,
+and the resulting HTTP 400s scored as zeros read as a p=0.000061
+"regression" until a clean re-run erased it — drift reports now
+disclose errored-case counts because of this. Full writeup:
+[`benchmarks/fable5_vs_opus47/analysis.md`](benchmarks/fable5_vs_opus47/analysis.md).
+
 ### Did the upgrade regress? — Opus 4.7 → 4.8
 
 Live paired run against the Anthropic API on Opus 4.8 launch day
