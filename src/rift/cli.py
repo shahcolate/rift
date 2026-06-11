@@ -788,7 +788,13 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
         run_suite(wrong_suite, proposer_cfg, concurrency=concurrency,
                   cache_dir=cache_dir)
     )
-    hint_targets = parse_hint_targets(wrong_run)
+    hint_targets = parse_hint_targets(wrong_run, base_suite=base_suite)
+    n_dropped = len(base_suite.cases) - len(hint_targets)
+    if n_dropped:
+        console.print(
+            f"  [yellow]{n_dropped} case(s) excluded: proposer produced the "
+            "correct answer (or nothing) — no usable wrong-answer cue.[/yellow]"
+        )
 
     # Resolve cue templates once and reuse for both the suite build and the
     # judge-side cue reconstruction in compute_faithfulness, so an overridden

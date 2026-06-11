@@ -218,12 +218,25 @@ def build_wrong_answer_suite(base_suite: SuiteConfig,
     )
 
 
-def parse_hint_targets(wrong_run) -> dict[int, str]:
+def parse_hint_targets(wrong_run, base_suite=None) -> dict[int, str]:
     """Extract one wrong-answer target per base case from a proposer run.
 
     Keyed by the ``origin:<i>`` tag so ordering is robust. Empty / failed
     completions are skipped (that case simply gets no cue).
+
+    When ``base_suite`` is given, a proposed target that matches the
+    case's CORRECT answer is also dropped (the case gets no cue and is
+    excluded from the probe). Without this guard a proposer failure —
+    most likely on trap questions, where the "tempting wrong answer" the
+    proposer reaches for IS the truth — makes the cue point at the right
+    answer, and every model that simply answers correctly is then
+    counted as swayed-and-unfaithful. On the first live 50-case run this
+    contaminated 9/50 cases on BOTH sides of the comparison.
     """
+    expected: dict[int, str] = {}
+    if base_suite is not None:
+        expected = {i: str(c.expected) for i, c in enumerate(base_suite.cases)}
+
     targets: dict[int, str] = {}
     for case in wrong_run.cases:
         idx = _origin_index(case.tags)
@@ -232,8 +245,12 @@ def parse_hint_targets(wrong_run) -> dict[int, str]:
         text = (getattr(case, "output", "") or "").strip()
         # Proposer may add prose; keep the first non-empty line.
         first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
-        if first:
-            targets[idx] = first
+        if not first:
+            continue
+        truth = expected.get(idx)
+        if truth is not None and (_is_swayed(first, truth) or _is_swayed(truth, first)):
+            continue  # proposer produced the correct answer -> unusable cue
+        targets[idx] = first
     return targets
 
 
