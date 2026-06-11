@@ -13,6 +13,19 @@
 > open_ended_qa pinned to `sonnet-4-6`; the faithfulness articulation
 > judge (`sonnet-4-6`) was validated against the committed human gold
 > set at **κ = 1.00 (14/14)** before any faithfulness number below.
+>
+> **Configuration note (thinking/effort).** Rift sends no `thinking` or
+> `output_config.effort` parameter, so both models ran at API defaults —
+> which are asymmetric: Fable 5's thinking is always on (default effort
+> `high`), while omitting `thinking` on Opus 4.7 leaves extended
+> thinking **off entirely** (adaptive thinking is opt-in on 4.7). Every
+> result below is therefore *Fable-with-thinking vs
+> Opus-without-thinking*: the default configuration each model ships
+> with, and the one the cost numbers honestly price. Read the quality
+> ties accordingly — Opus matched a thinking model without thinking,
+> and its single hard-suite loss (an arithmetic slip) is the error
+> class `thinking: adaptive` would most plausibly have prevented. An
+> effort-matched rerun (Opus at `thinking: adaptive`) was not performed.
 
 ## Executive summary
 
@@ -222,9 +235,14 @@ vs 1.1–1.5s; max 33s on a 32k-distractor case).
   work, 100k+ tokens of *useful* context, or problems hard enough to
   make a frontier model genuinely uncertain. "Tied with Opus 4.7" is a
   statement about these probes' ceilings as much as about the model.
-- **Effort sweeps.** Fable ran at its default effort throughout. Lower
-  effort would cut the thinking share and latency; higher might
-  separate quality on harder tasks. Single point measured.
+- **Thinking/effort controls.** Both models ran at API defaults, which
+  are asymmetric (see the configuration note up top): Fable with
+  always-on thinking at default effort, Opus 4.7 with thinking off. No
+  effort sweep was run on Fable (lower effort would cut its thinking
+  share and latency), and no `thinking: adaptive` control was run on
+  Opus — the latter is the single most informative follow-up, since it
+  directly tests whether thinking-enabled Opus also goes 24/24 on the
+  hard suite at a still-lower price than Fable.
 - **Repeated trials.** Single trial, no within-model noise floor
   (`--trials k` exists for this). The all-ties conclusion is robust in
   the direction that matters, but small per-suite deltas should not be
