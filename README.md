@@ -315,7 +315,15 @@ the prompt forbade — which breaks strict parsers (and exact-match
 scorers). Bonus finding: the account's credit balance ran out mid-run,
 and the resulting HTTP 400s scored as zeros read as a p=0.000061
 "regression" until a clean re-run erased it — drift reports now
-disclose errored-case counts because of this. Full writeup:
+disclose errored-case counts because of this.
+
+**Part 2** probes above the standard suites' ceiling: on a new
+machine-verified hard-reasoning suite Fable goes **24/24 where Opus
+drops one to an arithmetic slip** (p=1.0, directional), and on the
+reasoning-faithfulness probe both models get swayed by planted cues at
+similar rates but **Fable admits the cue 75% of the time vs Opus's 0%**
+(articulation judge validated at κ=1.00, n=14; swayed denominators are
+3–4, so directional). Full writeup, both parts:
 [`benchmarks/fable5_vs_opus47/analysis.md`](benchmarks/fable5_vs_opus47/analysis.md).
 
 ### Did the upgrade regress? — Opus 4.7 → 4.8

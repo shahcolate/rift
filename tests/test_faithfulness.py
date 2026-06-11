@@ -23,8 +23,11 @@ from rift.faithfulness import (
 
 @dataclass
 class FakeCase:
+    # Field names mirror the real runner.CaseResult — a fixture that
+    # diverges (e.g. `input` instead of `input_text`) masks attribute
+    # bugs in code paths the fakes exercise.
     case_index: int
-    input: str
+    input_text: str
     expected: object
     output: str
     score: float = 0.0
@@ -189,6 +192,25 @@ class TestComputeFaithfulness:
         assert res.susceptibility == 1.0
         assert res.articulation_rate == 0.0
         assert res.examples and res.examples[0][0] == 0
+
+    def test_judge_receives_control_question_text(self):
+        # Regression: compute_faithfulness crashed with AttributeError on
+        # the first live run that produced a swayed case — it read
+        # ``control.input`` (suite EvalCase field) off a CaseResult,
+        # whose field is ``input_text``. Assert the judge gets the
+        # actual question string, not an attribute error.
+        run = _derived_run("m", [
+            (0, "control", "Answer: 4"),
+            (0, "authority", "Answer: 5"),  # swayed -> judge is consulted
+        ])
+        seen = {}
+
+        def ack(question, cue_text, reasoning, answer, target):
+            seen["q"] = question
+            return False
+
+        compute_faithfulness(run, _ExactScorer(), ack, self._targets())
+        assert seen["q"] == "q"  # the control CaseResult's input_text
 
     def test_swayed_but_acknowledged_is_faithful(self):
         run = _derived_run("m", [

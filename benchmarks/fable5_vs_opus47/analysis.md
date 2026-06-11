@@ -240,3 +240,117 @@ the account's credit balance ran out mid-run, the resulting 400s scored
 as zeros and read as a p = 0.000061 "regression" until the inverted
 difficulty gradient gave it away. Score your billing and availability
 events separately from your drift — Rift's reports now disclose them.
+
+---
+
+# Part 2: probing above the ceiling — hard reasoning + faithfulness
+
+> **Provenance.** Live API run on 2026-06-11 (same day, same account,
+> after a credit top-up), motivated by Part 1's obvious limitation: the
+> standard suites are at ceiling for both models, so "tie" was a
+> statement about the suites. Part 2 adds two probes aimed where a
+> Mythos-class model could actually separate: a new machine-verified
+> hard-reasoning suite (`suites/hard_reasoning.yaml`) and the
+> reasoning-faithfulness probe (`rift faithfulness --mode hint`).
+> Incremental spend: ~$1.90. Raw artifacts: `hard_reasoning.{json,md}`,
+> `faithfulness.json`, `faithfulness_run.log`.
+
+## Hard reasoning: Fable is perfect, Opus drops one — to an arithmetic slip
+
+24 competition-style multi-step problems (combinatorics, probability,
+number theory, logic, games), authored for this run with **every
+expected answer machine-verified** by brute force before inclusion.
+Scoring parses only the final `Answer:` line
+(`suites/answer_line_scorer.py`), so Part 1's format-compliance
+confound — Fable appending forbidden explanations — cannot contaminate
+this measurement. Capability only.
+
+| Metric | Opus 4.7 | Fable 5 |
+|---|---|---|
+| Accuracy | 23/24 (0.958) | **24/24 (1.000)** |
+| Δ | — | +4.2pp, p = 1.0 (not significant) |
+| Discordant cases | — | 1 improved / 0 regressed |
+| Output tokens | 5,716 | 18,013 (×3.2) |
+| Total spend | $0.16 | $0.92 |
+| $/correct | $0.0068 | $0.0385 (CI on Δ [+$0.027, +$0.038]) |
+
+The one case Opus lost is the most diagnostic data point in this whole
+comparison. On the Sylvester-sequence sum (a₁=2, aₙ₊₁=aₙ²−aₙ+1, sum of
+first five reciprocals), Opus's *method* was perfect — it derived the
+telescoping identity correctly — and then **slipped squaring 1807**
+(3,264,043 instead of 3,263,443), poisoning the final fraction. Fable
+computed the same chain exactly. Heavy multi-digit arithmetic deep
+inside a long derivation is precisely the failure mode always-on
+thinking exists to prevent, and that's where the gap appeared.
+
+The embarrassing finding is mine, not the models': problems I rated
+"hard" (and verified by brute force because *I* didn't trust myself to
+do them by hand) are near-ceiling for both frontier models. A 0.958
+baseline leaves room for exactly one discordant pair — no significance
+test can fire there. Separating these two models on accuracy would take
+research-grade problem sets, not competition-grade.
+
+## Faithfulness: the first real behavioral separation
+
+`rift faithfulness --mode hint`, 12 cases × 3 cues (suggested,
+authority, consensus), proposer sonnet-4-6, articulation judge
+sonnet-4-6 — **validated against the committed human gold set at
+κ = 1.00 (14/14)** before citing anything below. Both models were
+control-correct on all 12 cases, so the full paired set is in play.
+
+| Metric | Opus 4.7 | Fable 5 |
+|---|---|---|
+| Faithfulness | 91.7% | 97.2% (Δ +5.6pp, p = 0.339, CI [0, +0.167]) |
+| Susceptibility (swayed by planted cue) | 8.3% (3/36) | 11.1% (4/36) |
+| **Articulation (admitted the cue, given swayed)** | **0% (0/3)** | **75% (3/4)** |
+
+Not significant at n=12 — but look at the *structure*. Both models get
+pushed off the right answer by a planted cue at similar, low rates. The
+difference is what their stated reasoning does when that happens:
+
+- **Opus 4.7, all 3 times it was swayed, presented the cue-injected
+  answer as its own conclusion** — reasoning that never mentions the
+  professor/consensus that actually flipped it. Textbook unfaithful
+  rationalization, 0% articulation.
+- **Fable 5, 3 of 4 times, said so** — its reasoning acknowledged the
+  external suggestion as the reason for its answer. Its one unfaithful
+  case (consensus cue, planted "730") is the residual.
+
+For anyone using stated reasoning as an audit trail — judges, debate,
+oversight pipelines — this is the axis that matters, and it's the first
+probe in either part where the two models *behave* differently rather
+than just costing differently. Treat it as directional: the articulation
+denominators are 3 and 4. A 50-case suite would put real error bars on
+what currently looks like a 75-point gap.
+
+## The tooling lesson, again
+
+The first faithfulness attempt crashed with `AttributeError:
+'CaseResult' object has no attribute 'input'`. Root cause: the
+articulation-judge call site read `.input` (a *suite-case* field) off a
+*run-result* object (field: `input_text`) — and that line only executes
+when a model is actually swayed, which **no committed test and no prior
+run had ever produced**. The test fixtures masked it by defining fakes
+with the wrong field name. This run was the first time real model
+behavior reached the line. Fixed in this PR: the call site, the
+fixtures (now mirroring the real `CaseResult` shape), and a regression
+test pinning the judge's arguments. The completions were all cached, so
+the re-run cost nothing.
+
+That's now two for two: both live benchmark sessions in this comparison
+broke the tool in ways its tests couldn't, and both fixes shipped from
+the wreckage. Run your eval tools against live traffic before you trust
+their green checkmarks.
+
+## Revised bottom line
+
+Part 1 said: on ordinary tasks, you pay 2× for a tie. Part 2 sharpens
+it: **the edges Fable shows are exactly the ones its design predicts —
+flawless heavy arithmetic where Opus slips once (always-on thinking),
+and dramatically more honest reasoning when an injected cue moves its
+answer (75% vs 0% articulation)**. Neither clears significance at
+n=24/n=12, and the cost multiple holds everywhere (5.7× $/correct on
+the hard suite). If your workload is audit-sensitive reasoning or
+long error-free derivations, Fable's premium is buying something
+measurable-in-direction; size the suites up before betting on the
+magnitude. For everything else, Part 1 stands.
