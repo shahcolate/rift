@@ -314,16 +314,12 @@ reasoning-faithfulness probe **both models are essentially immune to
 planted biasing cues** (0 vs 1 sways in 123 trials each; judge validated
 at κ=1.00). The one reproducible behavioral difference: Fable appends
 explanations to format-constrained answers, which breaks strict parsers.
-
-The comparison's most durable output is three measurement-integrity
-fixes, because every "difference" the pipeline found was its own bug: a
-mid-run credit exhaustion (billed as HTTP 400) scored as zeros and read
-as a **p=0.000061 regression**; and an unvalidated wrong-answer proposer
-planted *correct* answers on 18% of faithfulness cases, manufacturing a
-**p=0.0128 "faithfulness gap"** that died to a one-line truth-guard.
-Drift reports now disclose errored-case counts, providers preserve 4xx
-bodies, and the faithfulness probe validates its cue targets. Full
-writeup:
+The cost delta is the 2× list price plus always-on thinking (37% of
+Fable's output tokens) — not the new tokenizer, which measured slightly
+*cheaper* on identical prompts. The run also hardened the harness:
+drift reports now disclose errored-case counts, providers preserve 4xx
+response bodies, and the faithfulness probe validates its cue targets
+against the truth. Full writeup:
 [`benchmarks/fable5_vs_opus47/analysis.md`](benchmarks/fable5_vs_opus47/analysis.md).
 
 ### Did the upgrade regress? — Opus 4.7 → 4.8
