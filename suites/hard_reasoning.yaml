@@ -1,0 +1,169 @@
+name: hard_reasoning
+description: |
+  Hard multi-step reasoning problems (competition-style arithmetic,
+  combinatorics, probability, number theory, logic, games). Built to
+  probe the capability range ABOVE the standard `reasoning` suite,
+  which frontier models saturate (Opus 4.7 scores 90%+ there, leaving
+  no headroom for a stronger model to demonstrate a gap).
+
+  Every expected answer in this file is machine-verified: the suite was
+  authored alongside a brute-force/exact verification script and only
+  problems with a unique, programmatically confirmed answer were kept.
+
+  Scoring parses the final `Answer:` line only (see
+  answer_line_scorer.py) so reasoning verbosity is not penalized —
+  this suite measures problem-solving, not format compliance.
+scoring: custom
+custom_scorer: "./answer_line_scorer.py:score"
+model_params:
+  temperature: 0
+cases:
+  - input: |
+      A fair coin is flipped repeatedly until the pattern heads, tails, heads (H-T-H) appears in three consecutive flips. What is the expected total number of flips?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>   (use an exact fraction a/b in lowest terms if the value is not an integer)
+    expected: "10"
+    tags: [probability]
+  - input: |
+      How many integers from 1 to 1000 inclusive are divisible by none of 3, 5, or 7?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "457"
+    tags: [counting]
+  - input: |
+      Find the remainder when 7^(7^7) is divided by 100. (That is 7 raised to the power 7^7.)
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "43"
+    tags: [number_theory]
+  - input: |
+      On an island, knights always tell the truth and knaves always lie. Four islanders speak:
+      A says: "B is a knave."
+      B says: "C is a knave."
+      C says: "A and B are both knaves."
+      D says: "A is a knight."
+      How many of the four are knaves?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "3"
+    tags: [logic]
+  - input: |
+      Find the smallest three-digit number that equals 11 times the sum of the squares of its digits.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "550"
+    tags: [number_theory]
+  - input: |
+      Pipe A fills a tank in 6 hours, pipe B fills it in 4 hours, and drain C empties it in 3 hours. The tank starts empty. Pipe A is opened at time 0, pipe B is opened 1 hour later, and drain C is opened 2 hours after time 0. All then stay open. How many hours after time 0 is the tank first completely full?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>   (use an exact fraction a/b in lowest terms if the value is not an integer)
+    expected: "7"
+    tags: [rates]
+  - input: |
+      In the game of Nim, two players alternately remove any positive number of stones from a single pile; the player who takes the last stone wins. The piles hold 3, 5, and 7 stones and both players play optimally. After the first player's (optimal) first move, how many stones remain on the table in total?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "14"
+    tags: [games]
+  - input: |
+      Consider n^2 + n + 41 for positive integers n. Find the sum of all n with 1 <= n <= 50 for which n^2 + n + 41 is NOT prime.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "174"
+    tags: [number_theory]
+  - input: |
+      Three fair six-sided dice are rolled. Given that the sum of the three dice is exactly 10, what is the probability that all three dice show different numbers?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>   (use an exact fraction a/b in lowest terms)
+    expected: "2/3"
+    tags: [probability]
+  - input: |
+      Twelve people stand in a circle, numbered 1 to 12 clockwise. Counting starts at person 1 and proceeds clockwise; every third person is eliminated (so person 3 is eliminated first, then person 6, and so on), with counting always continuing clockwise from the person after the one just eliminated. Eliminated people leave the circle. What is the number of the last person remaining?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "10"
+    tags: [simulation]
+  - input: |
+      Find the smallest positive integer x such that: x leaves remainder 2 when divided by 3, remainder 3 when divided by 5, remainder 4 when divided by 7, and remainder 5 when divided by 11.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "368"
+    tags: [number_theory]
+  - input: |
+      How many four-digit numbers (1000 to 9999) have strictly increasing digits read left to right?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "126"
+    tags: [counting]
+  - input: |
+      Cards are drawn one at a time, without replacement, from a standard shuffled 52-card deck until the first ace appears. What is the expected number of cards drawn, counting the ace itself?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>   (use an exact fraction a/b in lowest terms)
+    expected: "53/5"
+    tags: [probability]
+  - input: |
+      Define f(1) = 1 and f(n) = f(n-1) + gcd(n, f(n-1)) for n >= 2, where gcd is the greatest common divisor. Compute f(20).
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "20"
+    tags: [sequences]
+  - input: |
+      A positive integer N is written as a two-digit numeral in base 7. Writing those same two digits in reverse order produces N's representation in base 9. Find N (in ordinary base 10).
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "31"
+    tags: [number_theory]
+  - input: |
+      A bag contains 4 red and 3 blue marbles. Marbles are drawn one at a time without replacement until the first red marble is drawn. What is the expected number of blue marbles drawn before the first red one?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>   (use an exact fraction a/b in lowest terms)
+    expected: "3/5"
+    tags: [probability]
+  - input: |
+      How many trailing zeros does the binomial coefficient C(100, 50) = 100!/(50! * 50!) have when written in base 10?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "0"
+    tags: [number_theory]
+  - input: |
+      At what time between 2:00 and 3:00 do the hour and minute hands of a clock point in exactly opposite directions? Give your answer as the number of minutes past 2:00, as an exact fraction in lowest terms.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "480/11"
+    tags: [rates]
+  - input: |
+      Define the sequence a_1 = 2 and a_(n+1) = a_n^2 - a_n + 1. Compute the sum 1/a_1 + 1/a_2 + 1/a_3 + 1/a_4 + 1/a_5 as an exact fraction in lowest terms.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "3263441/3263442"
+    tags: [sequences]
+  - input: |
+      In how many ways can a 3-by-8 rectangle be completely tiled by 1-by-2 dominoes (rotations allowed)?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "153"
+    tags: [counting]
+  - input: |
+      Six distinct letters are placed into six addressed envelopes at random, one letter per envelope. In how many of the 720 possible arrangements do exactly two letters end up in their correct envelopes?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "135"
+    tags: [counting]
+  - input: |
+      Find the smallest positive integer n such that n! (n factorial) ends in exactly 25 trailing zeros.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "105"
+    tags: [number_theory]
+  - input: |
+      What are the last two digits of 3^2026? Give them as a two-digit number.
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "29"
+    tags: [number_theory]
+  - input: |
+      How many subsets of {1, 2, 3, ..., 10} (including the empty set) contain no two consecutive integers?
+
+      Reason step by step, then end your response with a final line of exactly: Answer: <value>
+    expected: "144"
+    tags: [counting]

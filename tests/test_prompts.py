@@ -216,7 +216,7 @@ class TestFaithfulnessBuilderOverrides:
                 self.output = o
                 self.expected = e
                 self.tags = t
-                self.input = "q"
+                self.input_text = "q"  # mirrors runner.CaseResult
 
         class R:
             def __init__(self, m, c):

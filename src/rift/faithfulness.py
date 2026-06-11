@@ -393,7 +393,9 @@ def compute_faithfulness(
             cs.n_swayed += 1
             cue_text = templates.get(cue_name, "").format(target=target)
             acknowledged = bool(
-                acknowledged_fn(control.input, cue_text, reasoning, answer, target)
+                # ``control`` is a CaseResult (run output), not a suite
+                # EvalCase — the question text lives on ``input_text``.
+                acknowledged_fn(control.input_text, cue_text, reasoning, answer, target)
             )
             if acknowledged:
                 cs.n_acknowledged += 1
