@@ -71,7 +71,18 @@ class AnthropicProvider(BaseProvider):
         resp = await self.client.post("/v1/messages", json=params)
         latency = (time.perf_counter() - start) * 1000
 
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # raise_for_status drops the response body, which is where the
+            # API explains *why* (invalid param, retention policy, ...).
+            # Re-raise with the body attached so a 4xx in a saved run is
+            # diagnosable after the fact.
+            raise httpx.HTTPStatusError(
+                f"{e}\nResponse body: {resp.text[:500]}",
+                request=e.request,
+                response=e.response,
+            ) from None
         data = resp.json()
 
         output = ""

@@ -1,0 +1,399 @@
+{
+  "drift": {
+    "baseline_model": "claude-opus-4-7",
+    "challenger_model": "claude-fable-5",
+    "suite_name": "summarization",
+    "n_cases": 8,
+    "baseline_mean": 0.4884,
+    "challenger_mean": 0.4461,
+    "delta": -0.0424,
+    "delta_pct": -8.68,
+    "p_value": 0.243526,
+    "ci_lower": -0.1003,
+    "ci_upper": 0.0201,
+    "significant": false,
+    "test_used": "paired_t+bootstrap",
+    "regressed_cases": [
+      0,
+      1,
+      3,
+      5,
+      6
+    ],
+    "improved_cases": [
+      2,
+      4,
+      7
+    ],
+    "baseline_cost_usd": 0.0306,
+    "challenger_cost_usd": 0.0672,
+    "baseline_cost_per_correct": Infinity,
+    "challenger_cost_per_correct": Infinity,
+    "cost_normalized_delta_usd": 0.0,
+    "cost_delta_ci_lower": 0.0,
+    "cost_delta_ci_upper": 0.0,
+    "cost_delta_ci_defined": false,
+    "effect_size": -0.4002,
+    "effect_size_kind": "hedges_g",
+    "effect_size_magnitude": "small",
+    "cohens_g_paired": null,
+    "subgroups": {}
+  },
+  "baseline": {
+    "model": "claude-opus-4-7",
+    "suite_name": "summarization",
+    "scoring_method": "fuzzy_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nThe European Central Bank held interest rates steady at 4.5% on Thursday, defying market expectations for a cut. President Christine Lagarde said inflation remains \"too high\" and that the bank needs to see sustained progress toward its 2% target before easing monetary policy. Analysts noted that while headline inflation has fallen from its peak of 10.6% in October 2022, core inflation, which strips out volatile food and energy prices, remains sticky at 3.4%. The decision sent the euro higher against the dollar and pushed European government bond yields up across the board.\n",
+        "expected": "The ECB kept interest rates unchanged at 4.5%, citing persistently high inflation despite market expectations for a cut.",
+        "output": "The European Central Bank kept interest rates at 4.5%, defying expectations of a cut, as President Lagarde cited persistently high inflation\u2014particularly sticky core inflation at 3.4%\u2014sending the euro and European bond yields higher.",
+        "score": 0.4703,
+        "latency_ms": 1945.0467499999604,
+        "input_tokens": 209,
+        "output_tokens": 82,
+        "cost_usd": 0.003095,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 1,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nA new study published in Nature Medicine found that a single dose of the experimental drug psilocybin produced rapid and sustained improvements in treatment-resistant depression. Researchers at Johns Hopkins followed 233 patients over 12 weeks and observed that 37% of participants achieved remission, compared to 7% in the placebo group. Side effects were generally mild, including temporary headache and nausea, though two patients experienced brief episodes of anxiety during the treatment session. The findings add to a growing body of evidence supporting psychedelic-assisted therapy, though regulatory approval is likely still years away.\n",
+        "expected": "A Johns Hopkins study found that a single psilocybin dose led to depression remission in 37% of treatment-resistant patients over 12 weeks, far exceeding placebo.",
+        "output": "A Johns Hopkins study published in Nature Medicine found that a single dose of psilocybin led to remission in 37% of treatment-resistant depression patients versus 7% on placebo, with mostly mild side effects, bolstering support for psychedelic-assisted therapy despite regulatory approval remaining years away.",
+        "score": 0.5285,
+        "latency_ms": 2422.7856380000503,
+        "input_tokens": 226,
+        "output_tokens": 107,
+        "cost_usd": 0.003805,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 2,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nTesla reported third-quarter revenue of $23.4 billion, missing Wall Street expectations of $24.1 billion, as price cuts across its vehicle lineup pressured margins. Automotive gross margins fell to 15.7%, down from 26.2% a year earlier, marking the steepest decline in the company's history. CEO Elon Musk acknowledged the challenging environment but pointed to strong demand for the Cybertruck, which began deliveries in November, and the upcoming launch of a more affordable model expected in late 2025. Shares fell 4% in after-hours trading.\n",
+        "expected": "Tesla missed Q3 revenue expectations at $23.4B as aggressive price cuts drove automotive margins down sharply to 15.7%, though Musk highlighted Cybertruck demand and a cheaper model coming in 2025.",
+        "output": "Tesla's third-quarter revenue of $23.4 billion missed Wall Street expectations amid price cuts that drove automotive gross margins down to 15.7% from 26.2% a year earlier, sending shares 4% lower in after-hours trading despite CEO Elon Musk highlighting strong Cybertruck demand and a more affordable model coming in late 2025.",
+        "score": 0.5802,
+        "latency_ms": 2126.6481199999134,
+        "input_tokens": 221,
+        "output_tokens": 126,
+        "cost_usd": 0.004255,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 3,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nThe U.S. Department of Justice filed an antitrust lawsuit against Apple on Thursday, alleging the company illegally monopolizes the smartphone market by locking consumers and developers into its ecosystem. The complaint, joined by 16 state attorneys general, targets Apple's restrictions on third-party app stores, its messaging system that degrades texts with Android users, and its tight control over NFC technology used for contactless payments. Apple called the suit \"wrong on the facts and the law\" and vowed to fight it in court. The case could take years to resolve and may reshape how Apple operates its App Store and hardware ecosystem.\n",
+        "expected": "The DOJ and 16 states sued Apple for allegedly monopolizing the smartphone market through App Store restrictions, messaging lock-in, and NFC control, in a case that could reshape Apple's ecosystem.",
+        "output": "The U.S. Department of Justice, alongside 16 state attorneys general, filed an antitrust lawsuit against Apple accusing it of illegally monopolizing the smartphone market through restrictive practices on app stores, messaging, and payment technology, a case Apple disputes and that could take years to resolve while potentially reshaping its ecosystem.",
+        "score": 0.561,
+        "latency_ms": 2632.3626020000574,
+        "input_tokens": 233,
+        "output_tokens": 118,
+        "cost_usd": 0.004115,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 4,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nResearchers at MIT have developed a new battery technology using aluminum and sulfur that could dramatically reduce the cost of grid-scale energy storage. The prototype cells cost roughly one-sixth the price of comparable lithium-ion batteries and can be manufactured using abundant, domestically available materials. In lab tests, the batteries maintained 95% capacity after 400 charge cycles. However, they operate at elevated temperatures around 110 degrees Celsius, requiring thermal management systems that add complexity. The team published their findings in Nature and is now working with a startup to begin pilot production by 2026.\n",
+        "expected": "MIT researchers created aluminum-sulfur batteries costing one-sixth of lithium-ion equivalents with strong cycle life, though they require high operating temperatures, with pilot production planned for 2026.",
+        "output": "MIT researchers have developed an aluminum-sulfur battery, published in Nature and slated for pilot production by 2026, that costs about one-sixth as much as lithium-ion alternatives and retains 95% capacity after 400 cycles, though it requires thermal management due to its 110\u00b0C operating temperature.",
+        "score": 0.1059,
+        "latency_ms": 1960.3709149999986,
+        "input_tokens": 228,
+        "output_tokens": 104,
+        "cost_usd": 0.00374,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 5,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nIndia's space agency ISRO successfully launched its Chandrayaan-4 mission, a lunar sample return mission designed to collect up to 3 kilograms of regolith from the Moon's south polar region and bring it back to Earth. The spacecraft launched aboard the LVM3 rocket from the Satish Dhawan Space Centre and is expected to reach lunar orbit within 40 days. If successful, India would become only the fourth country to return lunar samples, after the United States, the Soviet Union, and China. The mission budget of approximately $350 million makes it one of the most cost-effective sample return attempts ever undertaken.\n",
+        "expected": "ISRO launched Chandrayaan-4 to collect and return up to 3kg of lunar south pole samples, which if successful would make India the fourth country to achieve this at a relatively low cost of $350M.",
+        "output": "India's ISRO launched the Chandrayaan-4 mission aboard an LVM3 rocket to collect and return up to 3 kilograms of lunar regolith from the Moon's south polar region, a $350 million endeavor that could make India the fourth country ever to achieve a lunar sample return.",
+        "score": 0.6061,
+        "latency_ms": 1862.0044109999299,
+        "input_tokens": 233,
+        "output_tokens": 101,
+        "cost_usd": 0.0036899999999999997,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 6,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nA massive data breach at United Healthcare exposed the personal health information of approximately 42 million Americans, including diagnoses, prescription histories, and Social Security numbers. The breach, discovered in February, exploited a vulnerability in a third-party claims processing system that had not been patched despite a critical security advisory issued three months earlier. United Healthcare said it is offering two years of free credit monitoring to affected individuals. Multiple class-action lawsuits have already been filed, and the Department of Health and Human Services has opened an investigation into whether the company violated HIPAA notification requirements.\n",
+        "expected": "A data breach at United Healthcare exposed health records and SSNs of 42 million Americans through an unpatched third-party vulnerability, triggering lawsuits and a federal investigation.",
+        "output": "A February data breach at United Healthcare, caused by an unpatched third-party claims processing vulnerability, exposed sensitive personal and health information of about 42 million Americans, prompting free credit monitoring offers, class-action lawsuits, and a federal HIPAA investigation.",
+        "score": 0.5303,
+        "latency_ms": 6619.364474999998,
+        "input_tokens": 219,
+        "output_tokens": 95,
+        "cost_usd": 0.00347,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      },
+      {
+        "case_index": 7,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nOpenAI announced a partnership with the Los Alamos National Laboratory to explore using large language models for scientific research, including protein folding prediction, materials science simulations, and analysis of nuclear safety data. The collaboration will give Los Alamos researchers access to unreleased models and the ability to fine-tune them on classified datasets within secure computing environments. Critics have raised concerns about the potential military applications of such a partnership, noting that Los Alamos is best known for its role in nuclear weapons development. OpenAI said the work falls within its mission of ensuring AI benefits humanity and that all projects will undergo safety review.\n",
+        "expected": "OpenAI partnered with Los Alamos National Laboratory to apply LLMs to scientific research including protein folding and materials science, drawing criticism over potential military implications.",
+        "output": "OpenAI has partnered with Los Alamos National Laboratory to apply large language models to scientific research like protein folding and nuclear safety analysis, granting researchers access to unreleased models for fine-tuning on classified data, though critics worry about military implications given the lab's nuclear weapons legacy, while OpenAI maintains the work aligns with its mission and will be safety-reviewed.",
+        "score": 0.5253,
+        "latency_ms": 2772.75883599998,
+        "input_tokens": 232,
+        "output_tokens": 131,
+        "cost_usd": 0.004435,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-opus-4-7",
+        "trial_scores": []
+      }
+    ],
+    "started_at": "2026-06-11T01:04:45Z",
+    "completed_at": "2026-06-11T01:04:58Z",
+    "metadata": {
+      "concurrency": 2,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0,
+      "fingerprints": [
+        "claude-opus-4-7"
+      ]
+    }
+  },
+  "challenger": {
+    "model": "claude-fable-5",
+    "suite_name": "summarization",
+    "scoring_method": "fuzzy_match",
+    "cases": [
+      {
+        "case_index": 0,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nThe European Central Bank held interest rates steady at 4.5% on Thursday, defying market expectations for a cut. President Christine Lagarde said inflation remains \"too high\" and that the bank needs to see sustained progress toward its 2% target before easing monetary policy. Analysts noted that while headline inflation has fallen from its peak of 10.6% in October 2022, core inflation, which strips out volatile food and energy prices, remains sticky at 3.4%. The decision sent the euro higher against the dollar and pushed European government bond yields up across the board.\n",
+        "expected": "The ECB kept interest rates unchanged at 4.5%, citing persistently high inflation despite market expectations for a cut.",
+        "output": "The European Central Bank kept interest rates at 4.5% despite market expectations for a cut, with President Christine Lagarde citing persistently high inflation\u2014particularly sticky core inflation at 3.4%\u2014as the reason for delaying monetary easing, a decision that strengthened the euro and pushed European bond yields higher.",
+        "score": 0.3326,
+        "latency_ms": 4434.728493999955,
+        "input_tokens": 204,
+        "output_tokens": 106,
+        "cost_usd": 0.00734,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 1,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nA new study published in Nature Medicine found that a single dose of the experimental drug psilocybin produced rapid and sustained improvements in treatment-resistant depression. Researchers at Johns Hopkins followed 233 patients over 12 weeks and observed that 37% of participants achieved remission, compared to 7% in the placebo group. Side effects were generally mild, including temporary headache and nausea, though two patients experienced brief episodes of anxiety during the treatment session. The findings add to a growing body of evidence supporting psychedelic-assisted therapy, though regulatory approval is likely still years away.\n",
+        "expected": "A Johns Hopkins study found that a single psilocybin dose led to depression remission in 37% of treatment-resistant patients over 12 weeks, far exceeding placebo.",
+        "output": "A Nature Medicine study by Johns Hopkins researchers found that a single dose of psilocybin produced rapid, sustained improvement in treatment-resistant depression\u2014with 37% of 233 patients achieving remission over 12 weeks versus 7% on placebo, and mostly mild side effects\u2014strengthening the evidence for psychedelic-assisted therapy even though regulatory approval remains years away.",
+        "score": 0.4351,
+        "latency_ms": 5341.501722999965,
+        "input_tokens": 221,
+        "output_tokens": 134,
+        "cost_usd": 0.008910000000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 2,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nTesla reported third-quarter revenue of $23.4 billion, missing Wall Street expectations of $24.1 billion, as price cuts across its vehicle lineup pressured margins. Automotive gross margins fell to 15.7%, down from 26.2% a year earlier, marking the steepest decline in the company's history. CEO Elon Musk acknowledged the challenging environment but pointed to strong demand for the Cybertruck, which began deliveries in November, and the upcoming launch of a more affordable model expected in late 2025. Shares fell 4% in after-hours trading.\n",
+        "expected": "Tesla missed Q3 revenue expectations at $23.4B as aggressive price cuts drove automotive margins down sharply to 15.7%, though Musk highlighted Cybertruck demand and a cheaper model coming in 2025.",
+        "output": "Tesla's third-quarter revenue of $23.4 billion missed Wall Street expectations as price cuts drove automotive gross margins down to 15.7%\u2014the steepest decline in company history\u2014causing shares to fall 4%, though CEO Elon Musk highlighted strong Cybertruck demand and a more affordable model planned for late 2025.",
+        "score": 0.5804,
+        "latency_ms": 12893.373054999984,
+        "input_tokens": 216,
+        "output_tokens": 115,
+        "cost_usd": 0.00791,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 3,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nThe U.S. Department of Justice filed an antitrust lawsuit against Apple on Thursday, alleging the company illegally monopolizes the smartphone market by locking consumers and developers into its ecosystem. The complaint, joined by 16 state attorneys general, targets Apple's restrictions on third-party app stores, its messaging system that degrades texts with Android users, and its tight control over NFC technology used for contactless payments. Apple called the suit \"wrong on the facts and the law\" and vowed to fight it in court. The case could take years to resolve and may reshape how Apple operates its App Store and hardware ecosystem.\n",
+        "expected": "The DOJ and 16 states sued Apple for allegedly monopolizing the smartphone market through App Store restrictions, messaging lock-in, and NFC control, in a case that could reshape Apple's ecosystem.",
+        "output": "The U.S. Department of Justice, joined by 16 state attorneys general, filed an antitrust lawsuit accusing Apple of illegally monopolizing the smartphone market through restrictions on app stores, messaging, and payment technology\u2014a case Apple vowed to fight and which could take years to resolve while potentially reshaping its business practices.",
+        "score": 0.511,
+        "latency_ms": 8157.4859739999965,
+        "input_tokens": 228,
+        "output_tokens": 113,
+        "cost_usd": 0.00793,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 4,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nResearchers at MIT have developed a new battery technology using aluminum and sulfur that could dramatically reduce the cost of grid-scale energy storage. The prototype cells cost roughly one-sixth the price of comparable lithium-ion batteries and can be manufactured using abundant, domestically available materials. In lab tests, the batteries maintained 95% capacity after 400 charge cycles. However, they operate at elevated temperatures around 110 degrees Celsius, requiring thermal management systems that add complexity. The team published their findings in Nature and is now working with a startup to begin pilot production by 2026.\n",
+        "expected": "MIT researchers created aluminum-sulfur batteries costing one-sixth of lithium-ion equivalents with strong cycle life, though they require high operating temperatures, with pilot production planned for 2026.",
+        "output": "MIT researchers have developed a low-cost aluminum-sulfur battery for grid-scale energy storage that uses abundant materials, costs about one-sixth as much as lithium-ion batteries, and retained 95% capacity after 400 charge cycles in lab tests, though it requires thermal management due to its 110\u00b0C operating temperature, with pilot production planned for 2026 through a startup partnership.",
+        "score": 0.23,
+        "latency_ms": 5068.257698000025,
+        "input_tokens": 223,
+        "output_tokens": 132,
+        "cost_usd": 0.008830000000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 5,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nIndia's space agency ISRO successfully launched its Chandrayaan-4 mission, a lunar sample return mission designed to collect up to 3 kilograms of regolith from the Moon's south polar region and bring it back to Earth. The spacecraft launched aboard the LVM3 rocket from the Satish Dhawan Space Centre and is expected to reach lunar orbit within 40 days. If successful, India would become only the fourth country to return lunar samples, after the United States, the Soviet Union, and China. The mission budget of approximately $350 million makes it one of the most cost-effective sample return attempts ever undertaken.\n",
+        "expected": "ISRO launched Chandrayaan-4 to collect and return up to 3kg of lunar south pole samples, which if successful would make India the fourth country to achieve this at a relatively low cost of $350M.",
+        "output": "India's ISRO launched the Chandrayaan-4 lunar sample return mission aboard an LVM3 rocket from the Satish Dhawan Space Centre, aiming to collect up to 3 kilograms of regolith from the Moon's south polar region and bring it back to Earth on a budget of roughly $350 million, which would make India only the fourth country\u2014after the United States, the Soviet Union, and China\u2014to return lunar samples.",
+        "score": 0.4317,
+        "latency_ms": 4341.885787000024,
+        "input_tokens": 228,
+        "output_tokens": 143,
+        "cost_usd": 0.009430000000000001,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 6,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nA massive data breach at United Healthcare exposed the personal health information of approximately 42 million Americans, including diagnoses, prescription histories, and Social Security numbers. The breach, discovered in February, exploited a vulnerability in a third-party claims processing system that had not been patched despite a critical security advisory issued three months earlier. United Healthcare said it is offering two years of free credit monitoring to affected individuals. Multiple class-action lawsuits have already been filed, and the Department of Health and Human Services has opened an investigation into whether the company violated HIPAA notification requirements.\n",
+        "expected": "A data breach at United Healthcare exposed health records and SSNs of 42 million Americans through an unpatched third-party vulnerability, triggering lawsuits and a federal investigation.",
+        "output": "A data breach at United Healthcare\u2014caused by an unpatched vulnerability in a third-party claims processing system\u2014exposed the personal health information of roughly 42 million Americans, prompting the company to offer free credit monitoring while facing class-action lawsuits and a federal investigation into potential HIPAA violations.",
+        "score": 0.5124,
+        "latency_ms": 4843.361037000022,
+        "input_tokens": 214,
+        "output_tokens": 102,
+        "cost_usd": 0.00724,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      },
+      {
+        "case_index": 7,
+        "input_text": "Summarize the following passage in exactly one sentence.\n\nOpenAI announced a partnership with the Los Alamos National Laboratory to explore using large language models for scientific research, including protein folding prediction, materials science simulations, and analysis of nuclear safety data. The collaboration will give Los Alamos researchers access to unreleased models and the ability to fine-tune them on classified datasets within secure computing environments. Critics have raised concerns about the potential military applications of such a partnership, noting that Los Alamos is best known for its role in nuclear weapons development. OpenAI said the work falls within its mission of ensuring AI benefits humanity and that all projects will undergo safety review.\n",
+        "expected": "OpenAI partnered with Los Alamos National Laboratory to apply LLMs to scientific research including protein folding and materials science, drawing criticism over potential military implications.",
+        "output": "OpenAI has partnered with Los Alamos National Laboratory to apply large language models to scientific research\u2014including protein folding, materials science, and nuclear safety analysis\u2014granting researchers access to unreleased models for fine-tuning on classified data in secure environments, though critics worry about potential military applications given the lab's nuclear weapons history, while OpenAI maintains the work aligns with its safety-reviewed, humanity-benefiting mission.",
+        "score": 0.5353,
+        "latency_ms": 6340.7753330000105,
+        "input_tokens": 227,
+        "output_tokens": 146,
+        "cost_usd": 0.00957,
+        "tags": [],
+        "error": null,
+        "attempts": 1,
+        "provider_fingerprint": "claude-fable-5",
+        "trial_scores": []
+      }
+    ],
+    "started_at": "2026-06-11T01:04:58Z",
+    "completed_at": "2026-06-11T01:05:27Z",
+    "metadata": {
+      "concurrency": 2,
+      "enterprise_multiplier": 1.0,
+      "n_errors": 0,
+      "fingerprints": [
+        "claude-fable-5"
+      ]
+    }
+  },
+  "refusal": {
+    "n_cases": 8,
+    "n_refused": 0,
+    "refusal_rate": 0.0,
+    "classifications": [
+      {
+        "case_index": 0,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "The European Central Bank kept interest rates at 4.5% despite market expectations for a cut, with President Christine Lagarde citing persistently high inflation\u2014particularly sticky core inflation at 3"
+      },
+      {
+        "case_index": 1,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "A Nature Medicine study by Johns Hopkins researchers found that a single dose of psilocybin produced rapid, sustained improvement in treatment-resistant depression\u2014with 37% of 233 patients achieving r"
+      },
+      {
+        "case_index": 2,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "Tesla's third-quarter revenue of $23.4 billion missed Wall Street expectations as price cuts drove automotive gross margins down to 15.7%\u2014the steepest decline in company history\u2014causing shares to fall"
+      },
+      {
+        "case_index": 3,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "The U.S. Department of Justice, joined by 16 state attorneys general, filed an antitrust lawsuit accusing Apple of illegally monopolizing the smartphone market through restrictions on app stores, mess"
+      },
+      {
+        "case_index": 4,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "MIT researchers have developed a low-cost aluminum-sulfur battery for grid-scale energy storage that uses abundant materials, costs about one-sixth as much as lithium-ion batteries, and retained 95% c"
+      },
+      {
+        "case_index": 5,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "India's ISRO launched the Chandrayaan-4 lunar sample return mission aboard an LVM3 rocket from the Satish Dhawan Space Centre, aiming to collect up to 3 kilograms of regolith from the Moon's south pol"
+      },
+      {
+        "case_index": 6,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "A data breach at United Healthcare\u2014caused by an unpatched vulnerability in a third-party claims processing system\u2014exposed the personal health information of roughly 42 million Americans, prompting the"
+      },
+      {
+        "case_index": 7,
+        "refused": false,
+        "matched_pattern": null,
+        "output_prefix": "OpenAI has partnered with Los Alamos National Laboratory to apply large language models to scientific research\u2014including protein folding, materials science, and nuclear safety analysis\u2014granting resear"
+      }
+    ],
+    "baseline_refusal_rate": 0.0,
+    "challenger_refusal_rate": 0.0,
+    "delta_refusal_rate": 0.0,
+    "over_refusal_cases": [],
+    "new_compliance_cases": []
+  },
+  "power": {
+    "observed_effect": -0.4002,
+    "observed_effect_kind": "smd",
+    "observed_power": 0.2048,
+    "min_detectable_effect": 0.9905,
+    "n_for_target": null
+  }
+}
