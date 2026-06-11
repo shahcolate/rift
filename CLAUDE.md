@@ -257,6 +257,19 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   cost CI is undefined when either run has zero correct cases
   (per-correct is infinite); in that case `cost_delta_ci_defined`
   is `False` and renderers must skip the line.
+- Cost claims must name their serving configuration. `pricing.py` is
+  standard-mode list price only; providers also sell the SAME model at
+  other prices (Anthropic: Batch −50%, fast mode premium, cache reads
+  0.1×, inference_geo 1.1× — and these change which model is "the
+  expensive one": Opus 4.8 *fast* = Fable 5 standard; batched Fable ≈
+  live Opus 4.7). Any published cost comparison must state which cell
+  of that matrix its $ figures assume and, when the headline is a cost
+  multiple, situate it against the adjacent configurations a reader
+  could buy instead. Same for model *configuration*: thinking/effort
+  defaults differ per model (e.g. omitting `thinking` = off on Opus
+  4.7, always-on for Fable 5), so disclose what each side actually ran
+  with. See benchmarks/fable5_vs_opus47/analysis.md ("The price in
+  context" + the provenance configuration note) for the template.
 - Effect sizes: binary tests always populate `cohens_h_marginal`
   (Cohen's h on the marginal proportions). `cohens_g_paired`
   (Cohen's g on the discordant cells) is also populated whenever

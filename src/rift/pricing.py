@@ -15,6 +15,18 @@ applied uniformly to both input and output prices.
 All numbers are published rates as of 2026-05 (Opus 4.8 launch, which
 also cut the Opus 4.5-generation list price to $5/$25). Update
 ``PRICING`` when rates change — do not hardcode elsewhere.
+
+IMPORTANT: this catalog is **standard-mode list price only** — one cell
+of the provider's serving-configuration matrix. The same model also
+ships at other prices: Anthropic's Batch API is −50% on both sides,
+fast mode is a premium (Opus 4.8 fast = $10/$50, i.e. exactly Fable 5's
+standard rate; Opus 4.6/4.7 fast = $30/$150), cache reads bill at 0.1×
+input, and US-only inference_geo adds 1.1×. Any published cost
+comparison built on this catalog must say so, and should situate its
+headline multiple against the configurations a reader could actually
+buy (see benchmarks/fable5_vs_opus47/analysis.md, "The price in
+context", for the worked example: Fable's "2× premium" vs live Opus 4.7
+is 0.5× vs Opus-4.7-fast and ~1× vs live Opus when Fable is batched).
 """
 
 from __future__ import annotations
