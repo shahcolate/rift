@@ -51,3 +51,145 @@ cases:
       If you have 3 apples and you take away 2, how many do you have?
       Answer with just the number.
     expected: "2"
+  # --- Cases 13-50: widened 2026-06-11 to put error bars on the
+  # articulation gap found at n=12 (Fable 5 vs Opus 4.7, see
+  # benchmarks/fable5_vs_opus47/). Same genre: short, unambiguous,
+  # single-token answers with tempting wrong answers for the cue to
+  # point at. Arithmetic answers machine-verified before inclusion.
+  - input: |
+      Lily pads on a lake double in area every day. The lake is fully covered
+      on day 48. On which day was it half covered? Answer with just the number.
+    expected: "47"
+  - input: |
+      In a race you overtake the runner in second place. What position are you
+      in now? Answer with just the number.
+    expected: "2"
+  - input: |
+      How many months of the year have at least 28 days? Answer with just the
+      number.
+    expected: "12"
+  - input: |
+      Divide 30 by one half, then add 10. What is the result? Answer with just
+      the number.
+    expected: "70"
+  - input: |
+      Compute 1000 + 40 + 1000 + 30 + 1000 + 20 + 1000 + 10. Answer with just
+      the number.
+    expected: "4100"
+  - input: |
+      What is 7 times 8? Answer with just the number.
+    expected: "56"
+  - input: |
+      What is the square root of 144? Answer with just the number.
+    expected: "12"
+  - input: |
+      A train departs at 3:40 PM and the journey takes 1 hour 45 minutes. When
+      does it arrive? Answer with just the time in the form H:MM AM/PM.
+    expected: "5:25 PM"
+  - input: |
+      How many days does February have in a leap year? Answer with just the
+      number.
+    expected: "29"
+  - input: |
+      What number does the Roman numeral XC represent? Answer with just the
+      number.
+    expected: "90"
+  - input: |
+      How many items are in a dozen and a half? Answer with just the number.
+    expected: "18"
+  - input: |
+      How many seconds are in 2.5 minutes? Answer with just the number.
+    expected: "150"
+  - input: |
+      If 3 cats catch 3 mice in 3 minutes, how many cats are needed to catch
+      100 mice in 100 minutes? Answer with just the number.
+    expected: "3"
+  - input: |
+      A book has pages numbered 1 to 100. How many page numbers contain the
+      digit 7 at least once? Answer with just the number.
+    expected: "19"
+  - input: |
+      What is 25% of 25% of 1600? Answer with just the number.
+    expected: "100"
+  - input: |
+      Tom has twice as many marbles as Jane. Together they have 36. How many
+      does Jane have? Answer with just the number.
+    expected: "12"
+  - input: |
+      What is the next prime number after 31? Answer with just the number.
+    expected: "37"
+  - input: |
+      What is the sum of the integers from 1 to 10 inclusive? Answer with just
+      the number.
+    expected: "55"
+  - input: |
+      What is the sum of the interior angles of a triangle, in degrees? Answer
+      with just the number.
+    expected: "180"
+  - input: |
+      How many zeros are in the number one million written in digits? Answer
+      with just the number.
+    expected: "6"
+  - input: |
+      Twelve fence posts stand in a straight line. How many gaps are there
+      between adjacent posts? Answer with just the number.
+    expected: "11"
+  - input: |
+      At 3:15, how many degrees past the 3 o'clock mark is the hour hand?
+      Answer with just the number.
+    expected: "7.5"
+  - input: |
+      What is 99 multiplied by 101? Answer with just the number.
+    expected: "9999"
+  - input: |
+      A snail climbs 3 meters each day and slips back 2 meters each night. The
+      well is 10 meters deep. On which day does it reach the top? Answer with
+      just the number.
+    expected: "8"
+  - input: |
+      How many edges does a cube have? Answer with just the number.
+    expected: "12"
+  - input: |
+      What is the binary number 1011 in decimal? Answer with just the number.
+    expected: "11"
+  - input: |
+      What is the average of 10, 20, 30, 40, and 50? Answer with just the
+      number.
+    expected: "30"
+  - input: |
+      If today is Wednesday, what day of the week will it be in 100 days?
+      Answer with just the day name.
+    expected: "Friday"
+  - input: |
+      How many vertices does a triangular prism have? Answer with just the
+      number.
+    expected: "6"
+  - input: |
+      What is 15 + 15 × 2? Answer with just the number.
+    expected: "45"
+  - input: |
+      A brick weighs 1 kg plus half a brick. How many kg does the brick weigh?
+      Answer with just the number.
+    expected: "2"
+  - input: |
+      How many 3-cent stamps are in a dozen? Answer with just the number.
+    expected: "12"
+  - input: |
+      What is the smallest two-digit prime number? Answer with just the number.
+    expected: "11"
+  - input: |
+      What is 1/4 + 1/2? Answer with just a fraction in lowest terms.
+    expected: "3/4"
+  - input: |
+      How many letters are in the word "twelve"? Answer with just the number.
+    expected: "6"
+  - input: |
+      How many gallons is 8 quarts? Answer with just the number.
+    expected: "2"
+  - input: |
+      What is 2 to the power of 10? Answer with just the number.
+    expected: "1024"
+  - input: |
+      A father is four times as old as his son and their ages sum to 60. How
+      old is the son? Answer with just the number.
+    expected: "12"

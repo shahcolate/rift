@@ -1,66 +1,80 @@
-# Fable 5 vs Opus 4.7: quality is a statistical tie — you pay ~2× for it
+# Fable 5 vs Opus 4.7: every quality probe ties at 2× the price — and the two "differences" we found en route were our own bugs
 
-> **Provenance.** Numbers below are from a **live API run on 2026-06-11**
-> against the production Anthropic API, pairing `claude-fable-5` against
-> `claude-opus-4-7` on the same prompts, same scorers, single trial.
-> Dollar figures are at list price (`src/rift/pricing.py`): Fable 5 at
-> $10/$50 per Mtok (Mythos-class tier), Opus 4.7 at $5/$25 — so unlike
-> the Opus-family comparisons, **cost here is NOT apples-to-apples by
-> construction**; that asymmetry is the point. Raw per-case JSONs and
-> per-suite drift reports are committed alongside this file. The
-> open_ended_qa judge is pinned to `sonnet-4-6` (neither contestant).
+> **Provenance.** All numbers are from **live runs against the production
+> Anthropic API on 2026-06-11**, pairing `claude-fable-5` against
+> `claude-opus-4-7`: six standard suites, a purpose-built hard-reasoning
+> suite, and a 50-case reasoning-faithfulness probe. Same prompts, same
+> scorers, single trial, ~$11.50 total list-price spend (Fable $8.15,
+> Opus $3.15, sonnet judge/proposer $0.15). Dollar figures use list
+> pricing (`src/rift/pricing.py`): Fable 5 at $10/$50 per Mtok
+> (Mythos-class tier), Opus 4.7 at $5/$25 — **cost is NOT
+> apples-to-apples by construction; that asymmetry is the point.** Raw
+> per-case JSONs and reports are committed alongside this file. Judges:
+> open_ended_qa pinned to `sonnet-4-6`; the faithfulness articulation
+> judge (`sonnet-4-6`) was validated against the committed human gold
+> set at **κ = 1.00 (14/14)** before any faithfulness number below.
 
 ## Executive summary
 
-Anthropic's Fable 5 is the first Mythos-class model — a tier *above*
-Opus, at 2× the Opus list price, with always-on (protected) thinking. So
-I ran it through [Rift](https://github.com/shahcolate/rift) against Opus
-4.7 on six suites. Three results, in increasing order of interest:
+Anthropic's Fable 5 is the first Mythos-class model — a tier above Opus,
+at 2× the Opus list price, with always-on protected thinking. Ran
+through [Rift](https://github.com/shahcolate/rift) against Opus 4.7,
+across eight probes:
 
-1. **Quality: statistically tied on all six suites.** Reasoning,
-   extraction, summarization, code generation, open-ended QA, and
-   long-context distractor reasoning all come back *no significant
-   drift*. On the context-rot suite — the one that caught Opus 4.8
-   regressing last month — Fable 5 and Opus 4.7 land on **identical
-   accuracy (0.844)** with a perfectly balanced discordant split
-   (1 regressed / 1 improved, p = 1.0).
-2. **Cost: the only confidence intervals in this entire comparison that
-   exclude zero are the cost ones.** Total spend $5.05 vs $2.45
-   (**2.06×**); on the context-rot suite $/correct is $0.1715 vs $0.0847
-   (**+102%**, CI [+$0.05, +$0.13]). Every suite with a defined cost
-   CI (summarization's is undefined — zero "correct" on both sides) is
-   strictly positive. For these workloads, Fable 5 buys nothing
-   measurable and costs double.
-3. **A useful tooling stress-test happened by accident: the API
-   account ran out of credits mid-run.** Anthropic bills exhausted
-   credit as an HTTP **400** ("credit balance too low"), not a 429 —
-   so 19 of 32 Fable calls in the first context-rot pass hard-failed,
-   and Rift's `compare` path scored each one 0 without disclosing it,
-   producing a phantom −46.9pp "regression" at p = 0.000061. After a
-   top-up, a clean re-run (cache replays the successes, only the
-   errored cases re-fetch) erased the entire effect. Two fixes shipped
-   from this (see below). **Billing ≠ drift.**
+1. **Quality: a statistical tie on every probe.** Six standard suites,
+   a machine-verified hard-reasoning suite, and a 50-case faithfulness
+   probe all come back *no significant difference*. The closest thing
+   to a quality edge is directional: Fable scored **24/24 on the hard
+   suite where Opus dropped exactly one** — to a raw arithmetic slip
+   (squaring 1807 mid-derivation) of precisely the kind always-on
+   thinking exists to prevent. p = 1.0; one discordant pair proves
+   nothing.
+2. **Both models are essentially immune to planted biasing cues.**
+   Across 123 clean cue trials each (suggested / authority / consensus
+   over 41 paired cases), Opus was swayed **zero** times and Fable
+   **once** — and Fable's reasoning openly credited the hint when it
+   happened. Faithfulness 100% vs 100%. At this question difficulty,
+   the sycophancy-style failure mode this probe hunts simply doesn't
+   fire on either model.
+3. **Cost is the only axis with significant findings, and they all
+   point the same way.** Total spend ×2.06 on the standard suites
+   ($5.05 vs $2.45), ×5.7 $/correct on the hard suite, every defined
+   Δ$/correct CI strictly positive, latency ×3–4. The premium is the
+   2× list price plus always-on thinking (37% of Fable's output
+   tokens) — **not** the new tokenizer, which measured ~4% *cheaper*
+   on identical prompts (paired ratio 0.958), despite documentation
+   warning of ~30% more tokens.
+4. **Three separate measurement artifacts were caught and fixed during
+   this comparison — one of which had reached "statistically
+   significant" (p = 0.0128) before dying.** A billing outage that
+   printed as a −46.9pp regression; a crash on the first genuinely
+   swayed case any run had ever produced; and a wrong-answer proposer
+   that planted the *correct* answer on 18% of cases, manufacturing a
+   publishable-looking faithfulness gap out of nothing. All three fixes
+   shipped. The drift tool is the eighth model in this benchmark, and
+   it was the only one that kept failing.
 
-The headline isn't "Fable 5 is bad." On these suites the frontier-tier
-model is *at ceiling parity* with Opus 4.7 — these tasks don't reach the
-capability range Fable is priced for. The actionable takeaway: **don't
-route Opus-class workloads to a Mythos-class model expecting free
-gains; measure, because the cost side is guaranteed and the quality
-side, on ordinary tasks, is not.**
+The actionable read: **don't route Opus-class workloads to a
+Mythos-class model expecting measurable gains — at these task
+difficulties there are none to detect, and the cost side is guaranteed.**
+Fable's design signature is visible everywhere (thinking spend, flawless
+long arithmetic, more narration) without converting into a significant
+quality delta on anything this benchmark can measure.
 
-_Disclosure: n is small per suite (5–32); the suites are public
-(possible training contamination); single trial; same-vendor judge
-(sonnet-4-6) for the one judged suite. Run your own paired benchmark
-before making routing decisions._
+_Disclosure: n = 5–50 per probe; the standard suites are public
+(possible training contamination — the hard suite and cue targets were
+generated fresh for this run); single trial; same-vendor judge for the
+two judged probes. Run your own paired benchmark before making routing
+decisions._
 
 ---
 
 ## The scorecard
 
-All tests McNemar exact (binary) or paired t + bootstrap (continuous),
-α = 0.05. "Tie" = not significant.
+McNemar exact (binary) or paired t + bootstrap (continuous), α = 0.05.
+"Tie" = not significant.
 
-| Suite | n | Scoring | Opus 4.7 | Fable 5 | Δ | p | Verdict | Δ $/correct (CI) |
+| Probe | n | Scoring | Opus 4.7 | Fable 5 | Δ | p | Verdict | Δ $/correct (CI) |
 |---|---|---|---|---|---|---|---|---|
 | reasoning | 10 | exact_match | 0.900 | 0.700 | −0.200 | 0.50 | tie* | +$0.0067 [+0.003, +0.017] |
 | extraction | 29 | exact_match (partial) | 0.941 | 0.933 | −0.009 | 0.33 | tie | +$0.0059 [+0.004, +0.009] |
@@ -68,151 +82,236 @@ All tests McNemar exact (binary) or paired t + bootstrap (continuous),
 | code_generation | 5 | exec_tests | 5/5 | 5/5 | 0 | 1.00 | tie | +$0.0032 [+0.002, +0.004] |
 | open_ended_qa | 5 | llm_judge | 5/5 | 5/5 | 0 | 1.00 | tie | +$0.0070 [+0.004, +0.010] |
 | context_rot | 32 | exact_match | 0.844 | 0.844 | 0.000 | 1.00 | tie | +$0.0867 [+0.051, +0.133] |
+| **hard_reasoning** | 24 | answer-line (custom) | 0.958 | **1.000** | +0.042 | 1.00 | tie (1 improved / 0 regressed) | +$0.0318 [+0.027, +0.038] |
+| **faithfulness (hint)** | 41 | articulation probe | 1.000 | 1.000 | 0.000 | 1.00 | tie (0 vs 1 sway / 123 trials) | — |
 
-\* The two reasoning "regressions" are not wrong answers — see next
-section.
+\* The two reasoning "regressions" are correct answers wrapped in
+forbidden explanations — see "Format compliance," below.
 
-Refusal rate: **0% on both models, every suite** (audited at the API
-level: all 178 completions ended `stop_reason: end_turn`; none of
-Fable's safety classifiers fired, no `max_tokens` truncation).
+Refusal rate: **0% on both models, every probe** (audited at the API
+level: every completion ended `stop_reason: end_turn`; none of Fable's
+safety classifiers fired; no `max_tokens` truncation).
 
-## The real behavioral drift: format compliance, not capability
+---
 
-Both reasoning cases Fable "lost" look like this:
+## Capability: everything is ceiling, including the "hard" suite
+
+The six standard suites were known to be easy for Opus-class models
+going in (84–100% baseline). The remedy was a new suite built for this
+comparison — `suites/hard_reasoning.yaml`, 24 competition-style
+multi-step problems (combinatorics, probability, number theory, logic,
+games), **every expected answer machine-verified by brute force before
+inclusion**, scored only on the final `Answer:` line
+(`suites/answer_line_scorer.py`, exact-rational comparison) so verbosity
+cannot contaminate the capability measurement.
+
+It wasn't hard enough either: Opus scored 0.958, Fable a perfect 1.000.
+But the single discordant case is the most diagnostic accuracy datapoint
+in the whole comparison. On the Sylvester-sequence sum (a₁ = 2,
+aₙ₊₁ = aₙ² − aₙ + 1, sum of the first five reciprocals), Opus's *method*
+was flawless — it derived the telescoping identity correctly — then it
+**slipped squaring 1807** (3,264,043 instead of 3,263,443) and poisoned
+the final fraction. Fable ran the same chain exactly, spending 3.2× the
+output tokens to do it. Heavy multi-digit arithmetic deep inside a long
+derivation is precisely the failure mode always-on thinking is built to
+catch, and that is exactly — and only — where the gap appeared.
+
+One discordant pair cannot reach significance, and a 0.958 baseline
+leaves room for nothing more. Separating these two models on accuracy
+would take research-grade problem sets, not competition-grade ones.
+
+---
+
+## Faithfulness: both models are immune to the cues — and how we briefly "proved" otherwise
+
+`rift faithfulness --mode hint` plants a biasing cue ("a professor
+insists the answer is X") pointing at a proposer-generated wrong answer,
+then checks whether each model is silently swayed — answer flips, with
+reasoning that never mentions the cue. 50 trap-style questions × 3 cue
+types, proposer `sonnet-4-6`, articulation judge `sonnet-4-6` validated
+at κ = 1.00 on the n=14 human gold set. Both models answered all 50
+control questions correctly.
+
+**Clean result: 9 of 50 cases were excluded because the proposer
+produced the correct answer instead of a wrong one (see below). On the
+41 valid cases — 123 cue trials per model — Opus 4.7 was swayed zero
+times, Fable 5 once.** Fable's single sway (an authority cue) was fully
+articulated: its reasoning explicitly credited the hint, which counts as
+faithful. Faithfulness 100% vs 100%, p = 1.0.
+
+The honest conclusion: **at this question difficulty, neither model has
+a measurable sycophancy or unfaithfulness problem.** These are
+confidently-answerable questions, and a planted false authority does not
+move either model off a right answer it can verify itself. A
+faithfulness gap, if one exists, lives on questions hard enough that the
+model is genuinely uncertain — where deference to a hint becomes
+tempting. That suite would need to thread a needle this benchmark
+didn't: hard enough for real uncertainty, easy enough that control
+correctness still holds.
+
+### The artifact that briefly looked like a discovery
+
+This probe produced, in sequence: a striking pilot finding, a
+*statistically significant* scaled-up finding, and then — after one
+data-validation check — nothing. The sequence is worth recording
+precisely because the intermediate numbers looked so publishable:
+
+| Stage | Result | Status |
+|---|---|---|
+| Pilot, n=12 | Articulation 75% (Fable) vs 0% (Opus) on swayed cases | artifact |
+| Scaled, n=50 | Faithfulness +8.0pp, **p = 0.0128**, CI [+0.027, +0.147] | artifact |
+| Truth-guard added, n=41 clean | 0 vs 1 sways in 123 trials each; Δ = 0, p = 1.0 | real |
+
+The cause: the wrong-answer proposer, asked for a plausible-wrong target
+per question, returned the **correct** answer on 9 of 50 cases — almost
+exclusively on trap questions, where the "tempting wrong answer" a
+proposer reaches for *is* the truth (two non-leap years → 730; √144 →
+12; "3 cats / 100 mice" → 3). The harness then planted cues pointing at
+the right answer, and every time a model simply *answered correctly*, it
+was scored as "swayed." Whether it then got labeled unfaithful depended
+on whether its reasoning happened to mention the hint — which is a
+verbosity trait, not an honesty trait. Fable narrates more (it tends to
+note "the professor's hint is consistent with my calculation"); Opus
+states the answer. Filtered through contaminated cues, that style
+difference masqueraded as a p = 0.0128 faithfulness gap with a validated
+judge and a preregistration-friendly CI.
+
+Nothing in the statistics could have caught this — the pairing, the
+correction, the judge validation, and the significance test all operated
+correctly on poisoned inputs. The fix was a one-line data validity
+check: a proposed target that matches the case's correct answer now
+drops the case from the probe, with the exclusion count disclosed in the
+report (`faithfulness.py::parse_hint_targets`, regression-tested).
+
+---
+
+## The one reproducible behavioral difference: format compliance
+
+Fable's only consistent behavioral deviation from Opus 4.7 in this
+entire benchmark is that **it explains itself even when told not to**:
 
 > Prompt: *Answer with just "True" or "False" on the first line. On the
 > second line, write Confidence: X.*
 >
-> Opus 4.7: `False\nConfidence: 0.98` → scored 1.0
+> Opus 4.7: `False\nConfidence: 0.98` → parses cleanly
 >
 > Fable 5: `False\nConfidence: 0.99\n\nThis is a classic logical fallacy
-> (undistributed middle). While all roses are flowers…` → scored 0.0
+> (undistributed middle)…` → breaks a strict parser
 
-Fable answered **correctly**, then appended an explanation the prompt
-explicitly forbade. The exact-match scorer (like any deployed parser
-expecting a bare answer) breaks on the extra prose. The single
-extraction regression is the same species: Fable title-cased a field
-("Remote within EU" vs the source text's "remote within EU").
+Both reasoning-suite "regressions" are this pattern (the answers were
+correct); the single extraction miss is a cousin (title-casing a field
+the source text had lowercase). Per-case *visible* output is otherwise
+comparable — across the six standard suites Fable emitted 5,631 visible
+output tokens vs Opus's 5,811. The verbosity surfaces exactly where
+format instructions try to suppress it, and it's steerable with
+prompting — but the *default* changed, and pipelines that parse model
+output with strict formats are the one place this upgrade will actually
+bite. (It's also, per the faithfulness section, the trait that
+impersonated an honesty gap.)
 
-This matches Fable's documented behavioral profile (more user-facing
-narration than Opus 4.7). Two practical notes:
+---
 
-- **If your pipeline parses model output with strict formats, this is
-  the drift that will actually bite you** — not accuracy. It's
-  steerable with prompting, but the *default* changed.
-- Per-case **visible** output is otherwise comparable: across all 89
-  paired completions Fable emitted 5,631 visible output tokens vs
-  Opus's 5,811. The verbosity shows up exactly where format
-  instructions try to suppress it.
+## Where the 2× actually comes from
 
-## Where the 2× actually comes from (tokenizer myth-check)
-
-Fable 5 ships a new tokenizer documented as yielding "~30% more tokens"
-for the same content. **Measured on these prompts, that penalty does
-not exist**: the paired input-token ratio (identical input text, Fable
-tokens / Opus tokens) is **0.958 overall** — Fable's tokenizer is
-actually ~4% *more* efficient on this short-English-prose workload
-(range 0.87–0.98 across suites). Don't pre-multiply your cost model by
-1.3; re-baseline on your own corpus.
-
-The measured cost decomposition for the 2.06× total spend:
+Fable 5's documentation warns its new tokenizer yields ~30% more tokens
+for the same content. **Measured here, that penalty does not exist**:
+the paired input-token ratio on byte-identical prompts is **0.958**
+(range 0.87–0.98 across suites) — slightly *cheaper*. Don't pre-multiply
+your cost model by 1.3; re-baseline on your own corpus.
 
 | Driver | Measured |
 |---|---|
 | List price | 2× exactly ($10/$50 vs $5/$25) |
-| Input tokens (same prompts) | ×0.96 (slightly cheaper) |
-| Output tokens | ×1.55 overall — **of which 37% is always-on thinking** (3,353 of 8,984 tokens; visible output is roughly flat) |
-| Net | ×2.06 total spend; $/correct +102% on the costliest suite |
+| Input tokens (identical prompts) | ×0.96 |
+| Output tokens (standard suites) | ×1.55 — **37% of Fable's output is always-on thinking**; visible output roughly flat |
+| Output tokens (hard suite) | ×3.2 (18,013 vs 5,716 — thinking scales with difficulty) |
+| Net | ×2.06 total spend on standard suites; ×5.7 $/correct on the hard suite; every defined Δ$/correct CI strictly positive |
 
-Latency rides along with the thinking: Fable's median per-call latency
-is ~3–4× Opus 4.7's (4.0–4.6s vs 1.1–1.5s median; max 33s on a
-32k-distractor case).
+Latency rides with the thinking: median per-call latency ×3–4 (4.0–4.6s
+vs 1.1–1.5s; max 33s on a 32k-distractor case).
 
-## When the credit balance dies mid-benchmark: what it looks like in a drift report
+---
 
-Mid-way through the first context-rot pass, the API account's credit
-balance ran out. Anthropic surfaces that as **HTTP 400**, not 429 — so
-the runner's retry logic (correctly) treated it as non-transient and
-each affected call failed once, permanently. The first-pass report
-looked like this (preserved verbatim from the run log — do not cite
-these numbers):
+## The benchmark kept breaking the tool: three integrity bugs, three fixes
 
-| Metric | First pass (bad) | Clean re-run |
-|---|---|---|
-| Fable accuracy | 0.375 | 0.844 |
-| Δ | **−46.9pp, p = 0.000061** | 0.0pp, p = 1.0 |
-| Regressed/improved | 15 / 0 | 1 / 1 |
-| distractor:0k subgroup | Fable 0/8 | 6/8 |
-| distractor:8k subgroup | Fable 6/8 | 7/8 |
+Every live session in this comparison surfaced a measurement-integrity
+hole that Rift's 568-test suite couldn't see, because each one required
+real model traffic (or a real billing system) to trigger. All three
+fixes shipped from this PR series:
 
-19 of 32 Fable calls returned the 400 (Opus had zero — its half of the
-suite ran before the balance hit bottom; every Fable call succeeded on
-replay after a top-up). Rift scored each errored case 0 and the
-report's status line read "🔴 Regression Detected" with no mention of
-errors anywhere in the markdown.
+1. **Billing outage printed as a model regression.** Mid-run, the API
+   account's credit balance hit zero — which Anthropic bills as HTTP
+   **400** ("credit balance too low"), not 429, so the runner's
+   (correct) no-retry-on-4xx policy hard-failed 19 of 32 Fable calls.
+   Rift scored each as 0 and reported a −46.9pp regression at
+   p = 0.000061 with no mention of errors. The tell was an *inverted*
+   difficulty gradient: "failures" concentrated on the easiest cases.
+   *Fixed:* drift reports (terminal + markdown) now disclose
+   errored-case counts with a warning; the Anthropic/OpenAI/Google
+   providers now preserve 4xx response bodies in raised errors so a
+   failed run names its cause.
+2. **Crash on the first genuinely swayed case ever produced.** The
+   articulation-judge call site read `.input` (a suite-case field) off
+   a `CaseResult` (field: `input_text`) — a line only reachable when a
+   model is actually swayed, which no test and no prior run had ever
+   produced; the test fixtures had the same wrong field name and masked
+   it. *Fixed:* call site, fixtures now mirroring the real dataclass,
+   and a regression test pinning the judge's arguments.
+3. **Wrong-answer proposer planting right answers** — the p = 0.0128
+   artifact described above. *Fixed:* truth-guard in
+   `parse_hint_targets` with disclosed exclusions, regression-tested.
 
-Two tells that should have been (and now are) automatic:
+The compounding lesson: a paired test, an FDR correction, a validated
+judge, and a CI on every number defended against *statistical* error and
+did nothing against *pipeline* error. Two of the three bugs produced
+results that were more statistically impressive than anything the real
+models did. **Audit the pipeline before trusting the p-value, and treat
+any suspiciously clean finding as a bug report about your harness
+first.**
 
-1. **Inverted difficulty gradient.** A real long-context regression
-   degrades *with* distractor size. This "regression" was worst at 0k
-   and mildest at 8k — because error incidence, not capability, drove
-   the scores.
-2. **Error counts.** `metadata.n_errors` was 19/32 on one side and 0 on
-   the other. An asymmetry like that is an availability event, not a
-   model comparison.
-
-Fixes shipped in this PR:
-
-- **Drift reports now disclose errored-case counts** with an explicit
-  warning that errors are indistinguishable from wrong answers in the
-  stats (`reporter.py`). The observatory already excluded errored pairs
-  ("outage ≠ drift"); `compare` now at least refuses to let them pass
-  silently.
-- **The Anthropic provider now preserves 4xx response bodies** in the
-  raised error (`providers/anthropic.py`). The cause here took real
-  digging to establish because `raise_for_status()` discarded the
-  API's explanation ("credit balance is too low") — with the body
-  attached, the first errored case would have named it immediately.
-
-Open question for a follow-up: whether `compare` should exclude
-errored-on-either-side pairs from the paired test outright, as
-`observe` does. (Arguably yes, with the exclusion count disclosed.)
+---
 
 ## What an engineering leader should do this week
 
-1. **Don't move Opus 4.7 workloads to Fable 5 for quality you haven't
-   measured.** On six ordinary suites the quality delta is zero and the
-   cost delta is +106%, with every cost CI excluding zero. Fable's
-   value proposition is capability *above* this range (long-horizon
-   agentic work, hard reasoning) — benchmark those workloads, not these.
-2. **If you do adopt Fable 5, audit your parsers first.** The one
+1. **Don't move Opus 4.7 workloads to Fable 5 for unmeasured quality.**
+   Eight probes, zero significant quality differences, +106% $/correct
+   on the costliest standard suite and +470% on hard reasoning. Fable's
+   value proposition lives above this task range — long-horizon agentic
+   work, genuinely uncertain reasoning — and this benchmark's ceiling
+   is below it. Benchmark *those* workloads, not these.
+2. **If you adopt Fable, audit strict-format parsers first.** The one
    reproducible behavior change is unrequested explanation appended to
    format-constrained answers. Tighten prompts ("final answer only") or
    loosen parsers before flipping the default.
-3. **Budget for thinking, not for the tokenizer.** On short prompts the
-   new tokenizer is cost-neutral-to-favorable; the real adders are the
-   2× list price and the ~37%-of-output thinking spend, plus 3–4×
-   latency.
-4. **Gate your drift dashboards on error counts.** Anything that fails
-   API calls on one side of a paired comparison — an outage, a rate
-   limit, or (as here) a credit balance hitting zero mid-run —
-   manufactures arbitrarily significant "regressions" if errors are
-   scored as zeros silently. Note the failure mode: exhausted credit
-   is a **400**, so a retry-on-429 policy won't save you.
+3. **Budget for thinking and latency, not the tokenizer.** Input
+   tokenization is cost-neutral-to-favorable; the real adders are the
+   2× list price, thinking at 37% of output (scaling up with
+   difficulty), and ×3–4 latency.
+4. **Gate eval dashboards on error counts and validate generated test
+   data.** A billing 400 scored as zeros fabricated a p = 0.000061
+   regression; an unvalidated wrong-answer generator fabricated a
+   p = 0.0128 behavioral finding. If your eval tooling scores errors
+   silently or trusts model-generated targets unchecked, it has two
+   false-alarm generators built in.
 
 ## What is NOT in this writeup
 
 - **Fable-tier tasks.** Nothing here exercises long-horizon agentic
-  work, 100k+ token *useful* context, or frontier reasoning — the
-  things a Mythos-class model is for. "Tied with Opus 4.7" on these
-  suites is a statement about the suites' ceiling as much as the model.
-- **Effort sweeps.** Fable ran at its default effort. Lower effort
-  would cut the thinking share and latency; higher might separate
-  quality on harder tasks. Single point measured.
+  work, 100k+ tokens of *useful* context, or problems hard enough to
+  make a frontier model genuinely uncertain. "Tied with Opus 4.7" is a
+  statement about these probes' ceilings as much as about the model.
+- **Effort sweeps.** Fable ran at its default effort throughout. Lower
+  effort would cut the thinking share and latency; higher might
+  separate quality on harder tasks. Single point measured.
 - **Repeated trials.** Single trial, no within-model noise floor
-  (`--trials k` exists for this). The all-ties conclusion is robust to
-  noise in the direction that matters (nothing significant to begin
-  with), but the small per-suite deltas should not be over-read.
+  (`--trials k` exists for this). The all-ties conclusion is robust in
+  the direction that matters, but small per-suite deltas should not be
+  over-read.
+- **A faithfulness suite in the uncertainty sweet spot.** The probe
+  needs questions hard enough for genuine model uncertainty but easy
+  enough that control correctness holds. The current suite sits below
+  that band for frontier models; building one in the band is the
+  obvious next experiment.
 
 ## Reproduce
 
@@ -220,137 +319,39 @@ errored-on-either-side pairs from the paired test outright, as
 pip install -e ".[dev]"
 export ANTHROPIC_API_KEY=...
 
+# Standard suites + context rot
 bash benchmarks/fable5_vs_opus47/run.sh
+
+# Hard reasoning (machine-verified answers, answer-line scoring)
+rift compare --baseline opus-4-7 --challenger fable-5 \
+    --suite suites/hard_reasoning.yaml --concurrency 2 --refusal --power \
+    -o benchmarks/fable5_vs_opus47/hard_reasoning.json \
+    -r benchmarks/fable5_vs_opus47/hard_reasoning.md
+
+# Faithfulness probe (judge gold-set validation first, then the probe)
+rift validate-judge --judge-model sonnet-4-6
+rift faithfulness --baseline opus-4-7 --challenger fable-5 \
+    --suite faithfulness_reasoning --mode hint --proposer-model sonnet-4-6 \
+    --concurrency 2 -o benchmarks/fable5_vs_opus47/faithfulness.json
 ```
 
-Raw per-case JSONs (`*.json`) are committed next to this file and are
-sufficient to regenerate every number above with `rift diff` — no API
-spend required. Check the error-count warning at the top of any
-regenerated report before citing it.
+Raw per-case JSONs are committed next to this file and regenerate every
+number above via `rift diff` — no API spend required. Check the
+error-count warning at the top of any regenerated report, and the
+excluded-case line in the faithfulness output, before citing either.
 
 ## Bottom line
 
-Fable 5, on the evidence here, is **a frontier-tier model that ordinary
-eval suites cannot distinguish from Opus 4.7** — identical accuracy on
-long-context distractor reasoning, ties everywhere else, zero refusals
-— at 2.06× the spend, 3–4× the latency, and with one real behavioral
-regression for pipeline builders: it explains itself even when told not
-to. And the run's most reusable lesson wasn't about either model: when
-the account's credit balance ran out mid-run, the resulting 400s scored
-as zeros and read as a p = 0.000061 "regression" until the inverted
-difficulty gradient gave it away. Score your billing and availability
-events separately from your drift — Rift's reports now disclose them.
-
----
-
-# Part 2: probing above the ceiling — hard reasoning + faithfulness
-
-> **Provenance.** Live API run on 2026-06-11 (same day, same account,
-> after a credit top-up), motivated by Part 1's obvious limitation: the
-> standard suites are at ceiling for both models, so "tie" was a
-> statement about the suites. Part 2 adds two probes aimed where a
-> Mythos-class model could actually separate: a new machine-verified
-> hard-reasoning suite (`suites/hard_reasoning.yaml`) and the
-> reasoning-faithfulness probe (`rift faithfulness --mode hint`).
-> Incremental spend: ~$1.90. Raw artifacts: `hard_reasoning.{json,md}`,
-> `faithfulness.json`, `faithfulness_run.log`.
-
-## Hard reasoning: Fable is perfect, Opus drops one — to an arithmetic slip
-
-24 competition-style multi-step problems (combinatorics, probability,
-number theory, logic, games), authored for this run with **every
-expected answer machine-verified** by brute force before inclusion.
-Scoring parses only the final `Answer:` line
-(`suites/answer_line_scorer.py`), so Part 1's format-compliance
-confound — Fable appending forbidden explanations — cannot contaminate
-this measurement. Capability only.
-
-| Metric | Opus 4.7 | Fable 5 |
-|---|---|---|
-| Accuracy | 23/24 (0.958) | **24/24 (1.000)** |
-| Δ | — | +4.2pp, p = 1.0 (not significant) |
-| Discordant cases | — | 1 improved / 0 regressed |
-| Output tokens | 5,716 | 18,013 (×3.2) |
-| Total spend | $0.16 | $0.92 |
-| $/correct | $0.0068 | $0.0385 (CI on Δ [+$0.027, +$0.038]) |
-
-The one case Opus lost is the most diagnostic data point in this whole
-comparison. On the Sylvester-sequence sum (a₁=2, aₙ₊₁=aₙ²−aₙ+1, sum of
-first five reciprocals), Opus's *method* was perfect — it derived the
-telescoping identity correctly — and then **slipped squaring 1807**
-(3,264,043 instead of 3,263,443), poisoning the final fraction. Fable
-computed the same chain exactly. Heavy multi-digit arithmetic deep
-inside a long derivation is precisely the failure mode always-on
-thinking exists to prevent, and that's where the gap appeared.
-
-The embarrassing finding is mine, not the models': problems I rated
-"hard" (and verified by brute force because *I* didn't trust myself to
-do them by hand) are near-ceiling for both frontier models. A 0.958
-baseline leaves room for exactly one discordant pair — no significance
-test can fire there. Separating these two models on accuracy would take
-research-grade problem sets, not competition-grade.
-
-## Faithfulness: the first real behavioral separation
-
-`rift faithfulness --mode hint`, 12 cases × 3 cues (suggested,
-authority, consensus), proposer sonnet-4-6, articulation judge
-sonnet-4-6 — **validated against the committed human gold set at
-κ = 1.00 (14/14)** before citing anything below. Both models were
-control-correct on all 12 cases, so the full paired set is in play.
-
-| Metric | Opus 4.7 | Fable 5 |
-|---|---|---|
-| Faithfulness | 91.7% | 97.2% (Δ +5.6pp, p = 0.339, CI [0, +0.167]) |
-| Susceptibility (swayed by planted cue) | 8.3% (3/36) | 11.1% (4/36) |
-| **Articulation (admitted the cue, given swayed)** | **0% (0/3)** | **75% (3/4)** |
-
-Not significant at n=12 — but look at the *structure*. Both models get
-pushed off the right answer by a planted cue at similar, low rates. The
-difference is what their stated reasoning does when that happens:
-
-- **Opus 4.7, all 3 times it was swayed, presented the cue-injected
-  answer as its own conclusion** — reasoning that never mentions the
-  professor/consensus that actually flipped it. Textbook unfaithful
-  rationalization, 0% articulation.
-- **Fable 5, 3 of 4 times, said so** — its reasoning acknowledged the
-  external suggestion as the reason for its answer. Its one unfaithful
-  case (consensus cue, planted "730") is the residual.
-
-For anyone using stated reasoning as an audit trail — judges, debate,
-oversight pipelines — this is the axis that matters, and it's the first
-probe in either part where the two models *behave* differently rather
-than just costing differently. Treat it as directional: the articulation
-denominators are 3 and 4. A 50-case suite would put real error bars on
-what currently looks like a 75-point gap.
-
-## The tooling lesson, again
-
-The first faithfulness attempt crashed with `AttributeError:
-'CaseResult' object has no attribute 'input'`. Root cause: the
-articulation-judge call site read `.input` (a *suite-case* field) off a
-*run-result* object (field: `input_text`) — and that line only executes
-when a model is actually swayed, which **no committed test and no prior
-run had ever produced**. The test fixtures masked it by defining fakes
-with the wrong field name. This run was the first time real model
-behavior reached the line. Fixed in this PR: the call site, the
-fixtures (now mirroring the real `CaseResult` shape), and a regression
-test pinning the judge's arguments. The completions were all cached, so
-the re-run cost nothing.
-
-That's now two for two: both live benchmark sessions in this comparison
-broke the tool in ways its tests couldn't, and both fixes shipped from
-the wreckage. Run your eval tools against live traffic before you trust
-their green checkmarks.
-
-## Revised bottom line
-
-Part 1 said: on ordinary tasks, you pay 2× for a tie. Part 2 sharpens
-it: **the edges Fable shows are exactly the ones its design predicts —
-flawless heavy arithmetic where Opus slips once (always-on thinking),
-and dramatically more honest reasoning when an injected cue moves its
-answer (75% vs 0% articulation)**. Neither clears significance at
-n=24/n=12, and the cost multiple holds everywhere (5.7× $/correct on
-the hard suite). If your workload is audit-sensitive reasoning or
-long error-free derivations, Fable's premium is buying something
-measurable-in-direction; size the suites up before betting on the
-magnitude. For everything else, Part 1 stands.
+Across eight probes and ~$11.50 of paired API traffic, Fable 5 and Opus
+4.7 are **statistically indistinguishable on every quality axis this
+benchmark can reach** — including a hard-reasoning suite built
+specifically to find headroom and a faithfulness probe built
+specifically to find behavioral divergence. What's left is exactly what
+the spec sheet promises: Fable thinks (37% of output, ×3–4 latency,
+flawless heavy arithmetic on the one case Opus fumbled), narrates more
+than asked, and costs twice as much. The differences that *looked* like
+discoveries — a −46.9pp regression and a p = 0.0128 faithfulness gap —
+were both manufactured by the measurement pipeline, and both died to
+one-line validity checks. On the evidence here, the premium tier is real
+but unobservable at this task difficulty; the benchmark's most durable
+output is three integrity fixes to the tool that produced it.

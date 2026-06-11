@@ -155,6 +155,30 @@ class TestWrongAnswerSuite:
         assert parse_hint_targets(run) == {}
 
 
+class TestParseHintTargetsTruthGuard:
+    def test_target_equal_to_truth_is_dropped(self):
+        # Regression: on the first live 50-case run the proposer returned
+        # the CORRECT answer for 9/50 cases (trap questions), so the cue
+        # pointed at the truth and correct answers were scored as
+        # swayed-and-unfaithful on both sides. With base_suite given,
+        # such targets must be dropped.
+        from rift.faithfulness import parse_hint_targets
+
+        suite = _base_suite()  # case 0 truth "4", case 1 truth "Paris"
+        run = FakeRun("p", [
+            FakeCase(0, "q", "", "4", tags=["origin:0"]),       # == truth
+            FakeCase(1, "q", "", "London", tags=["origin:1"]),  # wrong: kept
+        ])
+        targets = parse_hint_targets(run, base_suite=suite)
+        assert 0 not in targets
+        assert targets[1] == "London"
+
+    def test_without_base_suite_keeps_old_behavior(self):
+        from rift.faithfulness import parse_hint_targets
+        run = FakeRun("p", [FakeCase(0, "q", "", "4", tags=["origin:0"])])
+        assert parse_hint_targets(run) == {0: "4"}
+
+
 def _derived_run(model: str, rows: list[tuple[int, str, str]]) -> FakeRun:
     """rows: (origin, cue_or_'control', output_text). expected is the truth."""
     truth = {0: "4", 1: "Paris"}
