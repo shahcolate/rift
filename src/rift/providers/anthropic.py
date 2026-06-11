@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion, MissingAPIKeyError
+from . import BaseProvider, Completion, MissingAPIKeyError, raise_for_status_with_body
 
 
 # Per-model parameter compatibility. Newer models deprecate knobs the
@@ -15,8 +15,23 @@ from . import BaseProvider, Completion, MissingAPIKeyError
 # call site, while still preserving paired determinism: the dropped
 # param wasn't honored by the model anyway, so the comparison is fair.
 DEPRECATED_PARAMS: dict[str, set[str]] = {
+    # Fable 5 additionally rejects any explicit `thinking` config
+    # (thinking is always on); we never send one, so only the sampler
+    # knobs need stripping.
+    "claude-fable-5":  {"temperature", "top_p", "top_k"},
     "claude-opus-4-8": {"temperature", "top_p", "top_k"},
     "claude-opus-4-7": {"temperature", "top_p", "top_k"},
+}
+
+# Models whose reasoning tokens are always on and billed against
+# ``max_tokens``: a 4096 default that fits Opus answers can truncate a
+# Fable answer after the (invisible) thinking spend. Floor, don't cap —
+# an explicit larger suite value still wins. Like DEPRECATED_PARAMS,
+# this is wire-level normalization: the completion cache stays keyed on
+# the *requested* params, so changing this constant does not invalidate
+# existing cache entries — bump the cache dir if you change a floor.
+MIN_MAX_TOKENS: dict[str, int] = {
+    "claude-fable-5": 16000,
 }
 
 
@@ -51,12 +66,17 @@ class AnthropicProvider(BaseProvider):
         params.pop("max_tokens_override", None)
         for dropped in DEPRECATED_PARAMS.get(self.model, ()):
             params.pop(dropped, None)
+        floor = MIN_MAX_TOKENS.get(self.model)
+        if floor is not None:
+            # `or floor` guards an explicit ``max_tokens: null`` in a
+            # suite's model_params, which would otherwise crash max().
+            params["max_tokens"] = max(params["max_tokens"] or floor, floor)
 
         start = time.perf_counter()
         resp = await self.client.post("/v1/messages", json=params)
         latency = (time.perf_counter() - start) * 1000
 
-        resp.raise_for_status()
+        raise_for_status_with_body(resp)
         data = resp.json()
 
         output = ""

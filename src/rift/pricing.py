@@ -39,6 +39,12 @@ class TokenPrice:
 
 
 PRICING: dict[str, TokenPrice] = {
+    # Anthropic — Claude 5 family (Mythos-class tier, above Opus).
+    # NOTE: Fable 5 uses a new tokenizer that yields ~30% more tokens for
+    # the same content vs Opus-tier models, so per-token price alone
+    # understates the effective cost delta — compare $/correct, not rates.
+    "claude-fable-5":           TokenPrice(10.00, 50.00),
+
     # Anthropic — Claude 4 family (list price, per 1M tokens)
     # The Opus 4.5 generation (4.5/4.6/4.7/4.8) lists at $5 / $25 — a
     # 3x cut from the original Opus 4 / 4.1 rate of $15 / $75, which the
