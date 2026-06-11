@@ -43,7 +43,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion, MissingAPIKeyError
+from . import BaseProvider, Completion, MissingAPIKeyError, raise_for_status_with_body
 
 
 # Valid Gemini thinking levels. The API rejects anything else with a
@@ -122,7 +122,7 @@ class GoogleProvider(BaseProvider):
         resp = await self.client.post(url, json=body)
         latency = (time.perf_counter() - start) * 1000
 
-        resp.raise_for_status()
+        raise_for_status_with_body(resp)
         data = resp.json()
 
         # Output text: walk parts[] of the first candidate's content,

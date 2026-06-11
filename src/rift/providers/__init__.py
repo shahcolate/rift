@@ -4,6 +4,27 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import click
+import httpx
+
+
+def raise_for_status_with_body(resp: httpx.Response) -> None:
+    """``raise_for_status``, but keep the response body in the message.
+
+    ``httpx.Response.raise_for_status`` drops the body, which is where
+    every provider explains *why* a 4xx happened (invalid param,
+    exhausted credit, retention policy, ...). A 4xx recorded in a saved
+    run is undiagnosable without it. The re-raised error keeps the same
+    type, request, and response, so retry/transient classification in
+    the runner is unaffected.
+    """
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise httpx.HTTPStatusError(
+            f"{e}\nResponse body: {resp.text[:2000]}",
+            request=e.request,
+            response=e.response,
+        ) from None
 
 
 # provider name -> (env var that holds its key, where to get a key).

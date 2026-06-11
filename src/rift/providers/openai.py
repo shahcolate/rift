@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from . import BaseProvider, Completion, MissingAPIKeyError
+from . import BaseProvider, Completion, MissingAPIKeyError, raise_for_status_with_body
 
 
 class OpenAIProvider(BaseProvider):
@@ -48,7 +48,7 @@ class OpenAIProvider(BaseProvider):
         resp = await self.client.post("/v1/chat/completions", json=params)
         latency = (time.perf_counter() - start) * 1000
 
-        resp.raise_for_status()
+        raise_for_status_with_body(resp)
         data = resp.json()
 
         output = data["choices"][0]["message"]["content"] or ""
