@@ -59,6 +59,46 @@ rift demo --paced                      # press Enter between acts (live)
   <img alt="Rift demo screenshot — four-act terminal walkthrough" src="assets/demo.svg">
 </picture>
 
+## Build your own model, then catch its regression (no API key needed)
+
+Rift ships **RiftLM**: a character-level GPT implemented in pure numpy —
+forward pass, backprop, and Adam written by hand, no PyTorch — that
+trains from scratch on your CPU in a few minutes. It learns four
+synthetic string tasks (`cpy`, `rev`, `srt`, `max`) whose answers are
+exact-match scoreable, so it's a *real* model producing *real*,
+gradeable behavior.
+
+The training run deliberately manufactures a model upgrade: 60% of the
+way through, the task mix shifts (`rev` is dropped from the training
+data) and a checkpoint is saved on each side. Checkpoint B is the
+"newer, more trained" model — better at `srt`, and catastrophically
+worse at `rev`. Exactly the shape of regression Rift exists to catch:
+
+```bash
+rift lm train                      # ~5 min on a laptop CPU, pure numpy
+
+rift compare \
+  --baseline   riftlm:models/riftlm-a.npz \
+  --challenger riftlm:models/riftlm-b.npz \
+  --suite riftlm --subgroup task:
+```
+
+The `riftlm` suite is held out by construction — eval cases are drawn
+from a content-hash split the training sampler refuses to emit — and
+the paired McNemar test, subgroup table, and exit-code gate all run
+exactly as they would against a hosted API. The checkpoint's weight
+digest is baked into the model string (`riftlm:models/riftlm-a.npz@3fa9…`),
+so retraining in place invalidates the completion cache and stamps
+weight-level provenance into the report, the same role server
+fingerprints play for hosted models.
+
+Poke at your model directly:
+
+```bash
+rift lm sample -c models/riftlm-b.npz -p "srt 4132 = "   # → 1234
+rift lm sample -c models/riftlm-b.npz -p "rev abcde = "  # → whatever it forgot
+```
+
 ## The Observatory: a public record of model behavior
 
 A drift report answers "did this upgrade break anything?" once. The
@@ -558,6 +598,7 @@ monitoring.
 | Anthropic | `claude-*` (Opus / Sonnet / Haiku, all 3.x / 4.x) | `ANTHROPIC_API_KEY` | Messages API |
 | OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API. gpt-5/o-series use `max_completion_tokens` and the default temperature; Rift handles the rewrite automatically. |
 | Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
+| RiftLM (built-in) | `riftlm:<checkpoint>.npz` | none | Rift's own tiny GPT, trained via `rift lm train`. Runs in-process (pure numpy), keyless, $0 cost; the checkpoint's weight digest serves as the fingerprint. |
 
 Short aliases (`opus-4-8`, `opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
 etc.) live in `MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor

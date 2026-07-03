@@ -11,6 +11,9 @@ build/
 .rift/
 results/
 
+# RiftLM checkpoints (retrain with `rift lm train`; deterministic per seed)
+models/
+
 # Benchmark stdout tee logs (the .md output is checked in; the log is not)
 benchmarks/*.log
 

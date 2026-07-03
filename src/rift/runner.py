@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -179,6 +180,12 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         return OpenAIProvider(model=config.model, **config.params)
     elif config.provider == "google":
         return GoogleProvider(model=config.model, **config.params)
+    elif config.provider == "riftlm":
+        # Local import keeps rift.lm (numpy model code) off the hot path
+        # for the overwhelmingly common hosted-provider runs.
+        from .providers.riftlm import RiftLMProvider
+
+        return RiftLMProvider(model=config.model, **config.params)
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 
@@ -197,7 +204,13 @@ def _cache_key(model: str, input_text: str, model_params: dict,
     payload = f"{model}:{json.dumps(model_params, sort_keys=True)}:{input_text}"
     h = hashlib.sha256(payload.encode()).hexdigest()[:16]
     suffix = "" if trial == 0 else f"_t{trial}"
-    return f"{model}_{h}{suffix}"
+    # The key doubles as a cache *filename*. Hosted model ids are already
+    # safe, but riftlm checkpoint paths ("riftlm:models/a.npz@<digest>")
+    # carry slashes/colons; replace anything unsafe. The hash above is
+    # computed from the raw string first, so keys for existing hosted-model
+    # cache entries are byte-identical to what older Rifts wrote.
+    safe_model = re.sub(r"[^A-Za-z0-9._-]", "_", model)
+    return f"{safe_model}_{h}{suffix}"
 
 
 def _is_transient(exc: BaseException) -> bool:

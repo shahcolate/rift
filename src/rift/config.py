@@ -219,6 +219,9 @@ def resolve_model(model_str: str) -> ModelConfig:
     """
     model_str = MODEL_ALIASES.get(model_str, model_str)
 
+    if model_str.startswith("riftlm:"):
+        return _resolve_riftlm(model_str)
+
     if model_str.startswith("claude"):
         return ModelConfig(provider="anthropic", model=model_str)
 
@@ -229,3 +232,30 @@ def resolve_model(model_str: str) -> ModelConfig:
         return ModelConfig(provider="google", model=model_str)
 
     return ModelConfig(provider="local", model=model_str)
+
+
+def _resolve_riftlm(model_str: str) -> ModelConfig:
+    """Resolve ``riftlm:<checkpoint.npz>`` to a keyless in-process model.
+
+    The checkpoint file's content digest is appended to the model string
+    (``riftlm:models/riftlm-a.npz@3fa9c02b1d44``). The runner's completion
+    cache is keyed on the model string, so retraining a checkpoint *in
+    place* — same path, new weights — invalidates the cache instead of
+    silently replaying the previous weights' completions. The digest also
+    lands in reports and run metadata as weight-level provenance, the same
+    role ``provider_fingerprint`` plays for hosted models.
+
+    Missing checkpoints fail here, at resolve time, with a clean message —
+    not per-case inside the runner.
+    """
+    import hashlib
+
+    # Local import: rift.providers pulls in click/httpx machinery that
+    # config-only callers (e.g. suite validation) shouldn't need eagerly.
+    from .providers.riftlm import RiftLMCheckpointError, checkpoint_path
+
+    path = checkpoint_path(model_str)
+    if not path.is_file():
+        raise RiftLMCheckpointError(str(path))
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    return ModelConfig(provider="riftlm", model=f"riftlm:{path}@{digest}")
