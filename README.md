@@ -24,6 +24,10 @@ every change, server-fingerprint tracking for silent model swaps, and
 - **For PMs and executives:** procurement-grade `$/correct` deltas
   with error bars, a forwardable one-page memo, and an answer to
   "are we still getting the model we're paying for?"
+- **For the curious:** [RiftLM](#build-your-own-model-then-catch-its-regression-no-api-key-needed) —
+  train Rift's own tiny GPT from scratch on your CPU (pure numpy, ~5
+  minutes, no API key) and watch the pipeline catch a regression you
+  manufactured yourself.
 
 No vibes. No "it feels dumber." Just p-values, confidence intervals,
 and `$/correct`.
