@@ -47,7 +47,16 @@ class TrainResult:
 
 
 def _lr_at(step: int, total: int, lr: float) -> float:
-    """5% linear warmup, then cosine decay to 10% of peak."""
+    """5% linear warmup, then cosine decay to 10% of peak.
+
+    Applied *per phase* (step/total are phase-relative): phase 2 re-warms
+    to the full peak rate, as real continued-pretraining runs do. This is
+    load-bearing for the drift story — if the phase-1 cosine were left to
+    decay across the whole run, phase 2's updates would be too small to
+    displace ``rev`` and both checkpoints would behave identically.
+    Empirically, ~300 re-warmed steps on the rev-free mix drive held-out
+    rev accuracy from 100% toward 0% while the other tasks hold.
+    """
     warmup = max(1, int(0.05 * total))
     if step < warmup:
         return lr * (step + 1) / warmup
@@ -113,10 +122,16 @@ def train_riftlm(
 
     loss = float("nan")
     for step in range(steps):
-        mix = PHASE1_MIX if step < switch_step else PHASE2_MIX
+        in_phase1 = step < switch_step
+        mix = PHASE1_MIX if in_phase1 else PHASE2_MIX
+        # Phase-relative schedule: phase 2 re-warms to the peak rate.
+        if in_phase1:
+            step_lr = _lr_at(step, switch_step, lr)
+        else:
+            step_lr = _lr_at(step - switch_step, steps - switch_step, lr)
         x, y, mask = batch(mix, batch_size, cfg.block_size, rng)
         loss, grads = model.loss_and_grads(x, y, mask)
-        model.adam_step(grads, lr=_lr_at(step, steps, lr))
+        model.adam_step(grads, lr=step_lr)
 
         if step % 200 == 0:
             phase = 1 if step < switch_step else 2
