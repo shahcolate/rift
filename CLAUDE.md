@@ -24,6 +24,10 @@ rift/
 │   ├── prompts.py           # Registry of user-overridable probe prompt templates
 │   ├── context_rot.py       # Distractor-injection suite expansion
 │   ├── faithfulness.py      # Reasoning-faithfulness probe (biasing-hint articulation)
+│   ├── lm/                  # RiftLM: built-in tiny GPT, pure numpy (no torch)
+│   │   ├── data.py          # Synthetic tasks (cpy/rev/srt/max) + hash train/eval split
+│   │   ├── model.py         # TinyGPT: forward, hand-written backprop, Adam, greedy decode
+│   │   └── train.py         # Training loop w/ mid-run task-mix shift → ckpt A/B pair
 │   ├── scoring/
 │   │   ├── exact_match.py
 │   │   ├── custom.py        # Loader for user-supplied `scoring: custom` scorers
@@ -34,7 +38,8 @@ rift/
 │   │   ├── __init__.py      # Abstract BaseProvider + Completion dataclass
 │   │   ├── anthropic.py
 │   │   ├── google.py        # Gemini (Generative Language API)
-│   │   └── openai.py
+│   │   ├── openai.py
+│   │   └── riftlm.py        # In-process provider for RiftLM checkpoints (keyless)
 │   └── config.py            # YAML parsing + model alias resolution
 ├── suites/
 │   ├── summarization.yaml
@@ -42,7 +47,8 @@ rift/
 │   ├── reasoning.yaml
 │   ├── code_generation.yaml
 │   ├── context_rot_reasoning.yaml
-│   └── faithfulness_reasoning.yaml  # Seed suite for `rift faithfulness`
+│   ├── faithfulness_reasoning.yaml  # Seed suite for `rift faithfulness`
+│   └── riftlm.yaml                  # Held-out RiftLM eval (generated: `rift lm suite`)
 ├── benchmarks/
 │   ├── run_context_rot.py              # Reproducible benchmark driver (live|record)
 │   ├── generate_synthetic_outcomes.py  # Seeded prior-model outcomes generator
@@ -71,6 +77,20 @@ rift/
 - **Run**: One execution of a suite against a single model
 - **Comparison**: Statistical analysis of two runs (baseline vs challenger)
 - **Drift Score**: Per-task and aggregate metric quantifying behavioral change
+- **RiftLM** (`rift lm train|sample|suite`, model string `riftlm:<ckpt>.npz`):
+  Rift's own tiny character-level GPT — pure numpy, hand-written backprop
+  (finite-difference-checked in tests), trains from scratch on CPU in minutes
+  on synthetic string tasks (cpy/rev/srt/max). Training shifts the task mix at
+  `--switch` (rev dropped) and saves `riftlm-a.npz` / `riftlm-b.npz`, a
+  baseline/challenger pair with a real subgroup regression — the keyless
+  end-to-end demo of the whole pipeline against a model whose weights and data
+  you fully control. The eval suite (`suites/riftlm.yaml`) is held out by a
+  content-hash split (`is_eval_line`): the training sampler rejects exactly the
+  lines the suite generator draws. `resolve_model` bakes the checkpoint's
+  sha256 digest into the model string (`riftlm:models/riftlm-a.npz@<digest>`),
+  so retraining in place invalidates the completion cache and the digest doubles
+  as `provider_fingerprint`. Inference is in-process (`providers/riftlm.py`);
+  no key, no network, $0 cost.
 - **Replication / noise floor** (`--trials k`): re-sample each case k times to
   estimate run-to-run generation noise. `comparator.variance_components`
   decomposes scores into within-case (noise) vs between-case (signal) + ICC +
@@ -157,6 +177,12 @@ rift report results/comparison.json --format markdown --output drift_report.md
 # Observatory: one panel pass + render the dashboard
 rift observe --panel observatory/panel.yaml --data-dir observatory-data
 rift observatory-site --data-dir observatory-data --out _site
+
+# RiftLM: train the built-in tiny GPT, then catch its manufactured regression
+rift lm train
+rift compare --baseline riftlm:models/riftlm-a.npz \
+             --challenger riftlm:models/riftlm-b.npz \
+             --suite riftlm --subgroup task:
 ```
 
 ## Config Format (suite YAML)
@@ -237,9 +263,12 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   `sycophancy`/`discover`/`faithfulness`/`selftest`/`validate-judge`/
   `observe` in live mode) DO preflight keys via `ensure_provider_keys`
   for a clean fail-fast prompt, so they require a key even when a run
-  would have been fully cached. A missing key raised lazily anywhere
-  (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
-  swallowed as a per-case error, so it always shows the clean message.
+  would have been fully cached. A fatal, user-fixable `ClickException`
+  raised lazily anywhere — a missing key (e.g. an llm_judge judge key),
+  an unreadable RiftLM checkpoint — is re-raised by `run_suite` rather
+  than swallowed as a per-case error, so it always shows the clean
+  message instead of an all-errored "run" drift stats would be computed
+  over.
 - Cache writes are atomic (tmp + rename) so a crashed runner never
   leaves a half-written JSON.
 - Every `CaseResult` carries `input_tokens`, `output_tokens`, and

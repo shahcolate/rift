@@ -951,8 +951,11 @@ async def run_panel(
 
     records: list[ObservationRecord] = []
     for ep in selected:
-        model_config = resolve_model(ep.model)
         try:
+            # Inside the isolation block: resolve_model can now raise (a
+            # riftlm endpoint whose checkpoint is absent on this runner),
+            # and one bad endpoint must not abort the whole panel pass.
+            model_config = resolve_model(ep.model)
             for suite_name in panel.suites:
                 suite = suite_configs[suite_name]
                 version = suite_versions[suite_name]

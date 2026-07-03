@@ -1,0 +1,485 @@
+name: riftlm
+description: Held-out synthetic string tasks (cpy/rev/srt/max) for RiftLM, generated
+  by `rift lm suite --per-task 30 --seed 1234`. Do not hand-edit; regenerate instead.
+scoring: exact_match
+cases:
+- input: 'cpy erb = '
+  expected: erb
+  tags:
+  - task:cpy
+- input: 'cpy lltjtm = '
+  expected: lltjtm
+  tags:
+  - task:cpy
+- input: 'cpy tbzi = '
+  expected: tbzi
+  tags:
+  - task:cpy
+- input: 'cpy pjxvfy = '
+  expected: pjxvfy
+  tags:
+  - task:cpy
+- input: 'cpy ohkel = '
+  expected: ohkel
+  tags:
+  - task:cpy
+- input: 'cpy gmq = '
+  expected: gmq
+  tags:
+  - task:cpy
+- input: 'cpy rdx = '
+  expected: rdx
+  tags:
+  - task:cpy
+- input: 'cpy gawgk = '
+  expected: gawgk
+  tags:
+  - task:cpy
+- input: 'cpy vwsiae = '
+  expected: vwsiae
+  tags:
+  - task:cpy
+- input: 'cpy xzram = '
+  expected: xzram
+  tags:
+  - task:cpy
+- input: 'cpy gidx = '
+  expected: gidx
+  tags:
+  - task:cpy
+- input: 'cpy vldk = '
+  expected: vldk
+  tags:
+  - task:cpy
+- input: 'cpy ulga = '
+  expected: ulga
+  tags:
+  - task:cpy
+- input: 'cpy biv = '
+  expected: biv
+  tags:
+  - task:cpy
+- input: 'cpy dzfzoi = '
+  expected: dzfzoi
+  tags:
+  - task:cpy
+- input: 'cpy ptcq = '
+  expected: ptcq
+  tags:
+  - task:cpy
+- input: 'cpy pery = '
+  expected: pery
+  tags:
+  - task:cpy
+- input: 'cpy cpiki = '
+  expected: cpiki
+  tags:
+  - task:cpy
+- input: 'cpy awvu = '
+  expected: awvu
+  tags:
+  - task:cpy
+- input: 'cpy cnsow = '
+  expected: cnsow
+  tags:
+  - task:cpy
+- input: 'cpy rukyb = '
+  expected: rukyb
+  tags:
+  - task:cpy
+- input: 'cpy fcmlk = '
+  expected: fcmlk
+  tags:
+  - task:cpy
+- input: 'cpy tvn = '
+  expected: tvn
+  tags:
+  - task:cpy
+- input: 'cpy pfv = '
+  expected: pfv
+  tags:
+  - task:cpy
+- input: 'cpy reyceb = '
+  expected: reyceb
+  tags:
+  - task:cpy
+- input: 'cpy jzso = '
+  expected: jzso
+  tags:
+  - task:cpy
+- input: 'cpy nhrilr = '
+  expected: nhrilr
+  tags:
+  - task:cpy
+- input: 'cpy ewma = '
+  expected: ewma
+  tags:
+  - task:cpy
+- input: 'cpy cgg = '
+  expected: cgg
+  tags:
+  - task:cpy
+- input: 'cpy jbdp = '
+  expected: jbdp
+  tags:
+  - task:cpy
+- input: 'rev abizv = '
+  expected: vziba
+  tags:
+  - task:rev
+- input: 'rev tzoz = '
+  expected: zozt
+  tags:
+  - task:rev
+- input: 'rev eiuy = '
+  expected: yuie
+  tags:
+  - task:rev
+- input: 'rev degd = '
+  expected: dged
+  tags:
+  - task:rev
+- input: 'rev ukh = '
+  expected: hku
+  tags:
+  - task:rev
+- input: 'rev pllsb = '
+  expected: bsllp
+  tags:
+  - task:rev
+- input: 'rev ztme = '
+  expected: emtz
+  tags:
+  - task:rev
+- input: 'rev uoju = '
+  expected: ujou
+  tags:
+  - task:rev
+- input: 'rev hdrb = '
+  expected: brdh
+  tags:
+  - task:rev
+- input: 'rev tgwbc = '
+  expected: cbwgt
+  tags:
+  - task:rev
+- input: 'rev qagar = '
+  expected: ragaq
+  tags:
+  - task:rev
+- input: 'rev qnmx = '
+  expected: xmnq
+  tags:
+  - task:rev
+- input: 'rev mti = '
+  expected: itm
+  tags:
+  - task:rev
+- input: 'rev hphswv = '
+  expected: vwshph
+  tags:
+  - task:rev
+- input: 'rev qoap = '
+  expected: paoq
+  tags:
+  - task:rev
+- input: 'rev koxnlm = '
+  expected: mlnxok
+  tags:
+  - task:rev
+- input: 'rev tgk = '
+  expected: kgt
+  tags:
+  - task:rev
+- input: 'rev iyyv = '
+  expected: vyyi
+  tags:
+  - task:rev
+- input: 'rev rxdiuo = '
+  expected: ouidxr
+  tags:
+  - task:rev
+- input: 'rev ntruz = '
+  expected: zurtn
+  tags:
+  - task:rev
+- input: 'rev evo = '
+  expected: ove
+  tags:
+  - task:rev
+- input: 'rev rtbk = '
+  expected: kbtr
+  tags:
+  - task:rev
+- input: 'rev marq = '
+  expected: qram
+  tags:
+  - task:rev
+- input: 'rev jzgps = '
+  expected: spgzj
+  tags:
+  - task:rev
+- input: 'rev dcj = '
+  expected: jcd
+  tags:
+  - task:rev
+- input: 'rev rbquc = '
+  expected: cuqbr
+  tags:
+  - task:rev
+- input: 'rev mfp = '
+  expected: pfm
+  tags:
+  - task:rev
+- input: 'rev woa = '
+  expected: aow
+  tags:
+  - task:rev
+- input: 'rev prrvzy = '
+  expected: yzvrrp
+  tags:
+  - task:rev
+- input: 'rev qyr = '
+  expected: ryq
+  tags:
+  - task:rev
+- input: 'srt 7241 = '
+  expected: '1247'
+  tags:
+  - task:srt
+- input: 'srt 807688 = '
+  expected: 067888
+  tags:
+  - task:srt
+- input: 'srt 6836 = '
+  expected: '3668'
+  tags:
+  - task:srt
+- input: 'srt 33259 = '
+  expected: '23359'
+  tags:
+  - task:srt
+- input: 'srt 152146 = '
+  expected: '112456'
+  tags:
+  - task:srt
+- input: 'srt 197506 = '
+  expected: 015679
+  tags:
+  - task:srt
+- input: 'srt 40643 = '
+  expected: '03446'
+  tags:
+  - task:srt
+- input: 'srt 6871 = '
+  expected: '1678'
+  tags:
+  - task:srt
+- input: 'srt 300770 = '
+  expected: '000377'
+  tags:
+  - task:srt
+- input: 'srt 0533 = '
+  expected: '0335'
+  tags:
+  - task:srt
+- input: 'srt 90944 = '
+  expected: 04499
+  tags:
+  - task:srt
+- input: 'srt 676711 = '
+  expected: '116677'
+  tags:
+  - task:srt
+- input: 'srt 53998 = '
+  expected: '35899'
+  tags:
+  - task:srt
+- input: 'srt 88670 = '
+  expected: 06788
+  tags:
+  - task:srt
+- input: 'srt 911 = '
+  expected: '119'
+  tags:
+  - task:srt
+- input: 'srt 62820 = '
+  expected: 02268
+  tags:
+  - task:srt
+- input: 'srt 407735 = '
+  expected: '034577'
+  tags:
+  - task:srt
+- input: 'srt 997 = '
+  expected: '799'
+  tags:
+  - task:srt
+- input: 'srt 299223 = '
+  expected: '222399'
+  tags:
+  - task:srt
+- input: 'srt 02467 = '
+  expected: '02467'
+  tags:
+  - task:srt
+- input: 'srt 1687 = '
+  expected: '1678'
+  tags:
+  - task:srt
+- input: 'srt 1433 = '
+  expected: '1334'
+  tags:
+  - task:srt
+- input: 'srt 82987 = '
+  expected: '27889'
+  tags:
+  - task:srt
+- input: 'srt 376456 = '
+  expected: '345667'
+  tags:
+  - task:srt
+- input: 'srt 00601 = '
+  expected: '00016'
+  tags:
+  - task:srt
+- input: 'srt 642061 = '
+  expected: '012466'
+  tags:
+  - task:srt
+- input: 'srt 67526 = '
+  expected: '25667'
+  tags:
+  - task:srt
+- input: 'srt 661819 = '
+  expected: '116689'
+  tags:
+  - task:srt
+- input: 'srt 699 = '
+  expected: '699'
+  tags:
+  - task:srt
+- input: 'srt 14905 = '
+  expected: 01459
+  tags:
+  - task:srt
+- input: 'max 097770 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 41663 = '
+  expected: '6'
+  tags:
+  - task:max
+- input: 'max 4785 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 252 = '
+  expected: '5'
+  tags:
+  - task:max
+- input: 'max 5713 = '
+  expected: '7'
+  tags:
+  - task:max
+- input: 'max 55084 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 636 = '
+  expected: '6'
+  tags:
+  - task:max
+- input: 'max 445144 = '
+  expected: '5'
+  tags:
+  - task:max
+- input: 'max 005 = '
+  expected: '5'
+  tags:
+  - task:max
+- input: 'max 558948 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 98740 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 0681 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 43409 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 1209 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 4037 = '
+  expected: '7'
+  tags:
+  - task:max
+- input: 'max 7668 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 90232 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 096876 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 6362 = '
+  expected: '6'
+  tags:
+  - task:max
+- input: 'max 33970 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 8196 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 520 = '
+  expected: '5'
+  tags:
+  - task:max
+- input: 'max 845680 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 407748 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 837333 = '
+  expected: '8'
+  tags:
+  - task:max
+- input: 'max 7423 = '
+  expected: '7'
+  tags:
+  - task:max
+- input: 'max 68595 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 4029 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 114295 = '
+  expected: '9'
+  tags:
+  - task:max
+- input: 'max 693 = '
+  expected: '9'
+  tags:
+  - task:max
