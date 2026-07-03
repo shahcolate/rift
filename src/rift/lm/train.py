@@ -24,7 +24,7 @@ from typing import Callable
 
 import numpy as np
 
-from .data import MAX_LINE_LEN, TASKS, batch, encode, gen_eval_cases
+from .data import MAX_LINE_LEN, TASKS, batch, decode, encode, gen_eval_cases
 from .model import TinyGPT, TinyGPTConfig
 
 PHASE1_MIX = {"cpy": 0.25, "rev": 0.25, "srt": 0.25, "max": 0.25}
@@ -70,16 +70,19 @@ def quick_accuracy(
     """Greedy exact-match accuracy per task on held-out prompts.
 
     A coarse training-time gauge; the statistically honest number comes
-    from ``rift compare`` on the committed suite.
+    from ``rift compare`` on the committed suite. Scoring goes through the
+    same ExactMatchScorer ``rift compare`` will apply to these cases, so
+    the two can never disagree about what counts as correct.
     """
+    from ..scoring.exact_match import ExactMatchScorer
+
+    scorer = ExactMatchScorer()
     cases = gen_eval_cases(per_task, seed=seed)
     acc: dict[str, list[float]] = {t: [] for t in TASKS}
     for case in cases:
         task = str(case["tags"][0]).split(":", 1)[1]  # type: ignore[index]
         out = model.generate(encode(str(case["input"])), max_new_tokens=8)
-        from .data import decode
-
-        acc[task].append(1.0 if decode(out) == case["expected"] else 0.0)
+        acc[task].append(scorer.score(decode(out), case["expected"]))
     return {t: float(np.mean(v)) if v else 0.0 for t, v in acc.items()}
 
 
@@ -92,7 +95,6 @@ def train_riftlm(
     seed: int = 0,
     cfg: TinyGPTConfig | None = None,
     log: Callable[[str], None] | None = None,
-    eval_at_checkpoints: bool = True,
 ) -> TrainResult:
     """Train RiftLM from scratch and save the baseline/challenger pair.
 
@@ -100,6 +102,8 @@ def train_riftlm(
     from it), so two people running the same command get the same drift
     story to within BLAS reduction noise.
     """
+    if steps < 2:
+        raise ValueError("steps must be >= 2: the run has two training phases")
     out_dir = Path(out_dir)
     rng = np.random.default_rng(seed)
     cfg = cfg or TinyGPTConfig(block_size=MAX_LINE_LEN + 4)
@@ -107,7 +111,11 @@ def train_riftlm(
     say = log or (lambda _msg: None)
 
     n_params = sum(int(v.size) for v in model.params.values())
-    switch_step = int(steps * switch)
+    # Clamp so both phases always run at least one step — otherwise the
+    # `step + 1 == switch_step` save condition could never fire and
+    # checkpoint A would silently not be written (or worse, a stale one
+    # from a previous run would be compared against the fresh B).
+    switch_step = min(max(int(steps * switch), 1), steps - 1)
     say(
         f"RiftLM: {n_params:,} params, {steps} steps "
         f"(task-mix shift at step {switch_step}: rev dropped)"
@@ -139,19 +147,13 @@ def train_riftlm(
 
         if step + 1 == switch_step:
             model.save(path_a)
-            if eval_at_checkpoints:
-                result.accuracy_a = quick_accuracy(model)
-                acc = "  ".join(f"{t}={v:.0%}" for t, v in result.accuracy_a.items())
-                say(f"saved {path_a}  held-out: {acc}")
-            else:
-                say(f"saved {path_a}")
+            result.accuracy_a = quick_accuracy(model)
+            acc = "  ".join(f"{t}={v:.0%}" for t, v in result.accuracy_a.items())
+            say(f"saved {path_a}  held-out: {acc}")
 
     model.save(path_b)
     result.final_loss = float(loss)
-    if eval_at_checkpoints:
-        result.accuracy_b = quick_accuracy(model)
-        acc = "  ".join(f"{t}={v:.0%}" for t, v in result.accuracy_b.items())
-        say(f"saved {path_b}  held-out: {acc}")
-    else:
-        say(f"saved {path_b}")
+    result.accuracy_b = quick_accuracy(model)
+    acc = "  ".join(f"{t}={v:.0%}" for t, v in result.accuracy_b.items())
+    say(f"saved {path_b}  held-out: {acc}")
     return result

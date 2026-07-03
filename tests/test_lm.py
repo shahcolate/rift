@@ -87,12 +87,40 @@ def test_generate_is_deterministic_and_stops_at_newline():
     assert len(a) <= 6
 
 
+def test_generate_empty_prompt_returns_empty():
+    m = _micro_model(dtype=np.float32)
+    assert m.generate([], max_new_tokens=6) == []
+
+
+def test_train_switch_step_always_saves_both_checkpoints(tmp_path):
+    """switch_step is clamped into [1, steps-1] so checkpoint A always exists."""
+    from rift.lm.train import train_riftlm
+
+    cfg = TinyGPTConfig(
+        vocab_size=data.VOCAB_SIZE, block_size=24, n_layer=1, n_head=2,
+        d_model=16, d_ff=32,
+    )
+    # switch=0.01 of 4 steps floors to 0 — the old condition would never save A.
+    result = train_riftlm(
+        out_dir=tmp_path, steps=4, switch=0.01, batch_size=2, cfg=cfg,
+    )
+    assert result.checkpoint_a.is_file()
+    assert result.checkpoint_b.is_file()
+    assert 1 <= result.switch_step <= 3
+
+    with pytest.raises(ValueError):
+        train_riftlm(out_dir=tmp_path, steps=1, cfg=cfg)
+
+
 def test_save_load_roundtrip(tmp_path):
     m = _micro_model(dtype=np.float32)
     p = tmp_path / "m.npz"
     m.save(p)
     m2 = TinyGPT.load(p)
     assert m2.cfg == m.cfg
+    # Exactly the parameter tensors, no strays (e.g. the 'allow_pickle'
+    # array old checkpoints written under numpy<2.1 could carry).
+    assert set(m2.params) == set(m.params)
     for k, v in m.params.items():
         np.testing.assert_array_equal(v, m2.params[k])
     prompt = encode("rev ab = ")
@@ -188,6 +216,53 @@ def test_checkpoint_path_strips_prefix_and_digest():
     assert str(checkpoint_path("riftlm:models/a.npz@0123456789ab")) == "models/a.npz"
 
 
+def test_checkpoint_path_prefers_real_file_with_hex_tail(tmp_path):
+    """A checkpoint literally named with an @hex tail must not be mangled."""
+    weird = tmp_path / "run@20260101"
+    _micro_model(dtype=np.float32).save(weird)
+    assert checkpoint_path(f"riftlm:{weird}") == weird
+
+
+async def test_corrupt_checkpoint_aborts_run_cleanly(tmp_path):
+    """An unloadable checkpoint must raise the clean ClickException, not
+    produce an all-errored run that drift stats get computed over."""
+    from rift.config import ModelConfig, SuiteConfig
+    from rift.runner import run_suite
+
+    bad = tmp_path / "bad.npz"
+    bad.write_bytes(b"this is not a checkpoint")
+    suite = SuiteConfig(
+        name="smoke", scoring="exact_match",
+        cases=[{"input": "cpy ab = ", "expected": "ab"}],
+    )
+    with pytest.raises(RiftLMCheckpointError):
+        await run_suite(
+            suite,
+            # Bypass resolve_model's is_file gate on purpose: the file
+            # exists but its content is garbage, so the error surfaces
+            # lazily from provider init inside the runner.
+            ModelConfig(provider="riftlm", model=f"riftlm:{bad}@{'0' * 12}"),
+            cache_dir=str(tmp_path / "cache"), show_progress=False,
+        )
+
+
+async def test_run_suite_normalizes_digestless_riftlm_config(tmp_path):
+    """A hand-built ModelConfig without the digest still gets cache-busting."""
+    from rift.config import ModelConfig, SuiteConfig
+    from rift.runner import run_suite
+
+    p = _saved_checkpoint(tmp_path)
+    suite = SuiteConfig(
+        name="smoke", scoring="exact_match",
+        cases=[{"input": "cpy ab = ", "expected": "ab"}],
+    )
+    result = await run_suite(
+        suite, ModelConfig(provider="riftlm", model=f"riftlm:{p}"),
+        cache_dir=str(tmp_path / "cache"), show_progress=False,
+    )
+    assert "@" in result.model  # digest was baked in despite the bypass
+
+
 async def test_provider_completion_is_deterministic_and_keyless(tmp_path):
     p = _saved_checkpoint(tmp_path)
     provider = RiftLMProvider(model=f"riftlm:{p}")
@@ -199,6 +274,13 @@ async def test_provider_completion_is_deterministic_and_keyless(tmp_path):
     assert c1.provider_fingerprint is not None
     assert c1.provider_fingerprint.startswith("riftlm-")
     await provider.close()
+
+    # When the model string carries the resolve-time digest, the reported
+    # fingerprint is that same digest — one identity, never two.
+    cfg = resolve_model(f"riftlm:{p}")
+    p2 = RiftLMProvider(model=cfg.model)
+    c3 = await p2.complete("cpy abc = ")
+    assert c3.provider_fingerprint == f"riftlm-{cfg.model.rsplit('@', 1)[1]}"
 
 
 async def test_provider_missing_checkpoint(tmp_path):

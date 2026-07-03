@@ -263,9 +263,12 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   `sycophancy`/`discover`/`faithfulness`/`selftest`/`validate-judge`/
   `observe` in live mode) DO preflight keys via `ensure_provider_keys`
   for a clean fail-fast prompt, so they require a key even when a run
-  would have been fully cached. A missing key raised lazily anywhere
-  (e.g. an llm_judge judge key) is re-raised by `run_suite` rather than
-  swallowed as a per-case error, so it always shows the clean message.
+  would have been fully cached. A fatal, user-fixable `ClickException`
+  raised lazily anywhere — a missing key (e.g. an llm_judge judge key),
+  an unreadable RiftLM checkpoint — is re-raised by `run_suite` rather
+  than swallowed as a per-case error, so it always shows the clean
+  message instead of an all-errored "run" drift stats would be computed
+  over.
 - Cache writes are atomic (tmp + rename) so a crashed runner never
   leaves a half-written JSON.
 - Every `CaseResult` carries `input_tokens`, `output_tokens`, and

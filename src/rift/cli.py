@@ -1328,19 +1328,18 @@ def lm_train(out_dir, steps, switch, batch_size, lr, seed):
 @click.option("--max-new", default=32, show_default=True,
               help="Max characters to generate (stops at newline).")
 def lm_sample(checkpoint, prompt, max_new):
-    """Greedy-decode one prompt against a checkpoint."""
-    from .lm.data import NEWLINE_ID, decode, encode
-    from .providers.riftlm import RiftLMCheckpointError
+    """Greedy-decode one prompt against a checkpoint.
 
-    ckpt = Path(checkpoint)
-    if not ckpt.is_file():
-        raise RiftLMCheckpointError(str(ckpt))
-    from .lm.model import TinyGPT
+    Goes through RiftLMProvider — the same inference path ``rift
+    compare`` scores — so what you see here is exactly what a run
+    would grade (and a missing/corrupt checkpoint gets the same clean
+    one-line error).
+    """
+    from .providers.riftlm import RiftLMProvider
 
-    model = TinyGPT.load(ckpt)
-    out = decode(model.generate(encode(prompt), max_new_tokens=max_new,
-                                stop_id=NEWLINE_ID))
-    console.print(f"[dim]{prompt}[/dim][bold]{out}[/bold]")
+    provider = RiftLMProvider(model=f"riftlm:{checkpoint}")
+    completion = asyncio.run(provider.complete(prompt, max_tokens=max_new))
+    console.print(f"[dim]{prompt}[/dim][bold]{completion.output_text}[/bold]")
 
 
 @lm.command(name="suite")
@@ -1379,6 +1378,11 @@ def lm_suite(out_path, per_task, seed):
     console.print(
         f"Wrote [green]{out}[/green] ({len(cases)} cases, "
         f"{per_task} per task)."
+    )
+    console.print(
+        f"Use it by path: [bold]--suite {out}[/bold]  (the bare name "
+        f"'riftlm' resolves to the copy bundled with the install, which "
+        f"won't reflect a regenerated file)."
     )
 
 

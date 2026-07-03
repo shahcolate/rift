@@ -36,12 +36,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+import click
 import httpx
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
 from .config import ModelConfig, SuiteConfig
 from .pricing import cost_of
-from .providers import BaseProvider, Completion, MissingAPIKeyError
+from .providers import BaseProvider, Completion
 from .providers.anthropic import AnthropicProvider
 from .providers.google import GoogleProvider
 from .providers.openai import OpenAIProvider
@@ -206,10 +207,14 @@ def _cache_key(model: str, input_text: str, model_params: dict,
     suffix = "" if trial == 0 else f"_t{trial}"
     # The key doubles as a cache *filename*. Hosted model ids are already
     # safe, but riftlm checkpoint paths ("riftlm:models/a.npz@<digest>")
-    # carry slashes/colons; replace anything unsafe. The hash above is
-    # computed from the raw string first, so keys for existing hosted-model
-    # cache entries are byte-identical to what older Rifts wrote.
-    safe_model = re.sub(r"[^A-Za-z0-9._-]", "_", model)
+    # carry slashes/colons; replace anything unsafe and bound the length so
+    # a deep checkpoint path can't push the filename past the filesystem's
+    # 255-byte limit (uniqueness comes from the hash, the prefix is only
+    # for human-browsable cache dirs). The hash is computed from the raw
+    # string first, and every shipped hosted-model id is already within
+    # [A-Za-z0-9._-], so their keys are byte-identical to what older Rifts
+    # wrote.
+    safe_model = re.sub(r"[^A-Za-z0-9._-]", "_", model)[-120:]
     return f"{safe_model}_{h}{suffix}"
 
 
@@ -369,6 +374,18 @@ async def run_suite(
         completion order. Failed cases carry ``score=0.0`` and a
         populated ``error`` field so a partial run is still analyzable.
     """
+    # A riftlm config built by hand (bypassing resolve_model) carries no
+    # weight digest in its model string, which would key the cache on the
+    # path alone — an in-place retrain would then replay the old weights'
+    # completions. Normalize here so every entry point gets the digest.
+    if model_config.provider == "riftlm":
+        from .providers.riftlm import _DIGEST_RE
+
+        if not _DIGEST_RE.search(model_config.model):
+            from .config import _resolve_riftlm
+
+            model_config = _resolve_riftlm(model_config.model)
+
     # Provider is instantiated lazily on first cache miss so fully-cached
     # runs (including benchmark replays from recorded outcomes) work
     # without API keys configured.
@@ -465,9 +482,11 @@ async def run_suite(
             for trial in range(max(1, trials)):
                 try:
                     completion, attempts = await _fetch_trial(case, trial)
-                except MissingAPIKeyError:
-                    # Fatal + user-fixable — surface as the clean
-                    # ClickException rather than burying it as score 0.0.
+                except click.ClickException:
+                    # Fatal + user-fixable (missing API key, unreadable
+                    # RiftLM checkpoint, ...) — surface as the clean
+                    # ClickException rather than burying it as score 0.0
+                    # on every case and computing drift over garbage.
                     raise
                 except Exception as exc:
                     if first_error is None:

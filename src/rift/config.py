@@ -248,14 +248,17 @@ def _resolve_riftlm(model_str: str) -> ModelConfig:
     Missing checkpoints fail here, at resolve time, with a clean message —
     not per-case inside the runner.
     """
-    import hashlib
-
     # Local import: rift.providers pulls in click/httpx machinery that
     # config-only callers (e.g. suite validation) shouldn't need eagerly.
-    from .providers.riftlm import RiftLMCheckpointError, checkpoint_path
+    from .providers.riftlm import (
+        RiftLMCheckpointError,
+        checkpoint_digest,
+        checkpoint_path,
+    )
 
     path = checkpoint_path(model_str)
     if not path.is_file():
         raise RiftLMCheckpointError(str(path))
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
-    return ModelConfig(provider="riftlm", model=f"riftlm:{path}@{digest}")
+    return ModelConfig(
+        provider="riftlm", model=f"riftlm:{path}@{checkpoint_digest(path)}"
+    )

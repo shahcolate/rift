@@ -132,6 +132,11 @@ def default_provider_factory(model_id: str) -> BaseProvider:
         return OpenAIProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "google":
         return GoogleProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "riftlm":
+        # Local import keeps the numpy model code off the hosted-model path.
+        from .providers.riftlm import RiftLMProvider
+
+        return RiftLMProvider(model=cfg.model, **cfg.params)
     raise ValueError(
         f"No provider available for provider='{cfg.provider}' "
         f"(model={model_id})"

@@ -87,7 +87,6 @@ class TinyGPT:
         dtype: type = np.float32,
     ) -> None:
         self.cfg = cfg or TinyGPTConfig()
-        self.dtype = dtype
         rng = np.random.default_rng(seed)
         c = self.cfg
         std = 0.02
@@ -304,6 +303,11 @@ class TinyGPT:
         """
         ids = list(prompt_ids)
         out: list[int] = []
+        if not ids:
+            # An empty prompt has no last position to read logits from;
+            # return an empty completion rather than crash on a zero-size
+            # argmax.
+            return out
         for _ in range(max_new_tokens):
             window = ids[-self.cfg.block_size :]
             logits, _ = self._forward(np.array([window], dtype=np.int64))
@@ -321,9 +325,14 @@ class TinyGPT:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Atomic (tmp + rename), matching the runner's cache discipline.
         tmp = path.with_suffix(path.suffix + ".tmp")
+        # NOTE: no allow_pickle kwarg — np.savez_compressed only grew it in
+        # numpy 2.1, and on the 1.26–2.0 range pyproject permits, the kwarg
+        # would be silently swallowed into **kwds and written into the
+        # checkpoint as a stray array. We only store plain ndarrays, so
+        # pickle never engages on save regardless.
         arrays = {"__config__": np.array(json.dumps(asdict(self.cfg))), **self.params}
         with open(tmp, "wb") as f:
-            np.savez_compressed(f, allow_pickle=False, **arrays)  # type: ignore[arg-type]
+            np.savez_compressed(f, **arrays)  # type: ignore[arg-type]
         tmp.replace(path)
 
     @classmethod
@@ -331,8 +340,11 @@ class TinyGPT:
         with np.load(path) as z:
             cfg = TinyGPTConfig(**json.loads(str(z["__config__"])))
             model = cls(cfg)
+            # Keep only real parameter tensors: skip the config blob and any
+            # stray scalar (e.g. an 'allow_pickle' array that checkpoints
+            # written by older Rift under numpy<2.1 may carry).
             model.params = {
-                k: z[k].copy() for k in z.files if k != "__config__"
+                k: z[k].copy() for k in z.files
+                if k in model.params
             }
-        model.dtype = next(iter(model.params.values())).dtype.type
         return model

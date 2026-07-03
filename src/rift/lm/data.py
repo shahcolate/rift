@@ -97,16 +97,26 @@ def make_example(task: str, rng: np.random.Generator) -> tuple[str, str, str]:
     return prompt, answer, prompt + answer + "\n"
 
 
-def sample_line(mix: dict[str, float], rng: np.random.Generator) -> str:
-    """Sample one *training* line from the task mix, skipping eval-split lines."""
+def _mix_dist(mix: dict[str, float]) -> tuple[list[str], np.ndarray]:
+    """Normalize a task mix into parallel (tasks, probabilities) arrays."""
     tasks = [t for t in TASKS if mix.get(t, 0.0) > 0]
     probs = np.array([mix[t] for t in tasks], dtype=np.float64)
-    probs /= probs.sum()
+    return tasks, probs / probs.sum()
+
+
+def _sample_task_line(task: str, rng: np.random.Generator) -> str:
+    """One *training* line for ``task``, rejecting eval-split lines."""
     while True:
-        task = tasks[int(rng.choice(len(tasks), p=probs))]
         _, _, line = make_example(task, rng)
         if not is_eval_line(line):
             return line
+
+
+def sample_line(mix: dict[str, float], rng: np.random.Generator) -> str:
+    """Sample one training line from the task mix, skipping eval-split lines."""
+    tasks, probs = _mix_dist(mix)
+    task = tasks[int(rng.choice(len(tasks), p=probs))]
+    return _sample_task_line(task, rng)
 
 
 def batch(
@@ -125,8 +135,14 @@ def batch(
     x = np.zeros((batch_size, block_size), dtype=np.int64)
     y = np.zeros((batch_size, block_size), dtype=np.int64)
     mask = np.zeros((batch_size, block_size), dtype=np.float64)
+    # One vectorized draw for the whole batch's task assignments, rather
+    # than a per-line dist rebuild + single-draw choice (this path runs
+    # steps x batch_size times per training run).
+    tasks, probs = _mix_dist(mix)
+    task_idx = rng.choice(len(tasks), size=batch_size, p=probs)
     for b in range(batch_size):
-        ids = encode(sample_line(mix, rng))  # ends with the newline token
+        line = _sample_task_line(tasks[int(task_idx[b])], rng)
+        ids = encode(line)  # ends with the newline token
         ids = ids[: block_size + 1]
         x[b, : len(ids) - 1] = ids[:-1]
         y[b, : len(ids) - 1] = ids[1:]
