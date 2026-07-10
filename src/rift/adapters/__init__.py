@@ -28,10 +28,11 @@ class SuiteImportError(click.ClickException):
     """A source file could not be converted to a Rift suite.
 
     Subclasses ``click.ClickException`` so a malformed or unsupported
-    source produces a clean CLI message and exit 1, never a traceback.
+    source produces a clean CLI message and exit 2 (operational error),
+    never a traceback.
     """
 
-    exit_code = 1
+    exit_code = 2
 
 
 @dataclass

@@ -80,7 +80,7 @@ class TestRunCommand:
         proc = run_rift("run", "--model", "opus-4-7", "--suite", str(suite),
                         "--output", str(workdir / "o.json"),
                         env_extra={"ANTHROPIC_API_KEY": ""})
-        assert proc.returncode == 1
+        assert proc.returncode == 2  # operational error, not the drift gate
         assert "ANTHROPIC_API_KEY" in proc.stderr
         assert "Traceback" not in proc.stderr
 
@@ -263,12 +263,12 @@ class TestCustomScorerE2E:
 
     def test_custom_scorer_bad_spec_fails_clean(self, run_rift, write_suite, workdir):
         # custom scoring with no custom_scorer must fail validation cleanly —
-        # a readable message and exit 1, never a raw pydantic traceback.
+        # a readable message and exit 2, never a raw pydantic traceback.
         suite = write_suite("bad.yaml",
             "name: bad\nscoring: custom\ncases:\n  - {input: q, expected: a}\n")
         proc = run_rift("run", "--model", "opus-4-7", "--suite", str(suite),
                         "--output", str(workdir / "o.json"))
-        assert proc.returncode == 1
+        assert proc.returncode == 2
         assert "Traceback" not in proc.stderr
         assert "custom_scorer" in proc.stderr
         assert "Invalid suite" in proc.stderr
@@ -281,7 +281,7 @@ class TestSuiteValidationE2E:
             "name: bad\nscoring: not_a_method\ncases:\n  - {input: q, expected: a}\n")
         proc = run_rift("run", "--model", "opus-4-7", "--suite", str(suite),
                         "--output", str(workdir / "o.json"))
-        assert proc.returncode == 1
+        assert proc.returncode == 2
         assert "Traceback" not in proc.stderr
         assert "Invalid suite" in proc.stderr
 
@@ -300,7 +300,8 @@ class TestTopLevel:
         proc = run_rift("run", "--model", "opus-4-7",
                         "--suite", "no_such_suite_xyz",
                         "--output", str(workdir / "o.json"))
-        assert proc.returncode == 1
+        # 2 = operational error; 1 is reserved for the regression gate.
+        assert proc.returncode == 2
         assert "Traceback" not in proc.stderr
         assert "not found" in proc.stderr
 
@@ -309,6 +310,6 @@ class TestTopLevel:
         proc = run_rift("run", "--model", "opus-4-7",
                         "--suite", str(workdir / "nope.yaml"),
                         "--output", str(workdir / "o.json"))
-        assert proc.returncode == 1
+        assert proc.returncode == 2
         assert "Traceback" not in proc.stderr
         assert "not found" in proc.stderr

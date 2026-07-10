@@ -179,6 +179,17 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         return AnthropicProvider(model=config.model, **config.params)
     elif config.provider == "openai":
         return OpenAIProvider(model=config.model, **config.params)
+    elif config.provider == "openai_compatible":
+        # Self-hosted server speaking the OpenAI chat API ('<model>@<url>').
+        # Auth is the server's business: use OPENAI_API_KEY if set, else a
+        # placeholder — vLLM / Ollama / llama.cpp ignore the header.
+        import os as _os
+
+        return OpenAIProvider(
+            model=config.model, api_base=config.api_base,
+            api_key=_os.environ.get("OPENAI_API_KEY", "unused"),
+            **config.params,
+        )
     elif config.provider == "google":
         return GoogleProvider(model=config.model, **config.params)
     elif config.provider == "riftlm":
@@ -187,6 +198,13 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         from .providers.riftlm import RiftLMProvider
 
         return RiftLMProvider(model=config.model, **config.params)
+    elif config.provider == "local":
+        # The lazy catch-all: cached runs never get here, but a live call
+        # for a typo'd model must fail with the remedy — run_suite
+        # re-raises ClickException instead of scoring every case 0.
+        from .config import UnknownModelError
+
+        raise UnknownModelError(config.model)
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 

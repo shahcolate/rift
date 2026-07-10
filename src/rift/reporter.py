@@ -361,10 +361,21 @@ def print_matrix(results: dict[tuple[str, str], DriftResult],
              f"at α={alpha}; cells: Δ mean / p / q / Δ$-per-correct)")
     table = Table(title=title)
     table.add_column("baseline ↓ / challenger →", style="bold")
+
+    def _short(label: str, limit: int = 24) -> str:
+        # Middle-truncate: the distinguishing part of similar model ids is
+        # usually the SUFFIX (riftlm-a.npz vs riftlm-b.npz), which
+        # end-truncation would cut off first.
+        if len(label) <= limit:
+            return label
+        keep = limit - 1
+        head, tail = keep // 2, keep - keep // 2
+        return f"{label[:head]}…{label[-tail:]}"
+
     for m in models:
-        table.add_column(m, justify="center")
+        table.add_column(_short(m), justify="center")
     for base in models:
-        row = [base]
+        row = [_short(base)]
         for chal in models:
             if base == chal:
                 row.append("—")
@@ -436,6 +447,19 @@ def print_calibration_report(comp) -> None:
     """Print a calibration-drift summary."""
     console = Console()
     b, c = comp.baseline, comp.challenger
+    if b.n_parsed == 0 or c.n_parsed == 0:
+        # Unparsed confidences are excluded, so with zero parsed on either
+        # side every metric is NaN — say that instead of printing NaN soup.
+        console.print(Panel(
+            f"  No parseable confidence values "
+            f"(baseline {b.n_parsed}/{b.n_cases}, challenger "
+            f"{c.n_parsed}/{c.n_cases} parsed).\n\n"
+            "  Calibration needs outputs that state a confidence, e.g. a "
+            "trailing 'Confidence: 0.85'\n  or 'I am 85% sure' line — add "
+            "that instruction to the suite's prompts and re-run.",
+            title="[bold]Calibration Drift[/bold]", border_style="yellow",
+        ))
+        return
     lines = [
         "                       baseline    challenger",
         f"  n parsed / total:   {b.n_parsed}/{b.n_cases}        "

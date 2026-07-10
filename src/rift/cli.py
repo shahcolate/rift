@@ -66,6 +66,49 @@ from .scoring.faithfulness_judge import FaithfulnessJudge
 
 console = Console()
 
+# Exit-code contract (the CI integration surface):
+#   0 — ran cleanly; no significant regression
+#   1 — significant regression detected (the gate)
+#   2 — operational error: bad arguments, missing/malformed files,
+#       unknown model, missing API key, all cases errored
+# Operational failures must never exit 1: a CI job that treats 1 as
+# "regression" would misclassify infrastructure problems as model drift.
+
+
+class OperationalError(click.ClickException):
+    """An infrastructure/user error, distinct from the exit-1 drift gate."""
+
+    exit_code = 2
+
+
+def _load_run(path: str) -> RunResult:
+    """Load a saved run, mapping file problems to clean exit-2 messages."""
+    try:
+        return RunResult.load(path)
+    except FileNotFoundError:
+        raise OperationalError(f"Run file not found: {path}") from None
+    except (ValueError, KeyError, TypeError) as e:
+        # json.JSONDecodeError subclasses ValueError.
+        raise OperationalError(
+            f"Not a Rift run file: {path} ({e})"
+        ) from None
+
+
+def _reject_all_errored(**runs: RunResult) -> None:
+    """Exit 2 when every case on a side errored.
+
+    An all-errored run means the provider was unreachable or every call
+    failed — infrastructure, not drift. Scoring it (all zeros) could even
+    exit 0 and green-light a CI gate.
+    """
+    for side, result in runs.items():
+        if result.cases and all(c.error for c in result.cases):
+            first = next(c.error for c in result.cases if c.error)
+            raise OperationalError(
+                f"Every {side} case errored (first: {first}). This is an "
+                "infrastructure failure, not drift — no verdict computed."
+            )
+
 
 @click.group()
 @click.version_option(version=__version__, prog_name="rift")
@@ -96,8 +139,11 @@ def _maybe_expand(suite_config, context_rot: bool):
 @click.option("--baseline", required=True, help="Baseline model identifier")
 @click.option("--challenger", required=True, help="Challenger model identifier")
 @click.option("--suite", required=True, help="Eval suite name or path to YAML file")
-@click.option("--concurrency", default=5, help="Max concurrent API calls")
-@click.option("--alpha", default=0.05, help="Significance threshold")
+@click.option("--concurrency", default=5, show_default=True,
+              help="Max concurrent API calls")
+@click.option("--alpha", default=0.05, show_default=True,
+              type=click.FloatRange(0, 1, min_open=True, max_open=True),
+              help="Significance threshold")
 @click.option("--output", "-o", default=None, help="Save comparison results to JSON")
 @click.option("--report", "-r", default=None, help="Save markdown report to file")
 @click.option("--cache-dir", default=None, help="Cache directory for completions")
@@ -141,7 +187,14 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
             cache_dir, context_rot, enterprise_multiplier, subgroup,
             refusal, calibration, power, trials, preregister, judge_model,
             strip_io, metrics_out, metrics_format):
-    """Compare two models on an eval suite."""
+    """Compare two models on an eval suite.
+
+    \b
+    Exit codes (the CI contract):
+      0  no significant regression
+      1  significant regression detected
+      2  operational error (bad model/suite/key, all cases errored)
+    """
     if trials < 1:
         raise click.UsageError("--trials must be >= 1.")
     prereg = None
@@ -178,6 +231,7 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
                   cache_dir=cache_dir, enterprise_multiplier=enterprise_multiplier,
                   trials=trials)
     )
+    _reject_all_errored(baseline=baseline_result, challenger=challenger_result)
 
     drift = compare_runs(
         baseline_scores=baseline_result.scores,
@@ -308,7 +362,9 @@ def compare(baseline, challenger, suite, concurrency, alpha, output, report,
 @click.option("--cache-dir", default=None, help="Cache directory")
 @click.option("--context-rot", is_flag=True, default=False,
               help="Expand suite with distractor-context variants per case.")
-@click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--enterprise-multiplier", default=1.0, type=float,
+              show_default=True,
+              help="Apply a contracted-price multiplier to list pricing.")
 @click.option("--trials", default=1, type=int,
               help="Replicates per case (default 1). >1 re-samples each case so "
                    "the saved run carries per-trial scores for noise analysis.")
@@ -354,8 +410,10 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
         )
         print_replication_report(vc)
     console.print(f"\nMean score: [bold]{result.mean_score:.4f}[/bold]")
+    cpc = result.cost_per_correct()
+    cpc_str = f"${cpc:.4f}" if cpc != float("inf") else "n/a (0 correct)"
     console.print(f"Spend: [bold]${result.total_cost_usd:.4f}[/bold]  "
-                  f"$/correct: [bold]${result.cost_per_correct():.4f}[/bold]")
+                  f"$/correct: [bold]{cpc_str}[/bold]")
     console.print(f"Results saved to [green]{output}[/green]")
     if metrics_out:
         from .observability import run_metrics, write_metrics
@@ -368,16 +426,23 @@ def run(model, suite, concurrency, output, cache_dir, context_rot,
 
 
 @main.command()
-@click.argument("baseline_path")
-@click.argument("challenger_path")
-@click.option("--alpha", default=0.05, help="Significance threshold")
+@click.argument("baseline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("challenger_path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--alpha", default=0.05, show_default=True,
+              type=click.FloatRange(0, 1, min_open=True, max_open=True),
+              help="Significance threshold")
 @click.option("--report", "-r", default=None, help="Save markdown report")
 @click.option("--subgroup", default=None,
               help="Tag prefix to split cases by in the report.")
 def diff(baseline_path, challenger_path, alpha, report, subgroup):
-    """Compare two saved run results."""
-    baseline = RunResult.load(baseline_path)
-    challenger = RunResult.load(challenger_path)
+    """Compare two saved run results.
+
+    \b
+    Exit codes: 0 = no significant regression, 1 = significant
+    regression, 2 = operational error (bad file, bad arguments).
+    """
+    baseline = _load_run(baseline_path)
+    challenger = _load_run(challenger_path)
 
     drift = compare_runs(
         baseline_scores=baseline.scores,
@@ -431,10 +496,15 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
 @click.option("--models", required=True,
               help="Comma-separated list of model identifiers.")
 @click.option("--suite", required=True, help="Eval suite name or path")
-@click.option("--concurrency", default=5)
-@click.option("--cache-dir", default=None)
-@click.option("--context-rot", is_flag=True, default=False)
-@click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--concurrency", default=5, show_default=True,
+              help="Max concurrent API calls")
+@click.option("--cache-dir", default=None,
+              help="Cache directory for completions")
+@click.option("--context-rot", is_flag=True, default=False,
+              help="Expand suite with distractor-context variants per case.")
+@click.option("--enterprise-multiplier", default=1.0, type=float,
+              show_default=True,
+              help="Apply a contracted-price multiplier to list pricing.")
 @click.option("--output-dir", default=None,
               help="Directory to save per-model run JSONs.")
 @click.option("--strip-io", is_flag=True, default=False,
@@ -442,7 +512,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
                    "output fields. Use for proprietary suites.")
 def matrix(models, suite, concurrency, cache_dir, context_rot,
            enterprise_multiplier, output_dir, strip_io):
-    """Run every model in ``--models`` and print an NxN drift matrix.
+    """Run every model in --models and print an NxN drift matrix.
 
     Useful for: "how do Opus 4.7, Sonnet 4.6, and GPT-4o disagree on
     this suite?" — every pairwise comparison, one table.
@@ -533,31 +603,31 @@ def matrix(models, suite, concurrency, cache_dir, context_rot,
 
 
 @main.command()
-@click.argument("baseline_path")
-@click.argument("challenger_path")
+@click.argument("baseline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("challenger_path", type=click.Path(exists=True, dir_okay=False))
 def refusal(baseline_path, challenger_path):
     """Refusal / over-refusal drift between two saved runs.
 
     No new API calls — operates on the already-collected outputs.
     """
-    baseline = RunResult.load(baseline_path)
-    challenger = RunResult.load(challenger_path)
+    baseline = _load_run(baseline_path)
+    challenger = _load_run(challenger_path)
     analysis = compare_refusal(baseline, challenger)
     print_refusal_report(analysis)
 
 
 @main.command()
-@click.argument("baseline_path")
-@click.argument("challenger_path")
+@click.argument("baseline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("challenger_path", type=click.Path(exists=True, dir_okay=False))
 def calibration(baseline_path, challenger_path):
     """Calibration drift (Brier / ECE / overconfidence).
 
-    Expects models to emit a confidence number (e.g. ``Confidence:
-    0.85`` or ``I am 85% sure``) in their output. Cases without a
-    parseable confidence are reported and excluded from the metrics.
+    Expects models to emit a confidence number (e.g. 'Confidence: 0.85'
+    or 'I am 85% sure') in their output. Cases without a parseable
+    confidence are reported and excluded from the metrics.
     """
-    baseline = RunResult.load(baseline_path)
-    challenger = RunResult.load(challenger_path)
+    baseline = _load_run(baseline_path)
+    challenger = _load_run(challenger_path)
     comp = compare_calibration(baseline, challenger)
     print_calibration_report(comp)
 
@@ -570,7 +640,9 @@ def calibration(baseline_path, challenger_path):
                    "tighter estimate of the null false-positive rate.")
 @click.option("--reps", default=500, type=int,
               help="Random self-vs-self splits used to estimate the rate.")
-@click.option("--alpha", default=0.05, type=float, help="Significance threshold.")
+@click.option("--alpha", default=0.05, show_default=True,
+              type=click.FloatRange(0, 1, min_open=True, max_open=True),
+              help="Significance threshold.")
 @click.option("--concurrency", default=5, help="Max concurrent API calls")
 @click.option("--cache-dir", default=None, help="Cache directory for completions")
 @click.option("--output", "-o", default=None, help="Save the run + result to JSON")
@@ -579,7 +651,7 @@ def selftest(model, suite, trials, reps, alpha, concurrency, cache_dir, output):
 
     Runs one model against a suite with replication, then repeatedly splits its
     own trials into two arms and feeds them through the same statistical test
-    ``compare`` uses. Reports the empirical false-positive rate — most
+    'compare' uses. Reports the empirical false-positive rate — most
     importantly the false-*regression* rate, i.e. how often the CI gate would
     block a deploy comparing a model to itself. A rate near the nominal alpha
     means a red gate is trustworthy on this suite; well above it means you need
@@ -626,9 +698,13 @@ def selftest(model, suite, trials, reps, alpha, concurrency, cache_dir, output):
 @main.command()
 @click.option("--model", required=True, help="Model identifier")
 @click.option("--suite", required=True, help="Eval suite to probe")
-@click.option("--concurrency", default=5)
-@click.option("--cache-dir", default=None)
-@click.option("--enterprise-multiplier", default=1.0, type=float)
+@click.option("--concurrency", default=5, show_default=True,
+              help="Max concurrent API calls")
+@click.option("--cache-dir", default=None,
+              help="Cache directory for completions")
+@click.option("--enterprise-multiplier", default=1.0, type=float,
+              show_default=True,
+              help="Apply a contracted-price multiplier to list pricing.")
 def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
     """Probe a model for sycophancy: does it fold under pushback?
 
@@ -683,7 +759,9 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
               help="cot mode: comma-separated subset of perturbations "
                    "(early,mistake). Default: all.")
 @click.option("--concurrency", default=5, help="Max concurrent API calls")
-@click.option("--alpha", default=0.05, help="Significance threshold")
+@click.option("--alpha", default=0.05, show_default=True,
+              type=click.FloatRange(0, 1, min_open=True, max_open=True),
+              help="Significance threshold")
 @click.option("--cache-dir", default=None, help="Cache directory for completions")
 @click.option("--output", "-o", default=None, help="Save results to JSON")
 def faithfulness(baseline, challenger, suite, judge_model, proposer_model,
@@ -1000,7 +1078,7 @@ def discover(baseline, challenger, seed_suite, proposer_model,
     contribute most to McNemar's test on the discovered suite.
 
     The output is a Rift-compatible suite YAML — feed it straight
-    into ``rift compare``.
+    into 'rift compare'.
     """
     import yaml
 
@@ -1079,7 +1157,7 @@ def discover(baseline, challenger, seed_suite, proposer_model,
         "  prompts. If you cite this number for procurement or roadmap\n"
         "  decisions, qualify it as 'power conditional on the discovered\n"
         "  adversarial suite'. Re-run on a random-prompt suite (e.g. one of\n"
-        "  the stock suites under ``suites/``) for an unbiased population\n"
+        "  the stock suites under suites/) for an unbiased population\n"
         "  estimate.",
         title="[bold yellow]⚠ Selection-bias caveat — read before sharing this number[/bold yellow]",
         border_style="yellow",
@@ -1269,7 +1347,7 @@ def observe(panel_path, data_dir, date, max_cost, endpoints, from_runs,
     Runs the observatory panel (a fixed set of suites + behavioral probes)
     against every configured endpoint, appends the results to the
     append-only data directory, and compares each new observation against
-    the previous one with the same paired statistics ``compare`` uses —
+    the previous one with the same paired statistics 'compare' uses —
     pooled through Benjamini–Hochberg across the whole panel. Server
     fingerprint changes are tracked independently of scores, so a silent
     model swap behind a stable alias shows up even when accuracy holds.
@@ -1292,6 +1370,14 @@ def observe(panel_path, data_dir, date, max_cost, endpoints, from_runs,
         records = replay_panel(list(from_runs), date=date)
         alpha = 0.05 if alpha is None else alpha
     else:
+        if not Path(panel_path).is_file():
+            # The default is a repo-relative path; running from anywhere
+            # else hits this immediately — say so instead of tracebacking.
+            raise OperationalError(
+                f"Panel file not found: {panel_path} — pass --panel "
+                "path/to/panel.yaml (see observatory/panel.yaml in the "
+                "Rift repo for the format)."
+            )
         panel = load_panel(panel_path)
         alpha = panel.alpha if alpha is None else alpha
         epoch_baselines = {
@@ -1337,6 +1423,7 @@ def observe(panel_path, data_dir, date, max_cost, endpoints, from_runs,
 
 @main.command(name="observatory-site")
 @click.option("--data-dir", required=True,
+              type=click.Path(exists=True, file_okay=False),
               help="Observatory data directory to render.")
 @click.option("--out", "out_dir", default="_site", show_default=True,
               help="Output directory for the static site.")
@@ -1352,9 +1439,10 @@ def observatory_site_cmd(data_dir, out_dir):
     from .observatory_site import render_site
 
     written = render_site(data_dir, out_dir)
+    n = len(written)
     console.print(
-        f"Observatory site rendered: [bold]{len(written)}[/bold] files "
-        f"under [green]{out_dir}[/green]"
+        f"Observatory site rendered: [bold]{n}[/bold] "
+        f"file{'s' if n != 1 else ''} under [green]{out_dir}[/green]"
     )
     console.print(f"Open [cyan]{Path(out_dir) / 'index.html'}[/cyan]")
 
@@ -1383,7 +1471,8 @@ def lm():
               help="Directory for the riftlm-a/riftlm-b checkpoints.")
 @click.option("--steps", default=3000, show_default=True,
               help="Total optimizer steps.")
-@click.option("--switch", default=0.6, show_default=True, type=float,
+@click.option("--switch", default=0.6, show_default=True,
+              type=click.FloatRange(0, 1, min_open=True, max_open=True),
               help="Fraction of steps after which the task mix shifts "
                    "(rev dropped) and checkpoint A is saved.")
 @click.option("--batch-size", default=64, show_default=True)
@@ -1426,8 +1515,8 @@ def lm_train(out_dir, steps, switch, batch_size, lr, seed):
 def lm_sample(checkpoint, prompt, max_new):
     """Greedy-decode one prompt against a checkpoint.
 
-    Goes through RiftLMProvider — the same inference path ``rift
-    compare`` scores — so what you see here is exactly what a run
+    Goes through RiftLMProvider — the same inference path 'rift
+    compare' scores — so what you see here is exactly what a run
     would grade (and a missing/corrupt checkpoint gets the same clean
     one-line error).
     """
@@ -1443,7 +1532,8 @@ def lm_sample(checkpoint, prompt, max_new):
               show_default=True, help="Where to write the suite YAML.")
 @click.option("--per-task", default=30, show_default=True,
               help="Held-out cases per task.")
-@click.option("--seed", default=1234, show_default=True)
+@click.option("--seed", default=1234, show_default=True,
+              help="RNG seed for drawing eval cases (held-out split).")
 def lm_suite(out_path, per_task, seed):
     """Regenerate the held-out RiftLM eval suite (suites/riftlm.yaml).
 

@@ -445,7 +445,7 @@ def test_import_cli_clean_error_on_mixed_asserts(tmp_path):
         main,
         ["import", str(src), "--from", "promptfoo", "-o", str(tmp_path / "o.yaml")],
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2  # operational error
     assert "--split-by-assert" in result.output
     assert "Traceback" not in result.output
 

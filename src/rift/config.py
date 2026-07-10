@@ -12,17 +12,23 @@ class SuiteNotFoundError(click.ClickException):
     """A suite path or built-in name could not be found.
 
     Subclasses ``click.ClickException`` so an unknown suite produces a clean
-    CLI message and exit 1 rather than a raw ``FileNotFoundError`` traceback.
+    CLI message and exit 2 (operational error, distinct from the exit-1
+    drift gate) rather than a raw ``FileNotFoundError`` traceback.
     """
 
-    exit_code = 1
+    exit_code = 2
 
     def __init__(self, name: str, available: list[str] | None) -> None:
         self.name = name
         self.available = available
         msg = f"Suite '{name}' not found."
         if available:
-            msg += f" Available built-in suites: {available}"
+            import difflib
+
+            close = difflib.get_close_matches(name, available, n=1)
+            if close:
+                msg += f" Did you mean '{close[0]}'?"
+            msg += f"\nAvailable built-in suites: {', '.join(available)}"
         super().__init__(msg)
 
 
@@ -30,12 +36,12 @@ class SuiteValidationError(click.ClickException):
     """A suite YAML failed validation.
 
     Subclasses ``click.ClickException`` so a malformed suite produces a short,
-    actionable CLI message and exit 1 — never a raw pydantic traceback — no
+    actionable CLI message and exit 2 — never a raw pydantic traceback — no
     matter which command loaded it. Carries the underlying pydantic error for
     callers that want the detail.
     """
 
-    exit_code = 1
+    exit_code = 2
 
     def __init__(self, path: "Path", error: Exception) -> None:
         self.path = path
@@ -209,18 +215,59 @@ MODEL_ALIASES: dict[str, str] = {
 }
 
 
+class UnknownModelError(click.ClickException):
+    """A model string matched no provider prefix, alias, or endpoint syntax.
+
+    Raised lazily, at provider-construction time — so fully cached runs
+    and replays with arbitrary model names stay keyless and provider-less,
+    while a live call for a typo'd model fails with a clean remedy instead
+    of an all-errored run. Exit code 2: an unrecognized model is an
+    operational error, distinct from the gate's exit 1 (significant
+    regression).
+    """
+
+    exit_code = 2
+
+    def __init__(self, model_str: str) -> None:
+        aliases = ", ".join(sorted(MODEL_ALIASES))
+        super().__init__(
+            f"Unknown model '{model_str}'.\n"
+            "  Recognized: ids starting with claude / gpt- / o1 / o3 / o4 "
+            "/ gemini, riftlm:<ckpt.npz>,\n"
+            f"  or an alias: {aliases}.\n"
+            "  For a self-hosted OpenAI-compatible server (vLLM, Ollama, "
+            "llama.cpp, ...) use\n"
+            "  '<model>@<base-url>', e.g. "
+            "'llama-3.3-70b@http://localhost:8000'."
+        )
+
+
 def resolve_model(model_str: str) -> ModelConfig:
     """Resolve a model string like 'opus-4-7' to a :class:`ModelConfig`.
 
     Accepts short aliases (see :data:`MODEL_ALIASES`), canonical dated
-    identifiers, or any unrecognized string which is treated as a
-    local/custom endpoint so that self-hosted models work without
-    configuration.
+    identifiers, ``riftlm:<checkpoint>`` for the built-in model, or
+    ``<model>@<http(s)://base-url>`` for any self-hosted server exposing
+    an OpenAI-compatible ``/v1/chat/completions`` endpoint.
+
+    Anything else resolves to the ``local`` pseudo-provider: fully cached
+    runs and replays still work keyless (providers are built lazily), but
+    a live call raises :class:`UnknownModelError` at provider-construction
+    time with the remedy — never an all-errored "run" a CI gate would
+    read as no-drift.
     """
     model_str = MODEL_ALIASES.get(model_str, model_str)
 
     if model_str.startswith("riftlm:"):
         return _resolve_riftlm(model_str)
+
+    # Self-hosted OpenAI-compatible endpoint: '<model>@<base-url>'.
+    if "@http" in model_str:
+        name, _, base = model_str.partition("@")
+        if not name or not base.startswith(("http://", "https://")):
+            raise UnknownModelError(model_str)
+        return ModelConfig(provider="openai_compatible", model=name,
+                           api_base=base)
 
     if model_str.startswith("claude"):
         return ModelConfig(provider="anthropic", model=model_str)
