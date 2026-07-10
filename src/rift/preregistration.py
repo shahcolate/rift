@@ -24,15 +24,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-import click
+
+from ._errors import OperationalError
 import yaml
 from pydantic import BaseModel, ValidationError
 
 
-class PreregError(click.ClickException):
+class PreregError(OperationalError):
     """A pre-registration file failed to load or validate."""
-
-    exit_code = 1
 
 
 class Preregistration(BaseModel):

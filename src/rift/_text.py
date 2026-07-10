@@ -145,6 +145,12 @@ def default_provider_factory(model_id: str) -> BaseProvider:
         from .providers.riftlm import RiftLMProvider
 
         return RiftLMProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "local":
+        # Same clean remedy the runner gives for a typo'd model — never a
+        # raw ValueError traceback from a proposer/mutator model string.
+        from .config import UnknownModelError
+
+        raise UnknownModelError(model_id)
     raise ValueError(
         f"No provider available for provider='{cfg.provider}' "
         f"(model={model_id})"

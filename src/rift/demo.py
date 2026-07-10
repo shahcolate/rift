@@ -208,12 +208,16 @@ def replay_recorded_run(baseline: str, challenger: str,
 
 @dataclass
 class DemoAct:
-    """One beat in the narrative. Knows how to render itself two ways."""
+    """One beat in the narrative. Knows how to render itself two ways.
+
+    ``render_fn``/``beat_seconds`` drive the terminal player only; acts
+    built for export-only scripts (the upgrade brief) leave the defaults.
+    """
 
     title: str
-    render_fn: Callable[[Console], None]
-    beat_seconds: float
     body_md: str
+    render_fn: Callable[[Console], None] | None = None
+    beat_seconds: float = 0.0
 
 
 @dataclass
@@ -583,6 +587,8 @@ def run_demo(script: DemoScript, auto: bool = True,
 
     try:
         for i, act in enumerate(script.acts):
+            if act.render_fn is None:
+                continue  # export-only act (upgrade brief scripts)
             act.render_fn(console)
             if i == len(script.acts) - 1:
                 break  # no pause after the last act
@@ -894,7 +900,13 @@ def _svg_grouped_bar(group_labels: list[str], series_labels: list[str],
 
 def _render_html(script: DemoScript, base_run: RunResult,
                   chal_run: RunResult, drift) -> str:
-    """Build the full HTML one-pager from a script + the underlying runs."""
+    """Build the full HTML one-pager from a script + the underlying runs.
+
+    All verdict-bearing phrases are derived from ``drift``, never
+    hardcoded: this exporter also renders `rift report --format brief`
+    for arbitrary comparisons, where the demo's prepared story ("looks
+    like a win", "not significant") could be flatly wrong.
+    """
     base_acc = drift.baseline_mean
     chal_acc = drift.challenger_mean
     base_cpc = drift.baseline_cost_per_correct
@@ -907,6 +919,41 @@ def _render_html(script: DemoScript, base_run: RunResult,
         if base_run.total_input_tokens else None
     )
     in_ratio_str = f"{in_ratio:.2f}×" if in_ratio is not None else "n/a"
+
+    # Data-driven narration.
+    ci_level = getattr(drift, "ci_level", 0.95) or 0.95
+    ci_label = f"{ci_level * 100:g}% CI"
+    alpha_label = f"{1 - ci_level:g}"
+    sig_text = "significant" if drift.significant else "not significant"
+    if drift.significant and drift.delta < 0:
+        acc_lede = "By this measure, the upgrade is a regression."
+        acc_callout_class = "warn"
+    elif drift.delta > 0:
+        acc_lede = "By this measure, the upgrade looks like a win."
+        acc_callout_class = "good"
+    else:
+        acc_lede = "By this measure, nothing moved."
+        acc_callout_class = "good"
+    if cpc_pct is None:
+        cpc_verb = "moved"
+    else:
+        cpc_verb = "rose" if cpc_pct > 0 else ("fell" if cpc_pct < 0 else "held at")
+    # The token-inflation sentence is only a story when the ratio is
+    # materially off 1× (the demo's silent-tokenizer-change scenario).
+    if in_ratio is not None and abs(in_ratio - 1.0) > 0.05:
+        token_sentence = (
+            f"For byte-identical prompts, the challenger emits "
+            f"<b>{in_ratio_str} the input tokens</b> "
+            f"({base_run.total_input_tokens:,} → "
+            f"{chal_run.total_input_tokens:,}) — a silent per-prompt cost "
+            "shift on migration."
+        )
+    else:
+        token_sentence = (
+            f"Input token counts are comparable "
+            f"({base_run.total_input_tokens:,} → "
+            f"{chal_run.total_input_tokens:,})."
+        )
 
     # ---- Chart 1: accuracy bars ------------------------------------------
     acc_svg = _svg_bar_chart(
@@ -967,11 +1014,10 @@ def _render_html(script: DemoScript, base_run: RunResult,
     if drift.subgroups:
         for k in sorted(drift.subgroups.keys()):
             d = drift.subgroups[k]
-            cpc_delta_pct = (
-                (d.challenger_cost_per_correct - d.baseline_cost_per_correct)
-                / d.baseline_cost_per_correct * 100.0
-                if d.baseline_cost_per_correct else 0.0
-            )
+            # _safe_pct_change maps a zero/inf baseline (a subgroup with no
+            # correct answers) to None → "n/a" instead of nan%.
+            cpc_delta_pct = _safe_pct_change(d.baseline_cost_per_correct,
+                                             d.challenger_cost_per_correct)
             subgroup_rows += (
                 f"<tr><td>{html.escape(k)}</td>"
                 f"<td class='num'>{d.n_cases}</td>"
@@ -980,7 +1026,7 @@ def _render_html(script: DemoScript, base_run: RunResult,
                 f"<td class='num'>{d.delta:+.3f}</td>"
                 f"<td class='num'>{_fmt_cost(d.baseline_cost_per_correct)}</td>"
                 f"<td class='num'>{_fmt_cost(d.challenger_cost_per_correct)}</td>"
-                f"<td class='num'>{cpc_delta_pct:+.1f}%</td></tr>"
+                f"<td class='num'>{_fmt_pct(cpc_delta_pct)}</td></tr>"
             )
 
     # ---- Verdict + action items -----------------------------------------
@@ -1025,14 +1071,14 @@ def _render_html(script: DemoScript, base_run: RunResult,
 <section>
   <h2>Act 1 — Quality (what a casual eval sees)</h2>
   <p class="lede">
-    Accuracy is the number every benchmark leaderboard reports. By this
-    measure, the upgrade looks like a win.
+    Accuracy is the number every benchmark leaderboard reports.
+    {acc_lede}
   </p>
   {acc_svg}
-  <div class="callout good">
+  <div class="callout {acc_callout_class}">
     <h3>Headline reading</h3>
-    Accuracy <b>{delta_pp:+.2f}pp</b> (p = {drift.p_value:.3f}, not
-    significant at α=0.05). 95% CI: [{drift.ci_lower:+.3f},
+    Accuracy <b>{delta_pp:+.2f}pp</b> (p = {drift.p_value:.3f},
+    {sig_text} at α={alpha_label}). {ci_label}: [{drift.ci_lower:+.3f},
     {drift.ci_upper:+.3f}].
   </div>
 </section>
@@ -1040,18 +1086,15 @@ def _render_html(script: DemoScript, base_run: RunResult,
 <section>
   <h2>Act 2 — Cost (what Rift sees)</h2>
   <p class="lede">
-    Same prompts. Same correctness. But the bill tells a different story.
+    Same prompts. Same correctness scoring. Now the bill.
   </p>
   {cpc_svg}
   <div class="callout warn">
-    <h3>The twist</h3>
-    $/correct rose <b>{cpc_pct_str}</b>
-    ({_fmt_cost(base_cpc)} → {_fmt_cost(chal_cpc)}). For byte-identical
-    prompts, the challenger emits <b>{in_ratio_str} more input
-    tokens</b> ({base_run.total_input_tokens:,} →
-    {chal_run.total_input_tokens:,}). At list-price parity, this is a
-    silent per-prompt cost increase on migration.
-    {f'<br><span class="mono" style="font-size:12px">95% CI on Δ $/correct: [{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}] (paired bootstrap, n={drift.n_cases})</span>' if getattr(drift, 'cost_delta_ci_defined', False) else ''}
+    <h3>$/correct</h3>
+    $/correct {cpc_verb} <b>{cpc_pct_str}</b>
+    ({_fmt_cost(base_cpc)} → {_fmt_cost(chal_cpc)}).
+    {token_sentence}
+    {f'<br><span class="mono" style="font-size:12px">{ci_label} on Δ $/correct: [{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}] (paired bootstrap, n={drift.n_cases})</span>' if getattr(drift, 'cost_delta_ci_defined', False) else ''}
   </div>
 </section>
 

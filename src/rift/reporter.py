@@ -80,6 +80,10 @@ def _ci_test_disagreement(drift) -> str | None:
     boundary one can exclude zero while the other stays non-significant.
     Flagging it beats letting a reader discover the tension unassisted.
     """
+    if drift.test_used not in ("mcnemar_exact", "paired_t+bootstrap"):
+        # No real test ran (insufficient_data / deterministic / no_variation)
+        # and the "CI" may be a degenerate point — nothing to reconcile.
+        return None
     ci_excludes_zero = drift.ci_lower > 0 or drift.ci_upper < 0
     if ci_excludes_zero == drift.significant:
         return None
@@ -1007,6 +1011,16 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
         ]
         for tag, q in zip(keys, q_values):
             d = drift.subgroups[tag]
+            if d.test_used == "insufficient_data":
+                # Match the terminal renderer: a 1-case subgroup carries no
+                # test — render it as untestable, not as computed-looking
+                # p/q/CI values.
+                lines.append(
+                    f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
+                    f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "
+                    f"n<2 | — | — | — | |"
+                )
+                continue
             lines.append(
                 f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
                 f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "

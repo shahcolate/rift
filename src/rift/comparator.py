@@ -577,6 +577,7 @@ def compare_runs(
     delta_pct = (delta / baseline_mean * 100) if baseline_mean != 0 else None
 
     diffs = c - b
+    diffs_std = float(np.std(diffs))
 
     # --- Test selection ---
     # Every branch that can declare significance requires n >= 2: no paired
@@ -588,7 +589,7 @@ def compare_runs(
     elif _is_binary(b, c):
         p_value = _mcnemar_exact(b, c)
         test_used = "mcnemar_exact"
-    elif float(np.std(diffs)) > 1e-10:
+    elif diffs_std > 1e-10:
         from scipy import stats  # deferred — see module-top note
         _, p = stats.ttest_rel(c, b)
         p_value = float(p)
@@ -607,7 +608,7 @@ def compare_runs(
     # point estimate). Callers that only need the p-value / delta — e.g.
     # ``rift selftest`` running this hundreds of times — pass 0 to avoid
     # computing a 1000-sample CI they immediately discard.
-    if n >= 2 and float(np.std(diffs)) > 1e-10 and bootstrap_n > 0:
+    if n >= 2 and diffs_std > 1e-10 and bootstrap_n > 0:
         ci_lower, ci_upper = _bootstrap_ci(diffs, n, bootstrap_n, alpha=alpha)
     else:
         ci_lower = ci_upper = float(diffs.mean()) if n > 0 else 0.0

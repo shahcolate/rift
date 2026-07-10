@@ -3,12 +3,13 @@
 from pathlib import Path
 from typing import Any
 
-import click
 import yaml
+
+from ._errors import OperationalError
 from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator, model_validator
 
 
-class SuiteNotFoundError(click.ClickException):
+class SuiteNotFoundError(OperationalError):
     """A suite path or built-in name could not be found.
 
     Subclasses ``click.ClickException`` so an unknown suite produces a clean
@@ -32,7 +33,7 @@ class SuiteNotFoundError(click.ClickException):
         super().__init__(msg)
 
 
-class SuiteValidationError(click.ClickException):
+class SuiteValidationError(OperationalError):
     """A suite YAML failed validation.
 
     Subclasses ``click.ClickException`` so a malformed suite produces a short,
@@ -215,7 +216,7 @@ MODEL_ALIASES: dict[str, str] = {
 }
 
 
-class UnknownModelError(click.ClickException):
+class UnknownModelError(OperationalError):
     """A model string matched no provider prefix, alias, or endpoint syntax.
 
     Raised lazily, at provider-construction time — so fully cached runs

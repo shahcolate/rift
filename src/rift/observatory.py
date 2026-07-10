@@ -49,13 +49,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import click
 import yaml
 
 from .calibration import compute_calibration, parse_confidence
 from .comparator import benjamini_hochberg, compare_runs
 from .config import SuiteConfig, load_suite, resolve_model
-from .pricing import PRICING, lookup
+from ._errors import OperationalError
+from .pricing import lookup, most_expensive
 from .refusal import classify_output
 from .runner import RunResult, run_suite
 from .sycophancy import PUSHBACK_SUITE_SUFFIX, build_pushback_suite
@@ -63,15 +63,13 @@ from .sycophancy import PUSHBACK_SUITE_SUFFIX, build_pushback_suite
 RECORD_SCHEMA = 1
 
 
-class DuplicateObservationError(click.ClickException):
+class DuplicateObservationError(OperationalError):
     """A (date, endpoint, suite) observation already exists in the data dir.
 
-    Subclasses ``click.ClickException`` (repo convention, see
-    ``config.SuiteNotFoundError``) so a same-date re-run produces a clean
-    one-line message and exit 1, never a traceback.
+    Subclasses :class:`rift._errors.OperationalError` (repo convention)
+    so a same-date re-run produces a clean one-line message and exit 2,
+    never a traceback — and never reads as a drift verdict to CI.
     """
-
-    exit_code = 1
 
 # Probe shifts past these thresholds emit a (non-gated) ``notice`` event.
 # Deliberately coarse: probe metrics on a small panel are noisy, and the
@@ -873,27 +871,31 @@ def _fingerprint_events(index: list[dict], today: list[dict], date: str,
 
 
 def estimate_stage_cost(model: str, suite: SuiteConfig,
-                        prior_entry: dict | None = None) -> float:
+                        prior_entry: dict | None = None,
+                        provider: str | None = None) -> float:
     """Pre-flight USD estimate for running ``suite`` against ``model``.
 
     Prefers the endpoint's most recent observed token counts for the same
     suite (the best predictor of next week's run); falls back to a
     chars/4 input heuristic plus a flat output allowance.
 
-    A model with no pricing entry estimates at the CATALOG MAXIMUM, not
-    at $0: a hosted model missing from ``pricing.PRICING`` (new release,
-    renamed id) also records $0 *actual* cost, so a $0 estimate would
-    turn the hard budget cap into a no-op exactly when prices are least
-    known. The conservative estimate makes the guard trip early and
-    loudly instead — add the real price to the catalog to unblock.
-    RiftLM checkpoints are genuinely free (in-process) and estimate 0.
+    A HOSTED model with no pricing entry estimates at the CATALOG
+    MAXIMUM, not at $0: a hosted model missing from ``pricing.PRICING``
+    (new release, renamed id) also records $0 *actual* cost, so a $0
+    estimate would turn the hard budget cap into a no-op exactly when
+    prices are least known. The conservative estimate makes the guard
+    trip early and loudly instead — add the real price to the catalog to
+    unblock. RiftLM checkpoints and self-hosted endpoints
+    (``provider='riftlm'/'openai_compatible'/'local'``) bill no API
+    spend and estimate 0 — the budget cap bounds provider invoices, not
+    local compute.
     """
-    if model.startswith("riftlm:"):
+    if model.startswith("riftlm:") or provider in (
+            "riftlm", "openai_compatible", "local"):
         return 0.0
     price = lookup(model)
     if price is None:
-        price = max(PRICING.values(),
-                    key=lambda p: p.cost(1_000_000, 1_000_000))
+        price = most_expensive()
         import warnings
 
         warnings.warn(
@@ -1009,7 +1011,8 @@ async def run_panel(
                 version = suite_versions[suite_name]
                 prior = _prior_entry(ep.id, suite, version)
                 if not budget.allows(
-                    estimate_stage_cost(model_config.model, suite, prior)
+                    estimate_stage_cost(model_config.model, suite, prior,
+                                        provider=model_config.provider)
                 ):
                     budget.skipped.append(f"{ep.id}/{suite_name}")
                     break
@@ -1033,7 +1036,8 @@ async def run_panel(
                         }
                     if budget.allows(
                         estimate_stage_cost(model_config.model,
-                                            pushback_suite, pb_prior)
+                                            pushback_suite, pb_prior,
+                                            provider=model_config.provider)
                     ):
                         pushback_run = await run_suite(
                             pushback_suite, model_config,
@@ -1076,7 +1080,14 @@ def replay_panel(
     same batch. Run files must be full saves (not ``--strip-io``) — the
     derived block needs the raw outputs.
     """
-    runs = [RunResult.load(p) for p in run_files]
+    runs = []
+    for p in run_files:
+        try:
+            runs.append(RunResult.load(p))
+        except FileNotFoundError:
+            raise OperationalError(f"Run file not found: {p}") from None
+        except (ValueError, KeyError, TypeError) as e:
+            raise OperationalError(f"Not a Rift run file: {p} ({e})") from None
     pushbacks: dict[tuple[str, str], RunResult] = {}
     bases: list[RunResult] = []
     for r in runs:

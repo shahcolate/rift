@@ -13,6 +13,15 @@ def test_all_exports_resolve():
         assert getattr(rift, name) is not None
 
 
+def test_all_matches_export_table():
+    # __all__ is a hand-maintained literal (pyright can't evaluate a
+    # computed one); this pins it to the lazy-export table so the two
+    # can't drift.
+    import rift
+
+    assert set(rift.__all__) == set(rift._EXPORTS) | {"__version__"}
+
+
 def test_unknown_attribute_raises():
     import rift
     import pytest

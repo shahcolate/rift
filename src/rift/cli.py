@@ -75,10 +75,7 @@ console = Console()
 # "regression" would misclassify infrastructure problems as model drift.
 
 
-class OperationalError(click.ClickException):
-    """An infrastructure/user error, distinct from the exit-1 drift gate."""
-
-    exit_code = 2
+from ._errors import OperationalError  # noqa: E402 — the contract's base class
 
 
 def _load_run(path: str) -> RunResult:
@@ -443,6 +440,7 @@ def diff(baseline_path, challenger_path, alpha, report, subgroup):
     """
     baseline = _load_run(baseline_path)
     challenger = _load_run(challenger_path)
+    _reject_all_errored(baseline=baseline, challenger=challenger)
 
     drift = compare_runs(
         baseline_scores=baseline.scores,
@@ -1206,7 +1204,12 @@ def report(comparison_json, fmt, output):
         print_drift_report(drift, baseline_result, challenger_result)
         print_fingerprint_report(baseline_result, challenger_result)
         if drift.subgroups:
-            print_subgroup_table(drift.subgroups, title="By subgroup")
+            # Label CIs at the level the comparison actually ran at, not a
+            # default: a preregistered alpha=0.01 payload carries 99% CIs.
+            print_subgroup_table(
+                drift.subgroups, title="By subgroup",
+                alpha=round(1 - getattr(drift, "ci_level", 0.95), 4),
+            )
         return
 
     if not output:

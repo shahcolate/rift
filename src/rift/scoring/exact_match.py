@@ -37,11 +37,17 @@ def _strip_confidence(text: str) -> str:
             and "confident" not in tail and "certain" not in tail \
             and not re.search(r"^\s*p\s*[:=]", tail, re.M):
         return text
-    head, sep, last_line = stripped.rpartition("\n")
-    if _TRAILING_CONFIDENCE_RE.fullmatch(last_line.strip()):
-        new = head.rstrip() if sep else ""
-        return new if new else stripped
-    return text
+    # Peel trailing confidence lines one at a time (a model may emit
+    # several stacked tags); only lines in trailing position are touched.
+    current = stripped
+    while True:
+        head, sep, last_line = current.rpartition("\n")
+        if not _TRAILING_CONFIDENCE_RE.fullmatch(last_line.strip()):
+            break
+        if not sep:  # the whole output is the tag — keep the original
+            return stripped
+        current = head.rstrip()
+    return current if current != stripped else text
 
 
 class ExactMatchScorer:

@@ -19,6 +19,7 @@ import hashlib
 import html
 import shutil
 from datetime import datetime, timezone
+from email.utils import format_datetime
 from pathlib import Path
 
 from .observatory import (
@@ -332,9 +333,12 @@ def _feed_xml(events: list[dict], site_url: str = "") -> str:
         guid = f"{date}/{endpoint}/{suite}/{kind}/{digest}"
         title = f"{endpoint}: {kind}" + (f" ({suite})" if suite != "-" else "")
         # RFC 822 date at midnight UTC; the panel records dates, not times.
+        # email.utils always emits C-locale English day/month names —
+        # strftime %a/%b would localize under a non-C LC_TIME and produce
+        # an invalid pubDate.
         try:
-            pub = datetime.strptime(date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc).strftime("%a, %d %b %Y 00:00:00 +0000")
+            pub = format_datetime(datetime.strptime(date, "%Y-%m-%d")
+                                  .replace(tzinfo=timezone.utc))
         except ValueError:
             pub = ""
         items.append(

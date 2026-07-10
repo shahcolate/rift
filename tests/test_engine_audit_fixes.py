@@ -184,3 +184,9 @@ def test_strip_confidence_lone_confidence_line_kept():
     # If the whole output is the confidence tag, stripping would leave
     # nothing — keep the original.
     assert _strip_confidence("Confidence: 0.5") == "Confidence: 0.5"
+
+
+def test_strip_confidence_stacked_trailing_tags():
+    # Several stacked trailing tags all peel off (a retry-happy model can
+    # emit more than one); only trailing position is ever touched.
+    assert _strip_confidence("Paris\nConfidence: 0.9\nConfidence: 0.8") == "Paris"

@@ -119,6 +119,16 @@ def lookup(model: str) -> TokenPrice | None:
     return PRICING[prefix_match] if prefix_match else None
 
 
+def most_expensive() -> TokenPrice:
+    """The catalog's priciest entry — the conservative unknown-model bound.
+
+    Budget guards estimate unpriced models at this rate: an unknown hosted
+    model also records $0 actual cost, so any cheaper assumption quietly
+    disables the cap exactly when prices are least known.
+    """
+    return max(PRICING.values(), key=lambda p: p.cost(1_000_000, 1_000_000))
+
+
 def cost_of(model: str, input_tokens: int, output_tokens: int,
             enterprise_multiplier: float = 1.0) -> float:
     """Compute USD cost of a completion.

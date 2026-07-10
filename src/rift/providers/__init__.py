@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import click
 import httpx
 
+from .._errors import OperationalError
+
 
 def raise_for_status_with_body(resp: httpx.Response) -> None:
     """``raise_for_status``, but keep the response body in the message.
@@ -36,7 +38,7 @@ PROVIDER_KEYS: dict[str, tuple[str, str]] = {
 }
 
 
-class MissingAPIKeyError(click.ClickException):
+class MissingAPIKeyError(OperationalError):
     """A provider needs an API key that isn't configured.
 
     Subclasses ``click.ClickException`` so that no matter how deep in the

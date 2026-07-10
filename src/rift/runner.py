@@ -160,18 +160,29 @@ class RunResult:
             json.dump(self.to_dict(strip_io=strip_io), f, indent=2, default=str)
 
     @classmethod
-    def load(cls, path: str | Path) -> "RunResult":
-        with open(path) as f:
-            data = json.load(f)
-        # Filter each case dict to known fields so a run saved by an older or
-        # newer Rift (different CaseResult schema) still loads instead of
-        # raising TypeError on a missing/extra key.
+    def from_dict(cls, data: dict) -> "RunResult":
+        """Rebuild a run from its ``to_dict`` form.
+
+        Filters each case dict to known fields so a run saved by an older
+        or newer Rift (different CaseResult schema) still loads instead of
+        raising TypeError on a missing/extra key. The single place that
+        owns this tolerance — ``load`` and every other reconstruction path
+        (e.g. ``rift report``) must go through it.
+        """
+        data = dict(data)
         case_fields = CaseResult.__dataclass_fields__  # type: ignore[attr-defined]
+        run_fields = cls.__dataclass_fields__  # type: ignore[attr-defined]
         cases = [
             CaseResult(**{k: v for k, v in c.items() if k in case_fields})
-            for c in data.pop("cases")
+            for c in data.pop("cases", [])
         ]
-        return cls(cases=cases, **data)
+        kwargs = {k: v for k, v in data.items() if k in run_fields}
+        return cls(cases=cases, **kwargs)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "RunResult":
+        with open(path) as f:
+            return cls.from_dict(json.load(f))
 
 
 def _get_provider(config: ModelConfig) -> BaseProvider:

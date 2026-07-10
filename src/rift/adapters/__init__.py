@@ -21,18 +21,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import click
+from .._errors import OperationalError
 
 
-class SuiteImportError(click.ClickException):
+class SuiteImportError(OperationalError):
     """A source file could not be converted to a Rift suite.
 
-    Subclasses ``click.ClickException`` so a malformed or unsupported
-    source produces a clean CLI message and exit 2 (operational error),
-    never a traceback.
+    An :class:`~rift._errors.OperationalError`, so a malformed or
+    unsupported source produces a clean CLI message and exit 2, never a
+    traceback.
     """
-
-    exit_code = 2
 
 
 @dataclass

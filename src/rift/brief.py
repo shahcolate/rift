@@ -18,8 +18,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import click
-
 from .comparator import DriftResult
 from .demo import (
     DemoAct,
@@ -30,13 +28,12 @@ from .demo import (
     export_demo_html,
     export_demo_markdown,
 )
+from ._errors import OperationalError
 from .runner import RunResult
 
 
-class ComparisonLoadError(click.ClickException):
+class ComparisonLoadError(OperationalError):
     """The file isn't a ``rift compare --output`` payload."""
-
-    exit_code = 2
 
 
 def _drift_from_dict(data: dict) -> DriftResult:
@@ -76,8 +73,8 @@ def load_comparison(path: str | Path) -> tuple[DriftResult, RunResult, RunResult
         )
     try:
         drift = _drift_from_dict(data["drift"])
-        base = _run_from_dict(data["baseline"])
-        chal = _run_from_dict(data["challenger"])
+        base = RunResult.from_dict(data["baseline"])
+        chal = RunResult.from_dict(data["challenger"])
     except (KeyError, TypeError) as e:
         raise ComparisonLoadError(
             f"{path} has an unrecognized shape ({e}). Re-save it with the "
@@ -88,18 +85,6 @@ def load_comparison(path: str | Path) -> tuple[DriftResult, RunResult, RunResult
     return drift, base, chal, extras
 
 
-def _run_from_dict(data: dict) -> RunResult:
-    """RunResult from its to_dict form (same tolerance as RunResult.load)."""
-    from .runner import CaseResult
-
-    case_fields = CaseResult.__dataclass_fields__  # type: ignore[attr-defined]
-    run_fields = RunResult.__dataclass_fields__  # type: ignore[attr-defined]
-    cases = [
-        CaseResult(**{k: v for k, v in c.items() if k in case_fields})
-        for c in data.get("cases", [])
-    ]
-    kwargs = {k: v for k, v in data.items() if k in run_fields and k != "cases"}
-    return RunResult(cases=cases, **kwargs)
 
 
 def _verdict(drift: DriftResult, n_err: int) -> VerdictCard:
@@ -231,22 +216,21 @@ def build_brief_script(drift: DriftResult, base_run: RunResult,
     )
 
     acts = [
-        DemoAct(title="Accuracy", render_fn=lambda c: None,
-                beat_seconds=0.0, body_md=acc_md),
-        DemoAct(title="Cost", render_fn=lambda c: None,
-                beat_seconds=0.0, body_md=cost_md),
+        DemoAct(title="Accuracy", body_md=acc_md),
+        DemoAct(title="Cost", body_md=cost_md),
     ]
     if drift.subgroups:
         rows = "\n".join(
             f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
-            f"{d.challenger_mean:.3f} | {d.delta:+.3f} | {d.p_value:.4f} |"
+            f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "
+            f"[{d.ci_lower:+.3f}, {d.ci_upper:+.3f}] | {d.p_value:.4f} |"
             for tag, d in sorted(drift.subgroups.items())
         )
         acts.append(DemoAct(
-            title="Subgroups", render_fn=lambda c: None, beat_seconds=0.0,
+            title="Subgroups",
             body_md=("## Subgroups\n\n"
-                     "| Subgroup | n | Baseline | Challenger | Δ | p |\n"
-                     "|---|---|---|---|---|---|\n" + rows + "\n\n"
+                     f"| Subgroup | n | Baseline | Challenger | Δ | {ci_pct}% CI | p |\n"
+                     "|---|---|---|---|---|---|---|\n" + rows + "\n\n"
                      "Raw p-values; apply the BH-corrected q from the full "
                      "report before citing any single subgroup.\n"),
         ))
