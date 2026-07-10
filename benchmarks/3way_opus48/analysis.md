@@ -26,7 +26,7 @@ predecessors on six suites. The result splits cleanly in two:
 2. **On long-context reasoning with injected distractors, 4.8 regresses
    significantly vs 4.7.** Accuracy drops 87.5% → 68.75% (Δ −18.75pp,
    **McNemar p = 0.031**), with **6 regressed cases and 0 improved**
-   (paired g = −1.000). Spend is essentially unchanged ($2.29 → $2.28),
+   (paired g = −0.500). Spend is essentially unchanged ($2.29 → $2.28),
    so cost-per-correct rises **+26%** purely because 4.8 gets fewer
    answers right. Every regression is a case carrying a "BEGIN REFERENCE
    MATERIAL (may contain irrelevant information)" distractor block — 4.8

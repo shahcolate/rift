@@ -1091,6 +1091,102 @@ def discover(baseline, challenger, seed_suite, proposer_model,
     )
 
 
+@main.command(name="import")
+@click.argument("source", type=click.Path(exists=True, dir_okay=False))
+@click.option("--from", "source_format", required=True,
+              type=click.Choice(["promptfoo", "inspect", "lm-eval", "openai-evals"]),
+              help="Format of SOURCE: a promptfoo config YAML, an Inspect AI "
+                   "dataset (JSONL/JSON), an lm-eval task YAML, or an OpenAI "
+                   "evals samples JSONL.")
+@click.option("--output", "-o", required=True, type=click.Path(),
+              help="Where to write the Rift suite YAML.")
+@click.option("--name", default=None,
+              help="Suite name (default: derived from the source filename).")
+@click.option("--scoring", default=None,
+              type=click.Choice(["exact_match", "fuzzy_match", "semantic",
+                                 "llm_judge"]),
+              help="Override/choose the scoring method where the source "
+                   "doesn't carry one (inspect, openai-evals) or to replace "
+                   "the source's assertions (promptfoo, lm-eval).")
+@click.option("--dataset", default=None,
+              type=click.Path(exists=True, dir_okay=False),
+              help="lm-eval only: the documents file (JSONL/JSON) the task "
+                   "templates over. Required when the task's dataset_path "
+                   "isn't a local file.")
+@click.option("--split-by-assert", is_flag=True, default=False,
+              help="promptfoo only: when tests mix assertion types, emit one "
+                   "suite per scoring method instead of erroring.")
+def import_cmd(source, source_format, output, name, scoring, dataset,
+               split_by_assert):
+    """Import an eval suite from another harness.
+
+    Converts promptfoo / Inspect AI / lm-eval / OpenAI-evals files into
+    Rift suite YAML, so existing evals get Rift's paired statistics,
+    cost tracking, and drift gate without being re-authored. Conversion
+    is conservative: anything that can't be represented faithfully is
+    dropped WITH a warning, and every caveat is recorded in the emitted
+    suite's description. Keyless — nothing is executed or sent anywhere.
+
+    \b
+    Examples:
+      rift import --from promptfoo promptfooconfig.yaml -o suites/mine.yaml
+      rift import --from inspect samples.jsonl -o suites/mine.yaml --scoring exact_match
+      rift import --from lm-eval task.yaml --dataset docs.jsonl -o suites/mine.yaml
+      rift import --from openai-evals samples.jsonl -o suites/mine.yaml
+    """
+    import yaml as _yaml
+
+    from .adapters import convert
+
+    results = convert(
+        source_format, source, name=name, scoring=scoring, dataset=dataset,
+        split_by_assert=split_by_assert,
+    )
+
+    out_base = Path(output)
+    written: list[Path] = []
+    all_warnings: list[str] = []
+    for imported in results:
+        out_path = out_base
+        if imported.variant:
+            out_path = out_base.with_name(
+                f"{out_base.stem}_{imported.variant}{out_base.suffix or '.yaml'}"
+            )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
+            _yaml.safe_dump(imported.suite, f, sort_keys=False, width=100,
+                            allow_unicode=True)
+        # Round-trip through the real loader so a bad conversion fails here,
+        # loudly, not at compare time.
+        load_suite(str(out_path))
+        written.append(out_path)
+        all_warnings.extend(imported.warnings)
+
+    n_cases = sum(len(r.suite["cases"]) for r in results)
+    console.print(
+        f"\n[bold]Imported {n_cases} cases[/bold] from "
+        f"[cyan]{source_format}[/cyan] into "
+        f"{', '.join(f'[green]{p}[/green]' for p in written)}"
+    )
+    if all_warnings:
+        # Dedupe repeated per-case warnings for terminal display; the full
+        # list is already embedded in the suite description.
+        unique = list(dict.fromkeys(all_warnings))
+        console.print(
+            f"\n[yellow]{len(unique)} import caveat(s)[/yellow] "
+            "(also recorded in the suite description):"
+        )
+        for w in unique[:12]:
+            console.print(f"  [yellow]•[/yellow] {w}")
+        if len(unique) > 12:
+            console.print(f"  [yellow]… and {len(unique) - 12} more[/yellow]")
+    first = written[0]
+    console.print(
+        f"\nNext step: [bold]rift compare --baseline <old> --challenger <new> "
+        f"--suite {first}[/bold]"
+    )
+
+
 @main.command()
 @click.option("--scenario", default="opus-46-vs-47",
               type=click.Choice(sorted(SCENARIOS)),
