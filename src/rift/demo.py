@@ -241,6 +241,9 @@ class DemoScript:
     verdict: VerdictCard
     headline_numbers: dict[str, str]   # {"accuracy_delta": "+6.25pp", ...}
     sources: list[str] = field(default_factory=list)
+    # Provenance badge in the HTML header: "replay" for the recorded demo,
+    # "live comparison" for a brief built from a user's own compare output.
+    badge_label: str = "replay"
 
 
 # ---------------------------------------------------------------------------
@@ -1001,7 +1004,7 @@ def _render_html(script: DemoScript, base_run: RunResult,
   <div class="badges">
     <span class="badge">Rift demo</span>
     <span class="badge warn">cost-per-correct {cpc_pct_str}</span>
-    <span class="badge">replay · n={script.n_cases}</span>
+    <span class="badge">{html.escape(script.badge_label)} · n={script.n_cases}</span>
   </div>
   <h1>{html.escape(script.title)}</h1>
   <p class="subtitle">{html.escape(script.subtitle)}</p>

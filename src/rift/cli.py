@@ -1169,6 +1169,60 @@ def discover(baseline, challenger, seed_suite, proposer_model,
     )
 
 
+@main.command(name="report")
+@click.argument("comparison_json", type=click.Path(exists=True, dir_okay=False))
+@click.option("--format", "fmt", default="terminal", show_default=True,
+              type=click.Choice(["terminal", "markdown", "brief", "brief-md"]),
+              help="terminal re-renders the drift report; markdown writes the "
+                   "full technical report; brief writes a one-page HTML "
+                   "'model upgrade brief' for a non-engineering audience; "
+                   "brief-md is the same brief as markdown.")
+@click.option("--output", "-o", default=None, type=click.Path(),
+              help="Where to write (required for every format but terminal).")
+def report(comparison_json, fmt, output):
+    """Render a saved comparison (from `rift compare --output`) as a report.
+
+    Keyless and offline: everything is rebuilt from the saved JSON, so a
+    comparison can be re-rendered — or turned into an executive brief —
+    long after the run, without touching any API.
+
+    \b
+    Examples:
+      rift report cmp.json                          # re-render in the terminal
+      rift report cmp.json --format markdown -o drift_report.md
+      rift report cmp.json --format brief -o brief.html
+    """
+    from .brief import (
+        export_brief_html,
+        export_brief_markdown,
+        load_comparison,
+    )
+
+    drift, baseline_result, challenger_result, _extras = (
+        load_comparison(comparison_json)
+    )
+
+    if fmt == "terminal":
+        print_drift_report(drift, baseline_result, challenger_result)
+        print_fingerprint_report(baseline_result, challenger_result)
+        if drift.subgroups:
+            print_subgroup_table(drift.subgroups, title="By subgroup")
+        return
+
+    if not output:
+        raise click.UsageError(f"--format {fmt} needs --output PATH.")
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+    if fmt == "markdown":
+        md = generate_markdown_report(drift, baseline_result, challenger_result)
+        with open(output, "w") as f:
+            f.write(md)
+    elif fmt == "brief":
+        export_brief_html(drift, baseline_result, challenger_result, output)
+    else:  # brief-md
+        export_brief_markdown(drift, baseline_result, challenger_result, output)
+    console.print(f"Report saved to [green]{output}[/green]")
+
+
 @main.command(name="import")
 @click.argument("source", type=click.Path(exists=True, dir_okay=False))
 @click.option("--from", "source_format", required=True,
