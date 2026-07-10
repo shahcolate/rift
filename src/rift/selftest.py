@@ -46,6 +46,14 @@ class SelfTestResult:
     mean_abs_delta: float
     p95_abs_delta: float
     max_abs_delta: float
+    # Which statistical test the split arms exercised (from
+    # DriftResult.test_used of the final repetition). The split decides it:
+    # one trial per arm (--trials 2-3) keeps scores binary → McNemar, the
+    # same path a trials=1 production gate runs; two or more per arm
+    # produces trial-mean (continuous) scores → paired t. A selftest only
+    # calibrates the gate whose test path it exercised, so pick --trials to
+    # match production.
+    test_used: str = ""
 
 
 def self_test(
@@ -63,6 +71,14 @@ def self_test(
     case's trials into two arms, compares the arm means with the production
     :func:`compare_runs`, and tallies how often the gate fires.
 
+    Which *test path* gets calibrated depends on the split: with 2-3 trials
+    each arm is a single binary trial, so :func:`compare_runs` selects
+    McNemar — the same path a ``trials=1`` production gate runs. With >=4
+    trials the arms are multi-trial means (continuous scores) and the
+    calibrated path is the paired t-test. The result records ``test_used``
+    so the report can say which gate the published rate applies to; choose
+    ``--trials`` to match how you run the real gate.
+
     The seed is fixed so the reported rate is reproducible. Raises
     ``ValueError`` if fewer than two trials are available to split.
     """
@@ -77,6 +93,7 @@ def self_test(
 
     n_sig = 0
     n_reg = 0
+    test_used = ""
     abs_deltas: list[float] = []
     for _ in range(reps):
         arm_a: list[float] = []
@@ -96,6 +113,7 @@ def self_test(
             if drift.delta < 0:
                 n_reg += 1
         abs_deltas.append(abs(drift.delta))
+        test_used = drift.test_used
 
     arr = np.asarray(abs_deltas)
     return SelfTestResult(
@@ -110,4 +128,5 @@ def self_test(
         mean_abs_delta=round(float(arr.mean()), 4),
         p95_abs_delta=round(float(np.percentile(arr, 95)), 4),
         max_abs_delta=round(float(arr.max()), 4),
+        test_used=test_used,
     )
