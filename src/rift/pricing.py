@@ -31,6 +31,7 @@ is 0.5× vs Opus-4.7-fast and ~1× vs live Opus when Fable is batched).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -94,13 +95,26 @@ def lookup(model: str) -> TokenPrice | None:
 
     Falls back to family-prefix matching so dated variants
     (e.g. ``claude-opus-4-7-20260315``) inherit their family's price.
+    The remainder after the family key must look like a date/version
+    suffix (``-<digit>...``): a *named* submodel is a different product
+    at a different price, and inheriting the family price would silently
+    invert cost verdicts (``gpt-4o-mini`` billed at ``gpt-4o`` rates is
+    ~16x over). Unknown models return None — better no cost than a
+    confidently wrong one.
     """
     if model in PRICING:
         return PRICING[model]
     # family-prefix fallback, longest match wins
     prefix_match = None
     for key in PRICING:
-        if model.startswith(key) and (prefix_match is None or len(key) > len(prefix_match)):
+        if not model.startswith(key):
+            continue
+        rest = model[len(key):]
+        # "-20260315" / "-4-6" style suffixes only; "-mini"/"-nano" are
+        # distinct products, not dated variants.
+        if not re.fullmatch(r"(-\d[\w.]*)+", rest):
+            continue
+        if prefix_match is None or len(key) > len(prefix_match):
             prefix_match = key
     return PRICING[prefix_match] if prefix_match else None
 

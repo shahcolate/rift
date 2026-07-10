@@ -208,6 +208,13 @@ def expand_suite(
         ),
         scoring=base.scoring,
         model_params=base.model_params,
+        # Grader configuration travels with the suite: a pinned judge /
+        # embedding model, custom rubric, or cue overrides must grade the
+        # expanded cases exactly as they would the originals.
+        judge_model=base.judge_model,
+        embedding_model=base.embedding_model,
+        prompts=dict(base.prompts),
+        cues=dict(base.cues) if base.cues else None,
         custom_scorer=base.custom_scorer,
         cases=expanded,
     )

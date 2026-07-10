@@ -51,7 +51,12 @@ class OpenAIProvider(BaseProvider):
         raise_for_status_with_body(resp)
         data = resp.json()
 
-        output = data["choices"][0]["message"]["content"] or ""
+        message = data["choices"][0]["message"]
+        # Structured refusals arrive as {"content": null, "refusal": "..."}.
+        # Keep the refusal text as the output — an empty string would make
+        # the refusal-drift classifier count a declined answer as "not
+        # refused", and the reason would be lost from saved runs.
+        output = message.get("content") or message.get("refusal") or ""
 
         return Completion(
             model=self.model,

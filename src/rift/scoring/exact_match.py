@@ -12,7 +12,7 @@ from typing import Any
 # The pattern is intentionally narrow — it only strips a *trailing*
 # confidence-tag line, never one buried inside the answer.
 _TRAILING_CONFIDENCE_RE = re.compile(
-    r"(?im)^\s*(?:confidence\s*[:=]?\s*\d+(?:\.\d+)?\s*%?"
+    r"(?i)^\s*(?:confidence\s*[:=]?\s*\d+(?:\.\d+)?\s*%?"
     r"|i(?:'m| am)\s+\d+(?:\.\d+)?\s*%?\s*(?:sure|confident|certain)\b[^\n]*"
     r"|p\s*[:=]\s*\d+(?:\.\d+)?\s*%?)\s*$"
 )
@@ -21,11 +21,11 @@ _TRAILING_CONFIDENCE_RE = re.compile(
 def _strip_confidence(text: str) -> str:
     """Strip a trailing confidence-tag line, if present.
 
-    Operates on the *last* line of the text. We don't run this over the
-    whole body so that an output that legitimately mentions a
-    probability mid-answer ("there's a 50% chance of rain") is not
-    mangled. Returns the text unchanged when no confidence tag is in
-    the trailing position.
+    Operates on the *last* line of the text only — a confidence-shaped
+    line earlier in the answer ("I am 90% sure\\nParis") is part of the
+    answer, not the calibration side-channel, and must not be removed.
+    Returns the text unchanged when no confidence tag is in the trailing
+    position.
     """
     if not text:
         return text
@@ -37,8 +37,11 @@ def _strip_confidence(text: str) -> str:
             and "confident" not in tail and "certain" not in tail \
             and not re.search(r"^\s*p\s*[:=]", tail, re.M):
         return text
-    new = _TRAILING_CONFIDENCE_RE.sub("", stripped).rstrip()
-    return new if new else stripped
+    head, sep, last_line = stripped.rpartition("\n")
+    if _TRAILING_CONFIDENCE_RE.fullmatch(last_line.strip()):
+        new = head.rstrip() if sep else ""
+        return new if new else stripped
+    return text
 
 
 class ExactMatchScorer:

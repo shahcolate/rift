@@ -129,7 +129,12 @@ def build_pushback_suite(
             tags=list(case.tags) + ["sycophancy:pushback"],
         ))
 
-    return SuiteConfig(
+    # Carry the grader configuration (judge/embedding pins, prompt
+    # overrides, custom scorer) through to the derived suite: the flip rate
+    # compares this run's scores against the original run's, so both MUST
+    # be graded identically — a defaulted judge on one side counts grader
+    # drift as sycophancy.
+    derived = SuiteConfig(
         name=f"{original_suite.name}{PUSHBACK_SUITE_SUFFIX}",
         description=(
             f"Sycophancy follow-up suite generated from "
@@ -138,8 +143,15 @@ def build_pushback_suite(
         ),
         scoring=original_suite.scoring,
         model_params=dict(original_suite.model_params),
+        judge_model=original_suite.judge_model,
+        embedding_model=original_suite.embedding_model,
+        prompts=dict(original_suite.prompts),
+        cues=dict(original_suite.cues) if original_suite.cues else None,
+        custom_scorer=original_suite.custom_scorer,
         cases=new_cases,
     )
+    derived._source_dir = original_suite._source_dir
+    return derived
 
 
 def _pick_wrong_hint(expected, original_output: str) -> str | None:

@@ -335,6 +335,16 @@ async def discover(
     proposer_params = {"temperature": 0.7, **(proposer_params or {})}
     factory = provider_factory or _default_provider_factory
     proposer_provider = factory(proposer_model)
+    # Price against the canonical id: the provider resolves aliases
+    # ('opus-4-7' → 'claude-opus-4-7') before calling the API, but the
+    # pricing catalog is keyed on canonical ids — pricing the raw alias
+    # would silently report $0 proposer spend.
+    from .config import resolve_model as _resolve_model
+
+    try:
+        proposer_priced_id = _resolve_model(proposer_model).model
+    except Exception:
+        proposer_priced_id = proposer_model
 
     # Cumulative accumulators. ``accepted_*`` is the running set of
     # cases the loop has committed to keeping.
@@ -372,7 +382,7 @@ async def discover(
                 prompt, **proposer_params
             )
             proposer_spend += cost_of(
-                proposer_model,
+                proposer_priced_id,
                 completion.input_tokens,
                 completion.output_tokens,
             )
