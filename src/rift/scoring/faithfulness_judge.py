@@ -205,8 +205,26 @@ def _default_provider_factory(model_id: str) -> BaseProvider:
         return AnthropicProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "openai":
         return OpenAIProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "openai_compatible":
+        # Self-hosted judge ('<model>@<url>') — same auth posture as the
+        # runner: OPENAI_API_KEY if set, else a placeholder the server
+        # ignores.
+        import os as _os
+
+        return OpenAIProvider(
+            model=cfg.model, api_base=cfg.api_base,
+            api_key=_os.environ.get("OPENAI_API_KEY", "unused"),
+            **cfg.params,
+        )
     if cfg.provider == "google":
         return GoogleProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "local":
+        # Clean remedy + exit 2, matching every other provider factory —
+        # this raises OUTSIDE run_suite's wrapper, so a raw ValueError
+        # here would traceback and exit 1 straight through the gate.
+        from ..config import UnknownModelError
+
+        raise UnknownModelError(model_id)
     raise ValueError(
         f"faithfulness judge does not support provider '{cfg.provider}' "
         f"(model={model_id})"

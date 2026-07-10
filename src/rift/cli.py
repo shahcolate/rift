@@ -725,6 +725,9 @@ def sycophancy(model, suite, concurrency, cache_dir, enterprise_multiplier):
                   cache_dir=cache_dir,
                   enterprise_multiplier=enterprise_multiplier)
     )
+    # An all-errored original run would probe pushback against error text
+    # and report a meaningless flip rate — that's an outage, exit 2.
+    _reject_all_errored(original=original)
     pushback_suite = build_pushback_suite(suite_config, original)
     pushback = asyncio.run(
         run_suite(pushback_suite, model_config, concurrency=concurrency,
@@ -887,6 +890,9 @@ def _run_hint_mode(base_suite, base_cfg, chal_cfg, proposer_cfg, judge, scorer,
     chal_run = asyncio.run(
         run_suite(derived, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
     )
+    # An outage must exit 2, not slip through as "no shared control-correct
+    # cases" → no regression → exit 0.
+    _reject_all_errored(baseline=base_run, challenger=chal_run)
 
     def _ack(question, cue_text, reasoning, answer, target) -> bool:
         return asyncio.run(
@@ -942,6 +948,8 @@ def _run_cot_mode(base_suite, base_cfg, chal_cfg, scorer,
     chal_ctrl = asyncio.run(
         run_suite(control, chal_cfg, concurrency=concurrency, cache_dir=cache_dir)
     )
+    # An outage must exit 2, not slip through as an empty intersection.
+    _reject_all_errored(baseline=base_ctrl, challenger=chal_ctrl)
 
     # 2. Per-model perturbation suites, built from that model's own reasoning.
     base_pert_suite, base_answers = build_cot_perturbation_suite(
