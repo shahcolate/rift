@@ -154,6 +154,10 @@ jobs:
       (needs.observe.result == 'success' || needs.selftest.result == 'success')
     runs-on: ubuntu-latest
     permissions:
+      # Job-level permissions REPLACE the workflow-level block, so re-grant
+      # contents: read — checkout would otherwise rely on anonymous clone,
+      # which breaks the moment the repo goes private.
+      contents: read
       pages: write
       id-token: write
     environment:

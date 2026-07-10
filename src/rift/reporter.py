@@ -1076,9 +1076,17 @@ def print_observation_report(entries: list[dict], events: list,
             f"(cap ${budget.max_cost_usd:.2f})"
         )
         if budget.aborted:
+            skipped = getattr(budget, "skipped", None) or []
+            skipped_line = ""
+            if skipped:
+                skipped_line = (
+                    "\n  Skipped: " + ", ".join(escape(s) for s in skipped[:8])
+                    + (f" … +{len(skipped) - 8} more" if len(skipped) > 8 else "")
+                )
             console.print(Panel(
                 spend_line + "\n\n  [bold yellow]Budget cap reached — remaining "
-                "stages were skipped.[/bold yellow]\n  Partial observations above "
+                "stages were skipped.[/bold yellow]" + skipped_line +
+                "\n  Partial observations above "
                 "were still recorded; raise --max-cost to run the full panel.",
                 title="[bold yellow]⚠ Budget abort[/bold yellow]",
                 border_style="yellow",

@@ -55,7 +55,7 @@ import yaml
 from .calibration import compute_calibration, parse_confidence
 from .comparator import benjamini_hochberg, compare_runs
 from .config import SuiteConfig, load_suite, resolve_model
-from .pricing import lookup
+from .pricing import PRICING, lookup
 from .refusal import classify_output
 from .runner import RunResult, run_suite
 from .sycophancy import PUSHBACK_SUITE_SUFFIX, build_pushback_suite
@@ -375,13 +375,34 @@ def _rift_version() -> str:
 
 
 def _read_jsonl(path: Path) -> list[dict]:
+    """Read a JSONL file, tolerating a truncated final line.
+
+    Appends aren't atomic (unlike the tmp+rename record files), so a
+    crash mid-append can leave a partial last line. Refusing to load
+    would wedge every future pass on a one-line repair; instead the
+    partial line is dropped with a warning. A corrupt line anywhere
+    else is real damage and still raises.
+    """
     if not path.exists():
         return []
     out: list[dict] = []
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if line:
+    lines = [ln.strip() for ln in path.read_text().splitlines()]
+    lines = [ln for ln in lines if ln]
+    for i, line in enumerate(lines):
+        try:
             out.append(json.loads(line))
+        except json.JSONDecodeError:
+            if i == len(lines) - 1:
+                import warnings
+
+                warnings.warn(
+                    f"{path}: dropping truncated final line (crashed "
+                    "append?) — the affected observation is lost but the "
+                    "series stays loadable.",
+                    stacklevel=2,
+                )
+                break
+            raise
     return out
 
 
@@ -819,10 +840,15 @@ def _fingerprint_events(index: list[dict], today: list[dict], date: str,
                     "see the score_drift entries.")
         elif endpoint in tested_endpoints:
             kind = "silent_swap"
-            tail = ("No statistically significant score drift on the panel — "
-                    "the model changed under the alias and the scores held. "
-                    "This is exactly the change a request-keyed cache or an "
-                    "accuracy-only check would never see.")
+            # Careful wording: "not significant" is NOT "scores held" — on a
+            # small panel a real drop can sit under the test's minimum
+            # detectable effect. Claim only what the test supports.
+            tail = ("The model changed under the alias and no statistically "
+                    "significant score change was detected — which on a "
+                    "small panel may reflect limited power, not stability; "
+                    "check the endpoint's accuracy chart. A request-keyed "
+                    "cache or an accuracy-only check would never see this "
+                    "change at all.")
         else:
             kind = "fingerprint_change"
             tail = ("No paired score comparison ran for this endpoint this "
@@ -852,12 +878,30 @@ def estimate_stage_cost(model: str, suite: SuiteConfig,
 
     Prefers the endpoint's most recent observed token counts for the same
     suite (the best predictor of next week's run); falls back to a
-    chars/4 input heuristic plus a flat output allowance. Unknown models
-    (no pricing entry — local endpoints) estimate 0.
+    chars/4 input heuristic plus a flat output allowance.
+
+    A model with no pricing entry estimates at the CATALOG MAXIMUM, not
+    at $0: a hosted model missing from ``pricing.PRICING`` (new release,
+    renamed id) also records $0 *actual* cost, so a $0 estimate would
+    turn the hard budget cap into a no-op exactly when prices are least
+    known. The conservative estimate makes the guard trip early and
+    loudly instead — add the real price to the catalog to unblock.
+    RiftLM checkpoints are genuinely free (in-process) and estimate 0.
     """
+    if model.startswith("riftlm:"):
+        return 0.0
     price = lookup(model)
     if price is None:
-        return 0.0
+        price = max(PRICING.values(),
+                    key=lambda p: p.cost(1_000_000, 1_000_000))
+        import warnings
+
+        warnings.warn(
+            f"No pricing entry for {model!r}; the budget guard is "
+            "estimating at the catalog's most expensive rate. Add the "
+            "model to rift/pricing.py PRICING for accurate budgeting.",
+            stacklevel=2,
+        )
     if prior_entry and prior_entry.get("input_tokens"):
         return price.cost(prior_entry["input_tokens"],
                           prior_entry["output_tokens"])
@@ -880,6 +924,10 @@ class BudgetTracker:
         self.max_cost_usd = max_cost_usd
         self.spent = 0.0
         self.aborted = False
+        # "endpoint/suite" stages skipped after the cap tripped — surfaced
+        # in the pass report so a longitudinal gap is legible as a budget
+        # decision, not a mystery hole in the series.
+        self.skipped: list[str] = []
 
     def allows(self, estimate: float) -> bool:
         if self.aborted:
@@ -963,6 +1011,7 @@ async def run_panel(
                 if not budget.allows(
                     estimate_stage_cost(model_config.model, suite, prior)
                 ):
+                    budget.skipped.append(f"{ep.id}/{suite_name}")
                     break
                 run = await run_suite(
                     suite, model_config, concurrency=concurrency,
@@ -999,6 +1048,8 @@ async def run_panel(
                     pushback_run=pushback_run,
                 ))
             if budget.aborted:
+                remaining = selected[selected.index(ep) + 1:]
+                budget.skipped.extend(f"{r.id}/*" for r in remaining)
                 break
         except MissingAPIKeyError:
             raise

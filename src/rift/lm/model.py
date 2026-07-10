@@ -208,7 +208,7 @@ class TinyGPT:
 
         for i in reversed(range(c.n_layer)):
             L = cache["layers"][i]
-            # MLP block: x_out = x1 + gelu(y2 @ w1 + b1) @ w2 + b2
+            # MLP block: x_out = x1 + relu(y2 @ w1 + b1) @ w2 + b2
             dmo = dx  # grad into the MLP residual branch
             grads[f"l{i}.w2"] = L["h"].reshape(-1, c.d_ff).T @ dmo.reshape(-1, c.d_model)
             grads[f"l{i}.b2"] = dmo.sum(axis=(0, 1))
