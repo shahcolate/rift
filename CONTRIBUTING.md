@@ -125,4 +125,4 @@ committed outcomes file under `benchmarks/`.
    by pushing follow-up commits.
 
 By contributing, you agree that your contributions are licensed under the
-project's [MIT License](README.md#license).
+project's [MIT License](LICENSE).

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rift-eval"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Detect behavioral regressions between LLM model versions"
 readme = "README.md"
 license = "MIT"
@@ -45,6 +45,11 @@ dev = [
 
 [project.scripts]
 rift = "rift.cli:main"
+
+# Single source of truth for the version: rift.__version__ (also what
+# `rift --version` prints). Bump it there; the build backend reads it here.
+[tool.hatch.version]
+path = "src/rift/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rift"]
