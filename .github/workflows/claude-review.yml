@@ -39,7 +39,7 @@ jobs:
             echo "::notice::ANTHROPIC_API_KEY secret not set — skipping Claude review."
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.gate.outputs.enabled == 'true'
         with:
           fetch-depth: 0  # full history so Claude can diff against the base
