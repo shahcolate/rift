@@ -186,7 +186,9 @@ def run_setup(console: Console) -> None:
             "Set the keys directly instead, e.g. "
             "[cyan]export ANTHROPIC_API_KEY=...[/cyan]"
         )
-        return
+        # Non-zero so `rift setup && rift compare ...` scripts don't march on
+        # as if setup succeeded. 2 = operational, matching the CLI contract.
+        raise SystemExit(2)
 
     saved_any = False
     for provider, (env_var, signup_url) in PROVIDER_KEYS.items():

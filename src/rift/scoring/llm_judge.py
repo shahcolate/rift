@@ -347,8 +347,24 @@ def _default_provider_factory(model_id: str) -> BaseProvider:
         return AnthropicProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "openai":
         return OpenAIProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "openai_compatible":
+        # Self-hosted judge ('<model>@<url>') — same auth posture as the
+        # runner: OPENAI_API_KEY if set, else a placeholder the server
+        # ignores.
+        import os as _os
+
+        return OpenAIProvider(
+            model=cfg.model, api_base=cfg.api_base,
+            api_key=_os.environ.get("OPENAI_API_KEY", "unused"),
+            **cfg.params,
+        )
     if cfg.provider == "google":
         return GoogleProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "local":
+        # Same clean remedy the runner gives — never a raw ValueError.
+        from ..config import UnknownModelError
+
+        raise UnknownModelError(model_id)
     raise ValueError(
         f"LLM judge does not support provider '{cfg.provider}' (model={model_id})"
     )

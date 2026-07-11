@@ -88,14 +88,22 @@ class DriftResult:
     baseline_mean: float
     challenger_mean: float
     delta: float
-    delta_pct: float
+    # Percent change vs baseline. ``None`` (undefined) when the baseline
+    # mean is 0 — renderers must omit the parenthetical, not print +0.0%.
+    delta_pct: float | None
     p_value: float
     ci_lower: float
     ci_upper: float
     significant: bool
-    test_used: str                       # "mcnemar_exact" | "paired_t+bootstrap"
+    # "mcnemar_exact" | "paired_t+bootstrap" | "deterministic" |
+    # "no_variation" | "insufficient_data" (n < 2 — never significant).
+    test_used: str
     regressed_cases: list[int]
     improved_cases: list[int]
+    # Confidence level of ci_lower/ci_upper and the cost CI below: 1 − alpha
+    # for the alpha this comparison ran at (0.95 unless overridden, e.g. by a
+    # pre-registered alpha).
+    ci_level: float = 0.95
     # Cost-normalized metrics (populated when cost data is supplied).
     baseline_cost_usd: float = 0.0
     challenger_cost_usd: float = 0.0
@@ -157,33 +165,37 @@ def _mcnemar_exact(baseline: np.ndarray, challenger: np.ndarray) -> float:
     return float(stats.binomtest(n_improve, n_disc, p=0.5).pvalue)
 
 
-def _bootstrap_ci(diffs: np.ndarray, n: int, bootstrap_n: int, seed: int = 42
-                  ) -> tuple[float, float]:
-    """Paired bootstrap 95% CI on the mean of ``diffs``.
+def _bootstrap_ci(diffs: np.ndarray, n: int, bootstrap_n: int, seed: int = 42,
+                  alpha: float = 0.05) -> tuple[float, float]:
+    """Paired percentile-bootstrap ``(1 - alpha)`` CI on the mean of ``diffs``.
 
     Seeded so re-running a comparison gives the same CI. The seed is
     intentionally fixed at the call site — do not expose it as a
     user-tunable; reproducibility of historical reports depends on it.
+    The level follows the comparison's alpha so a pre-registered
+    ``alpha: 0.01`` gets a genuine 99% interval, not a mislabeled 95%.
     """
     rng = np.random.default_rng(seed)
     # Vectorized resample: bootstrap_n × n matrix of indices.
     idx = rng.integers(0, n, size=(bootstrap_n, n))
     sample_means = diffs[idx].mean(axis=1)
-    return float(np.percentile(sample_means, 2.5)), float(np.percentile(sample_means, 97.5))
+    lo, hi = 100.0 * alpha / 2.0, 100.0 * (1.0 - alpha / 2.0)
+    return float(np.percentile(sample_means, lo)), float(np.percentile(sample_means, hi))
 
 
 def _bootstrap_cost_per_correct_delta_ci(
     b_scores: np.ndarray, c_scores: np.ndarray,
     b_costs: np.ndarray, c_costs: np.ndarray,
-    bootstrap_n: int, seed: int = 42,
+    bootstrap_n: int, seed: int = 42, alpha: float = 0.05,
 ) -> tuple[float, float] | None:
-    """Paired bootstrap 95% CI on the cost-per-correct delta.
+    """Paired bootstrap ``(1 - alpha)`` CI on the cost-per-correct delta.
 
     Resamples paired ``(b_score_i, b_cost_i, c_score_i, c_cost_i)`` tuples
     with replacement, recomputes per-correct $ on each resample, returns the
-    2.5/97.5 percentiles of (challenger_cpc − baseline_cpc). Returns
-    ``None`` when fewer than 10% of bootstrap samples yield ≥1 correct in
-    BOTH runs (CI undefined; better than reporting a wildly wide interval).
+    ``alpha/2`` / ``1 - alpha/2`` percentiles of (challenger_cpc −
+    baseline_cpc). Returns ``None`` when fewer than 10% of bootstrap samples
+    yield ≥1 correct in BOTH runs (CI undefined; better than reporting a
+    wildly wide interval).
     """
     n = b_scores.size
     if n == 0:
@@ -205,14 +217,16 @@ def _bootstrap_cost_per_correct_delta_ci(
         deltas = (c_cpc - b_cpc)[valid]
     if deltas.size == 0:
         return None
-    return float(np.percentile(deltas, 2.5)), float(np.percentile(deltas, 97.5))
+    lo, hi = 100.0 * alpha / 2.0, 100.0 * (1.0 - alpha / 2.0)
+    return float(np.percentile(deltas, lo)), float(np.percentile(deltas, hi))
 
 
 def _cohens_h(p1: float, p2: float) -> float:
     """Cohen's h for two proportions: 2*(arcsin(√p2) − arcsin(√p1)).
 
     Convention: positive h means the challenger has the higher proportion.
-    Magnitude thresholds (Cohen 1988): |h|<0.2 small, <0.5 medium, ≥0.8 large.
+    Magnitude thresholds (Cohen 1988): |h|<0.2 negligible, 0.2–0.5 small,
+    0.5–0.8 medium, ≥0.8 large (see :func:`_effect_magnitude`).
 
     **Caveat for paired binary data.** Cohen's h was defined for *independent*
     proportions. When applied to the marginal proportions of a paired binary
@@ -495,7 +509,14 @@ def variance_components(trial_scores_per_case: list[list[float]]) -> dict:
     total_trials = sum(len(xs) for xs in cases)
     mean_trials = total_trials / n
     within = float(np.mean(case_vars))
-    between = float(np.var(case_means, ddof=1)) if n > 1 else 0.0
+    # The variance of the observed case means overstates the true
+    # between-case variance: each mean carries its own sampling noise,
+    # E[var(case_means)] = σ²_between + σ²_within/k. Subtract the noise
+    # term (ANOVA / ICC(1) estimator) so a pure-noise metric reads
+    # ICC ≈ 0 rather than the k-dependent floor the naive ratio has
+    # (e.g. 0.33 at k=2).
+    observed_between = float(np.var(case_means, ddof=1)) if n > 1 else 0.0
+    between = max(0.0, observed_between - within / mean_trials) if mean_trials else 0.0
     denom = between + within
     icc = float(between / denom) if denom > 1e-12 else 1.0
     noise_floor = float(np.sqrt(within / total_trials)) if total_trials else 0.0
@@ -534,27 +555,48 @@ def compare_runs(
     assert len(baseline_scores) == len(challenger_scores), \
         "Score lists must be same length"
     n = len(baseline_scores)
+    if n == 0:
+        # No paired data at all: report an explicit empty result rather
+        # than letting NaN means / vacuous test selection leak through.
+        return DriftResult(
+            baseline_model=baseline_model, challenger_model=challenger_model,
+            suite_name=suite_name, n_cases=0,
+            baseline_mean=0.0, challenger_mean=0.0, delta=0.0, delta_pct=None,
+            p_value=1.0, ci_lower=0.0, ci_upper=0.0, significant=False,
+            test_used="insufficient_data", regressed_cases=[], improved_cases=[],
+            ci_level=round(1.0 - alpha, 4),
+        )
     b = np.asarray(baseline_scores, dtype=float)
     c = np.asarray(challenger_scores, dtype=float)
 
     baseline_mean = float(b.mean())
     challenger_mean = float(c.mean())
     delta = challenger_mean - baseline_mean
-    delta_pct = (delta / baseline_mean * 100) if baseline_mean != 0 else 0.0
+    # Undefined (not zero) when the baseline mean is 0: reporting "+0.0%"
+    # next to a real absolute delta would be a wrong number in the headline.
+    delta_pct = (delta / baseline_mean * 100) if baseline_mean != 0 else None
 
     diffs = c - b
+    diffs_std = float(np.std(diffs))
 
     # --- Test selection ---
-    if _is_binary(b, c):
+    # Every branch that can declare significance requires n >= 2: no paired
+    # test is defined on a single case, and a single-case "p=0" would flow
+    # straight into subgroup tables and gates.
+    if n < 2:
+        p_value = 1.0
+        test_used = "insufficient_data"
+    elif _is_binary(b, c):
         p_value = _mcnemar_exact(b, c)
         test_used = "mcnemar_exact"
-    elif n >= 2 and float(np.std(diffs)) > 1e-10:
+    elif diffs_std > 1e-10:
         from scipy import stats  # deferred — see module-top note
         _, p = stats.ttest_rel(c, b)
         p_value = float(p)
         test_used = "paired_t+bootstrap"
     elif abs(float(diffs.mean())) > 1e-10:
-        # All diffs identical and non-zero: deterministic change.
+        # All diffs identical and non-zero: deterministic change (the
+        # zero-variance limit of the paired t: t → ∞, p → 0).
         p_value = 0.0
         test_used = "deterministic"
     else:
@@ -566,8 +608,8 @@ def compare_runs(
     # point estimate). Callers that only need the p-value / delta — e.g.
     # ``rift selftest`` running this hundreds of times — pass 0 to avoid
     # computing a 1000-sample CI they immediately discard.
-    if n >= 2 and float(np.std(diffs)) > 1e-10 and bootstrap_n > 0:
-        ci_lower, ci_upper = _bootstrap_ci(diffs, n, bootstrap_n)
+    if n >= 2 and diffs_std > 1e-10 and bootstrap_n > 0:
+        ci_lower, ci_upper = _bootstrap_ci(diffs, n, bootstrap_n, alpha=alpha)
     else:
         ci_lower = ci_upper = float(diffs.mean()) if n > 0 else 0.0
 
@@ -624,7 +666,7 @@ def compare_runs(
             ci = _bootstrap_cost_per_correct_delta_ci(
                 b, c, np.asarray(baseline_costs, dtype=float),
                 np.asarray(challenger_costs, dtype=float),
-                bootstrap_n=bootstrap_n,
+                bootstrap_n=bootstrap_n, alpha=alpha,
             )
             if ci is not None:
                 cost_delta_ci_lower, cost_delta_ci_upper = ci
@@ -638,8 +680,9 @@ def compare_runs(
         baseline_mean=round(baseline_mean, 4),
         challenger_mean=round(challenger_mean, 4),
         delta=round(delta, 4),
-        delta_pct=round(delta_pct, 2),
+        delta_pct=round(delta_pct, 2) if delta_pct is not None else None,
         p_value=round(p_value, 6),
+        ci_level=round(1.0 - alpha, 4),
         ci_lower=round(ci_lower, 4),
         ci_upper=round(ci_upper, 4),
         significant=significant,

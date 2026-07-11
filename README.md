@@ -130,11 +130,15 @@ to a public **drift feed**:
 | Event | Meaning |
 |---|---|
 | `score_drift` | Scores moved vs. last observation, significant after BH |
-| `silent_swap` | Server fingerprint changed, scores held — the model was replaced under the alias and an accuracy-only check would never see it |
+| `silent_swap` | Server fingerprint changed with no statistically detectable score change — the model was replaced under the alias and an accuracy-only check would never see it (on a small panel, "not detected" can also mean underpowered; the dashboard charts the raw scores) |
 | `fingerprint_change` | Server fingerprint changed alongside significant score drift (or before scores could be compared) |
 | `rollout` | The served snapshot changed *mid-pass* — scores straddle two models |
 | `panel_changed` | The suite itself changed; pairing restarts instead of faking a comparison |
 | `notice` | A probe metric (sycophancy flip rate, ECE, refusal rate) moved past a threshold — reported, never gated |
+
+The rendered site includes the feed as **RSS** (`feed.xml`, stable ids
+across re-renders) — subscribe to model-behavior changes the way you
+subscribe to a changelog.
 
 Verdicts are published alongside the gate's empirical false-regression
 rate from `rift selftest` (refreshed monthly; cited on the dashboard
@@ -172,10 +176,48 @@ rift matrix --models opus-4-8,opus-4-7,opus-4-6 --suite reasoning
 # Diff two saved runs
 rift diff results/before.json results/after.json
 
+# Re-render a saved comparison later — or turn it into a one-page
+# executive brief (keyless, offline):
+rift compare ... --output cmp.json
+rift report cmp.json --format brief -o upgrade_brief.html
+
+# Self-hosted models: any OpenAI-compatible server (vLLM, Ollama, ...)
+rift compare --baseline llama-3.3-70b@http://localhost:8000 \
+    --challenger llama-4-scout@http://localhost:8001 --suite reasoning
+
 # Enterprise contract pricing: apply your negotiated multiplier
 rift compare --baseline opus-4-6 --challenger opus-4-7 \
     --suite reasoning --enterprise-multiplier 0.65
 ```
+
+## Bring your existing evals (`rift import`)
+
+Already have evals in another harness? Don't re-author them — import
+them and get Rift's paired statistics, cost tracking, and drift gate on
+top:
+
+```bash
+rift import --from promptfoo    promptfooconfig.yaml -o suites/mine.yaml
+rift import --from inspect      samples.jsonl        -o suites/mine.yaml
+rift import --from lm-eval      task.yaml --dataset docs.jsonl -o suites/mine.yaml
+rift import --from openai-evals samples.jsonl        -o suites/mine.yaml
+
+rift compare --baseline opus-4-7 --challenger opus-4-8 --suite suites/mine.yaml
+```
+
+Conversion is conservative and **loud about loss**: unsupported
+assertions, flattened chat transcripts, and any-of targets are warned at
+import time *and* recorded in the emitted suite's `description`, so a
+copied suite carries its own caveats. promptfoo configs that mix
+assertion types split into one suite per scoring method
+(`--split-by-assert`); lm-eval multiple-choice tasks are imported as a
+disclosed generation approximation (loglikelihood scoring can't be
+reproduced against generation-only APIs). Every emitted YAML is
+round-trip validated before the importer reports success. Keyless —
+nothing is executed or sent anywhere.
+
+Prefer no conversion at all? Rift's stats are importable directly —
+see [Library use](#library-use-import-rift).
 
 ## What You Get
 
@@ -522,6 +564,7 @@ rift compare --baseline gpt-4 --challenger gpt-4o --suite my_suite.yaml
 | `semantic` | Meaning-level similarity via embedding cosine, scored `max(0, cosine(embed(output), embed(expected)))`. Cheaper and lower-bias than an LLM judge for "is this the same idea?" Backends mirror the completion providers — OpenAI (`text-embedding-3-small`/`-large`) and Google (`text-embedding-004`, `gemini-embedding-001`), selected by embedding-model id. Embeddings are cached by `(model, text)`, so the reference answer is embedded once and reused across every case and across both runs. Set the model via `embedding_model:` in the suite or `$RIFT_EMBEDDING_MODEL`. |
 | `llm_judge` | Open-ended outputs (summaries, explanations, code) scored on a 0-1 scale by a separate judge model. Supports both **reference-answer** scoring (`expected: "..."`) and **rubric** scoring (`expected: {rubric: "..."}`). The judge model, judge prompt, and a one-sentence judge reasoning per case are all surfaced for auditability. See `suites/open_ended_qa.yaml` for a worked example. |
 | `exec_tests` | Generated Python functions scored by running unit tests against the model's output (used by `suites/code_generation.yaml`). Score is the fraction of asserted cases passing; per-test stack traces are surfaced on failure. |
+| `custom` | Your own scorer: set `custom_scorer: "module:fn"` (importable) or `"./scorer.py:fn"` (resolved against the suite file's directory). The target may be a sync `score(output, expected)`, an async `ascore(output, expected, context=None)`, or a Scorer class/instance. Loading executes the target module — only run suites you trust. See `suites/custom_scorer_example.yaml`. |
 
 ### `llm_judge` setup
 
@@ -614,10 +657,37 @@ rift matrix \
   --suite reasoning
 ```
 
+## Library use (`import rift`)
+
+The CLI's primitives are a stable, typed public API (semver, `py.typed`,
+lazy imports — pulling in the stats layer never drags in the HTTP
+stack):
+
+```python
+import rift
+
+suite = rift.load_suite("suites/mine.yaml")          # or a built-in name
+drift = rift.compare_runs(
+    baseline_scores, challenger_scores,              # from ANY harness
+    "their-model-v1", "their-model-v2", "their-eval",
+)
+if drift.significant and drift.delta < 0:
+    raise SystemExit("regression")                   # gate the deploy
+```
+
+`run_suite`, `RunResult`, `DriftResult`, `power_analysis`,
+`benjamini_hochberg`, `variance_components`, and `cohens_kappa` are all
+exported — `rift.compare_runs` over two paired score vectors is the
+zero-conversion way to put Rift's statistics on top of an existing
+harness.
+
 ## CI/CD Integration
 
-Rift returns exit code 1 when significant drift is detected, so it gates any
-pipeline. A ready-made **GitHub Action** wraps `rift compare`, writes the drift
+Rift's exit codes are a contract: **0** = no significant regression,
+**1** = significant regression detected (only this — the gate), **2** =
+operational error (bad model/suite, missing key, all cases errored), so
+an infrastructure failure can never masquerade as "no drift" *or* as a
+regression. A ready-made **GitHub Action** wraps `rift compare`, writes the drift
 report to the job summary, and exposes a `regression` output:
 
 ```yaml
@@ -653,7 +723,10 @@ pipeline:
 ---
 
 The sections below document the mechanics behind those headlines.
-Skip if you only need to use the tool.
+Skip if you only need to use the tool. The complete statistical
+methodology — test selection, multiplicity, effect sizes, power, null
+calibration, and the known caveats an external reviewer should read
+first — lives in **[docs/methodology.md](docs/methodology.md)**.
 
 ## Statistical tests
 
@@ -835,10 +908,14 @@ release notes typically hand-wave around:
 - [x] Pre-registered primary endpoint (`compare --preregister`)
 - [x] Observatory: scheduled longitudinal monitoring (`rift observe`, drift feed, silent-swap detection)
 - [x] Observatory static dashboard + GitHub Pages pipeline (`rift observatory-site`)
-- [ ] Suite adapters (`rift import --from promptfoo|inspect|lm-eval`)
-- [ ] Agentic / tool-use drift (tool-call selection, argument fidelity, multi-turn)
-- [ ] Exec report mode (one-page model-upgrade brief from any comparison)
-- [ ] Drift-feed subscriptions (RSS / webhook on Observatory events)
+- [x] RiftLM: built-in pure-numpy GPT + manufactured-regression demo (`rift lm`)
+- [x] Suite adapters (`rift import --from promptfoo|inspect|lm-eval|openai-evals`)
+- [x] Exec report mode (`rift report --format brief` — one-page upgrade brief from any comparison)
+- [x] Drift-feed RSS on Observatory events (`feed.xml`; webhooks still open)
+- [x] Public library API (`import rift`, lazy + typed + semver)
+- [x] Published methodology ([docs/methodology.md](docs/methodology.md))
+- [ ] Agentic / tool-use drift ([design doc](docs/design/agentic-drift.md); needs provider tool-call surface)
+- [ ] Drift-feed webhooks (POST on new Observatory events)
 - [ ] More CI/CD integrations (Jenkins, GitLab CI)
 - [ ] Observability integrations (Datadog, W&B)
 

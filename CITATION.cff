@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: >-
+  If you use Rift or the Rift Observatory data in your research, please cite
+  it as below.
+title: "Rift: statistically rigorous drift detection for LLM endpoints"
+type: software
+authors:
+  - name: "Rift contributors"
+repository-code: "https://github.com/shahcolate/rift"
+url: "https://github.com/shahcolate/rift"
+license: MIT
+keywords:
+  - large language models
+  - evaluation
+  - behavioral drift
+  - regression testing
+  - model monitoring
+abstract: >-
+  Rift detects behavioral regressions between LLM model versions and monitors
+  live endpoints for drift. It pairs eval-suite runs with exact McNemar /
+  paired-t significance tests, bootstrap confidence intervals,
+  Benjamini-Hochberg correction, pre-registered primary endpoints, and a
+  self-test that measures the drift gate's own false-positive rate. Server
+  fingerprints are captured on every completion to detect silent model swaps,
+  and every cost claim carries a paired-bootstrap confidence interval.

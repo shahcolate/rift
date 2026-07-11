@@ -34,12 +34,65 @@ def _fmt_effect(drift) -> str:
     return base
 
 
+def _fmt_effect_compact(drift) -> str:
+    """Table-cell effect size: short enough to survive an 80-column render.
+
+    ``h=+0.84 (large)`` on one line, ``g=+0.50`` on the next; hedges'
+    renders as ``g̃=+0.84 (large)``. The verbose form (:func:`_fmt_effect`)
+    stays in the panel reports where width isn't scarce.
+    """
+    if drift.effect_size_kind == "none":
+        return "n/a"
+    sym = "h" if drift.effect_size_kind == "cohens_h_marginal" else "g̃"
+    base = f"{sym}={drift.effect_size:+.2f} ({drift.effect_size_magnitude})"
+    g = getattr(drift, "cohens_g_paired", None)
+    if g is not None:
+        base += f"\ng={g:+.2f}"
+    return base
+
+
 def _fmt_cost(x: float) -> str:
     if x == float("inf") or math.isinf(x):
         return "∞"
     if x >= 1:
         return f"${x:,.2f}"
     return f"${x:.4f}"
+
+
+def _fmt_delta_pct(drift) -> str:
+    """`` (+12.3%)`` — or empty when the pct is undefined (baseline mean 0)."""
+    pct = getattr(drift, "delta_pct", None)
+    return f" ({pct:+.1f}%)" if pct is not None else ""
+
+
+def _ci_label(drift) -> str:
+    """CI level label from the comparison's alpha (``95% CI`` by default)."""
+    level = getattr(drift, "ci_level", 0.95) or 0.95
+    return f"{level * 100:g}% CI"
+
+
+def _ci_test_disagreement(drift) -> str | None:
+    """One-line footnote when the CI and the primary test disagree in sign.
+
+    For binary data the p-value (exact McNemar, conditional on discordant
+    pairs) and the CI (unconditional paired bootstrap of the score
+    difference) are different procedures, so near the significance
+    boundary one can exclude zero while the other stays non-significant.
+    Flagging it beats letting a reader discover the tension unassisted.
+    """
+    if drift.test_used not in ("mcnemar_exact", "paired_t+bootstrap"):
+        # No real test ran (insufficient_data / deterministic / no_variation)
+        # and the "CI" may be a degenerate point — nothing to reconcile.
+        return None
+    ci_excludes_zero = drift.ci_lower > 0 or drift.ci_upper < 0
+    if ci_excludes_zero == drift.significant:
+        return None
+    return (
+        "Note: the CI and the primary test disagree here — they are "
+        "different procedures (exact test conditions on discordant pairs; "
+        "the bootstrap CI resamples all pairs). The p-value governs the "
+        "verdict."
+    )
 
 
 def _error_counts(baseline: RunResult, challenger: RunResult) -> tuple[int, int]:
@@ -96,14 +149,17 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
         "",
         f"  Baseline mean:    {drift.baseline_mean:.4f}",
         f"  Challenger mean:  {drift.challenger_mean:.4f}",
-        f"  Delta:            {drift.delta:+.4f} ({drift.delta_pct:+.1f}%)",
+        f"  Delta:            {drift.delta:+.4f}{_fmt_delta_pct(drift)}",
         f"  p-value:          {drift.p_value:.6f}",
-        f"  95% CI:           [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+        f"  {_ci_label(drift) + ':':<18}[{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
         f"  Effect size:      {_fmt_effect(drift)}",
         "",
         f"  Regressed cases:  {len(drift.regressed_cases)}",
         f"  Improved cases:   {len(drift.improved_cases)}",
     ]
+    footnote = _ci_test_disagreement(drift)
+    if footnote:
+        lines += ["", f"  [dim]{footnote}[/dim]"]
 
     if cost and (drift.baseline_cost_usd or drift.challenger_cost_usd):
         lines += [
@@ -129,7 +185,7 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
             lines.append("  Δ $/correct:        = $0.0000")
         if getattr(drift, "cost_delta_ci_defined", False):
             lines.append(
-                f"  95% CI Δ $/correct: "
+                f"  {_ci_label(drift)} Δ $/correct: "
                 f"[{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}]"
             )
 
@@ -209,7 +265,7 @@ def print_cost_panel(drift: DriftResult, console: Console | None = None) -> None
         lines.append(f"  Δ $/correct:             = $0.0000{pct_str}")
     if getattr(drift, "cost_delta_ci_defined", False):
         lines.append(
-            f"  95% CI on Δ $/correct:   "
+            f"  {_ci_label(drift)} on Δ $/correct:   "
             f"[{drift.cost_delta_ci_lower:+.4f}, {drift.cost_delta_ci_upper:+.4f}]"
         )
     console.print(Panel("\n".join(lines),
@@ -231,16 +287,16 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str,
     if console is None:
         console = Console()
     table = Table(title=title, show_lines=False)
-    table.add_column("Subgroup", style="bold")
+    table.add_column("Subgroup", style="bold", no_wrap=True)
     table.add_column("n")
-    table.add_column("Baseline")
-    table.add_column("Challenger")
-    table.add_column("Δ")
+    table.add_column("Base")
+    table.add_column("Chal")
+    table.add_column("Δ", no_wrap=True)
     table.add_column("Effect")
     table.add_column("p")
     table.add_column("q (BH)")
-    table.add_column("95% CI")
-    table.add_column("$/correct Δ")
+    table.add_column(f"{(1 - alpha) * 100:g}% CI")
+    table.add_column("$/corr Δ")
 
     keys = sorted(subgroups.keys())
     p_values = [subgroups[k].p_value for k in keys]
@@ -257,13 +313,24 @@ def print_subgroup_table(subgroups: dict[str, DriftResult], title: str,
         cost_cell = ""
         if d.cost_normalized_delta_usd:
             cost_cell = f"{d.cost_normalized_delta_usd:+.4f}"
+        if d.test_used == "insufficient_data":
+            # A 1-case subgroup carries no test; render it honestly instead
+            # of a p that looks computed.
+            table.add_row(
+                tag, str(d.n_cases), f"{d.baseline_mean:.3f}",
+                f"{d.challenger_mean:.3f}",
+                f"[dim]{arrow} {d.delta:+.3f}[/dim]",
+                "[dim]n<2[/dim]", "[dim]—[/dim]", "[dim]—[/dim]",
+                "[dim]—[/dim]", cost_cell,
+            )
+            continue
         table.add_row(
             tag,
             str(d.n_cases),
             f"{d.baseline_mean:.3f}",
             f"{d.challenger_mean:.3f}",
             f"[{color}]{arrow} {d.delta:+.3f}[/{color}]",
-            _fmt_effect(d),
+            _fmt_effect_compact(d),
             f"{d.p_value:.4f}",
             f"{q:.4f}",
             f"[{d.ci_lower:+.3f}, {d.ci_upper:+.3f}]",
@@ -298,10 +365,21 @@ def print_matrix(results: dict[tuple[str, str], DriftResult],
              f"at α={alpha}; cells: Δ mean / p / q / Δ$-per-correct)")
     table = Table(title=title)
     table.add_column("baseline ↓ / challenger →", style="bold")
+
+    def _short(label: str, limit: int = 24) -> str:
+        # Middle-truncate: the distinguishing part of similar model ids is
+        # usually the SUFFIX (riftlm-a.npz vs riftlm-b.npz), which
+        # end-truncation would cut off first.
+        if len(label) <= limit:
+            return label
+        keep = limit - 1
+        head, tail = keep // 2, keep - keep // 2
+        return f"{label[:head]}…{label[-tail:]}"
+
     for m in models:
-        table.add_column(m, justify="center")
+        table.add_column(_short(m), justify="center")
     for base in models:
-        row = [base]
+        row = [_short(base)]
         for chal in models:
             if base == chal:
                 row.append("—")
@@ -373,6 +451,19 @@ def print_calibration_report(comp) -> None:
     """Print a calibration-drift summary."""
     console = Console()
     b, c = comp.baseline, comp.challenger
+    if b.n_parsed == 0 or c.n_parsed == 0:
+        # Unparsed confidences are excluded, so with zero parsed on either
+        # side every metric is NaN — say that instead of printing NaN soup.
+        console.print(Panel(
+            f"  No parseable confidence values "
+            f"(baseline {b.n_parsed}/{b.n_cases}, challenger "
+            f"{c.n_parsed}/{c.n_cases} parsed).\n\n"
+            "  Calibration needs outputs that state a confidence, e.g. a "
+            "trailing 'Confidence: 0.85'\n  or 'I am 85% sure' line — add "
+            "that instruction to the suite's prompts and re-run.",
+            title="[bold]Calibration Drift[/bold]", border_style="yellow",
+        ))
+        return
     lines = [
         "                       baseline    challenger",
         f"  n parsed / total:   {b.n_parsed}/{b.n_cases}        "
@@ -451,9 +542,9 @@ def print_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: float = 
         f"  Articulation rate:     {_pct(baseline_fr.articulation_rate):>8}   "
         f"{_pct(challenger_fr.articulation_rate):>8}   (admitted | swayed)",
         "",
-        f"  Δ faithfulness: [bold]{drift.delta:+.4f}[/bold] "
-        f"({drift.delta_pct:+.1f}%)   p={drift.p_value:.4f}   "
-        f"95% CI [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+        f"  Δ faithfulness: [bold]{drift.delta:+.4f}[/bold]"
+        f"{_fmt_delta_pct(drift)}   p={drift.p_value:.4f}   "
+        f"{_ci_label(drift)} [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
     ]
 
     if drift.significant and drift.delta < 0:
@@ -523,9 +614,9 @@ def print_cot_faithfulness_report(baseline_fr, challenger_fr, drift, alpha: floa
         f"  Flip rate (all perturb.):  {_pct(baseline_fr.flip_rate):>8}   "
         f"{_pct(challenger_fr.flip_rate):>8}",
         "",
-        f"  Δ CoT-faithfulness: [bold]{drift.delta:+.4f}[/bold] "
-        f"({drift.delta_pct:+.1f}%)   p={drift.p_value:.4f}   "
-        f"95% CI [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
+        f"  Δ CoT-faithfulness: [bold]{drift.delta:+.4f}[/bold]"
+        f"{_fmt_delta_pct(drift)}   p={drift.p_value:.4f}   "
+        f"{_ci_label(drift)} [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}]",
     ]
 
     if drift.significant and drift.delta < 0:
@@ -672,10 +763,12 @@ def print_selftest_report(result, console: Console | None = None) -> None:
         border = "green"
         verdict = "[bold green]GATE WELL-CALIBRATED[/bold green]"
 
+    test_used = getattr(r, "test_used", "")
     lines = [
         f"  model:  {r.model}",
         f"  suite:  {r.suite_name}  ({r.n_cases} cases × {r.n_trials} trials)",
-        f"  reps:   {r.reps} random self-vs-self splits",
+        f"  reps:   {r.reps} random self-vs-self splits"
+        + (f"   (test path: {test_used})" if test_used else ""),
         "",
         f"  {verdict}",
         "",
@@ -874,13 +967,17 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
         "|--------|-------|",
         f"| Baseline mean | {drift.baseline_mean:.4f} |",
         f"| Challenger mean | {drift.challenger_mean:.4f} |",
-        f"| Delta | {drift.delta:+.4f} ({drift.delta_pct:+.1f}%) |",
+        f"| Delta | {drift.delta:+.4f}{_fmt_delta_pct(drift)} |",
         f"| p-value | {drift.p_value:.6f} |",
-        f"| 95% CI | [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}] |",
+        f"| {_ci_label(drift)} | [{drift.ci_lower:+.4f}, {drift.ci_upper:+.4f}] |",
         f"| Effect size | {_fmt_effect(drift)} |",
         f"| Regressed cases | {len(drift.regressed_cases)} / {drift.n_cases} |",
         f"| Improved cases | {len(drift.improved_cases)} / {drift.n_cases} |",
     ]
+
+    footnote = _ci_test_disagreement(drift)
+    if footnote:
+        lines += ["", f"> {footnote}"]
 
     if drift.baseline_cost_usd or drift.challenger_cost_usd:
         lines += [
@@ -895,7 +992,7 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
         ]
         if getattr(drift, "cost_delta_ci_defined", False):
             lines.append(
-                f"| 95% CI on Δ $/correct | — | "
+                f"| {_ci_label(drift)} on Δ $/correct | — | "
                 f"[{drift.cost_delta_ci_lower:+.4f}, "
                 f"{drift.cost_delta_ci_upper:+.4f}] |"
             )
@@ -909,11 +1006,21 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
             "",
             "## By Subgroup",
             "",
-            "| Subgroup | n | Baseline | Challenger | Δ | Effect | p | q (BH) | 95% CI | Δ $/correct |",
-            "|----------|---|----------|------------|---|--------|---|--------|--------|-------------|",
+            "| Subgroup | n | Baseline | Challenger | Δ | Effect | p | q (BH) | CI | Δ $/correct |",
+            "|----------|---|----------|------------|---|--------|---|--------|----|-------------|",
         ]
         for tag, q in zip(keys, q_values):
             d = drift.subgroups[tag]
+            if d.test_used == "insufficient_data":
+                # Match the terminal renderer: a 1-case subgroup carries no
+                # test — render it as untestable, not as computed-looking
+                # p/q/CI values.
+                lines.append(
+                    f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
+                    f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "
+                    f"n<2 | — | — | — | |"
+                )
+                continue
             lines.append(
                 f"| {tag} | {d.n_cases} | {d.baseline_mean:.3f} | "
                 f"{d.challenger_mean:.3f} | {d.delta:+.3f} | "
@@ -983,9 +1090,17 @@ def print_observation_report(entries: list[dict], events: list,
             f"(cap ${budget.max_cost_usd:.2f})"
         )
         if budget.aborted:
+            skipped = getattr(budget, "skipped", None) or []
+            skipped_line = ""
+            if skipped:
+                skipped_line = (
+                    "\n  Skipped: " + ", ".join(escape(s) for s in skipped[:8])
+                    + (f" … +{len(skipped) - 8} more" if len(skipped) > 8 else "")
+                )
             console.print(Panel(
                 spend_line + "\n\n  [bold yellow]Budget cap reached — remaining "
-                "stages were skipped.[/bold yellow]\n  Partial observations above "
+                "stages were skipped.[/bold yellow]" + skipped_line +
+                "\n  Partial observations above "
                 "were still recorded; raise --max-cost to run the full panel.",
                 title="[bold yellow]⚠ Budget abort[/bold yellow]",
                 border_style="yellow",

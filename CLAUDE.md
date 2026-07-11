@@ -10,13 +10,16 @@ The pitch: "You upgraded your model. What broke?"
 ```
 rift/
 ├── src/rift/
-│   ├── cli.py              # CLI entry: compare, run, diff, matrix, faithfulness, ...
+│   ├── __init__.py          # Public library API (lazy PEP 562 exports, semver)
+│   ├── cli.py              # CLI entry: compare, run, diff, matrix, report, import, ...
 │   ├── runner.py            # Async eval engine (retries, timeouts, cost tagging)
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
+│   ├── brief.py             # `rift report`: reload saved comparisons + exec upgrade brief
+│   ├── demo.py              # `rift demo`: recorded walkthrough + HTML/md/SVG exporters
 │   ├── observability.py     # Flat metrics export (JSON / Prometheus) for dashboards
 │   ├── observatory.py       # Longitudinal monitoring: records, budget guard, drift feed
-│   ├── observatory_site.py  # Static observatory dashboard (hand-rolled SVG, zero JS)
+│   ├── observatory_site.py  # Static observatory dashboard (hand-rolled SVG, zero JS) + RSS
 │   ├── selftest.py          # Null calibration: gate false-positive rate (self-vs-self)
 │   ├── judge_validation.py  # Articulation-judge gold set + Cohen's kappa
 │   ├── preregistration.py   # Pre-registered primary endpoint (anti forking-paths)
@@ -24,6 +27,14 @@ rift/
 │   ├── prompts.py           # Registry of user-overridable probe prompt templates
 │   ├── context_rot.py       # Distractor-injection suite expansion
 │   ├── faithfulness.py      # Reasoning-faithfulness probe (biasing-hint articulation)
+│   ├── sycophancy.py        # Pushback probe: flip rate on originally-correct answers
+│   ├── refusal.py           # Refusal / over-refusal classification + drift
+│   ├── calibration.py       # Confidence parsing, Brier / ECE drift
+│   ├── discovery.py         # `rift discover`: power-stratified adversarial suite mining
+│   ├── keys.py              # API-key preflight, ~/.rift/.env, `rift setup`
+│   ├── adapters/            # `rift import`: promptfoo / Inspect / lm-eval / OpenAI evals
+│   │   ├── scorers.py       # Bundled contains/regex scorers for imported suites
+│   │   └── ...              # one module per source format + shared _common.py
 │   ├── lm/                  # RiftLM: built-in tiny GPT, pure numpy (no torch)
 │   │   ├── data.py          # Synthetic tasks (cpy/rev/srt/max) + hash train/eval split
 │   │   ├── model.py         # TinyGPT: forward, hand-written backprop, Adam, greedy decode
@@ -48,6 +59,8 @@ rift/
 │   ├── code_generation.yaml
 │   ├── context_rot_reasoning.yaml
 │   ├── faithfulness_reasoning.yaml  # Seed suite for `rift faithfulness`
+│   ├── hard_reasoning.yaml
+│   ├── open_ended_qa.yaml
 │   └── riftlm.yaml                  # Held-out RiftLM eval (generated: `rift lm suite`)
 ├── benchmarks/
 │   ├── run_context_rot.py              # Reproducible benchmark driver (live|record)
@@ -55,6 +68,9 @@ rift/
 │   ├── context_rot_outcomes.yaml       # Recorded outcomes (committed for repro)
 │   ├── context_rot_opus47.md           # Raw Rift drift report
 │   └── context_rot_opus47_analysis.md  # Methodology + findings writeup
+├── docs/
+│   ├── methodology.md             # Citable statistical methodology (limitations-forward)
+│   └── design/agentic-drift.md    # Design doc: tool-use drift (STRATEGY P2, unbuilt)
 ├── observatory/
 │   └── panel.yaml                 # Observatory panel: endpoints, suites, cost cap
 ├── tests/
@@ -171,8 +187,16 @@ rift run --model gpt-4o --suite extraction --output results/gpt4o_extraction.jso
 # Compare two saved runs
 rift diff results/run_a.json results/run_b.json
 
-# Generate a markdown report
+# Re-render a saved comparison (from compare --output): terminal, full
+# markdown report, or a one-page HTML executive "upgrade brief"
 rift report results/comparison.json --format markdown --output drift_report.md
+rift report results/comparison.json --format brief --output brief.html
+
+# Import suites from other harnesses (Rift becomes their statistics layer)
+rift import --from promptfoo promptfooconfig.yaml -o suites/imported.yaml
+rift import --from inspect samples.jsonl -o suites/imported.yaml
+rift import --from lm-eval task.yaml --dataset docs.jsonl -o suites/imported.yaml
+rift import --from openai-evals samples.jsonl -o suites/imported.yaml
 
 # Observatory: one panel pass + render the dashboard
 rift observe --panel observatory/panel.yaml --data-dir observatory-data
@@ -318,8 +342,32 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
   when set, per-case `input_text` and `output` are emptied. Use this
   for proprietary suites. The flag is a publishing safety, not a
   privacy primitive — secrets in `tags` or `expected` still ship.
-- Exit code 0 = no significant drift; exit code 1 = significant
-  regression detected (for CI/CD integration).
+- Exit-code contract (the CI surface): 0 = no significant regression;
+  1 = significant regression detected (the gate — ONLY this); 2 =
+  operational error (unknown model/suite, malformed file, missing API
+  key, all cases errored). Operational failures must never exit 1 — a
+  CI job treating 1 as "regression" would misclassify infrastructure
+  problems as drift. `compare` refuses to compute a verdict (exit 2)
+  when every case on either side errored.
+- Model strings: provider prefixes (claude/gpt-/o1/o3/o4/gemini),
+  aliases, `riftlm:<ckpt>.npz`, or `<model>@<base-url>` for any
+  self-hosted OpenAI-compatible server (vLLM, Ollama, llama.cpp).
+  Anything else resolves to the lazy `local` pseudo-provider: cached
+  runs and replays stay keyless, but a live call raises
+  `UnknownModelError` (exit 2) at provider-construction time.
+- CI levels follow alpha: `compare_runs(alpha=...)` computes both the
+  accuracy-delta CI and the $/correct CI at the `1 − alpha` level and
+  stamps `DriftResult.ci_level`; renderers label the interval by its
+  real level. A pre-registered `alpha: 0.01` therefore gets genuine
+  99% intervals (and `preregistration.evaluate` records a violation if
+  the levels don't match).
+- Statistical honesty notes renderers must respect: `delta_pct` is
+  `None` (omit, don't print +0.0%) when the baseline mean is 0;
+  `test_used == "insufficient_data"` (n < 2) is never significant and
+  subgroup tables render it as untestable; when the bootstrap CI and
+  the exact test disagree in significance, reports append a one-line
+  footnote (different procedures; the p-value governs). See
+  docs/methodology.md for the full caveats.
 - Benchmarks live under `benchmarks/`. Any benchmark worth publishing
   should run reproducibly in `--mode record` against a committed
   outcomes file. **`opus47_live.md` is the authoritative live capture;

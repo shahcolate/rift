@@ -11,6 +11,11 @@ on:
     types: [published]
   workflow_dispatch:  # allow manual runs for dry-running the build
 
+# Least privilege by default; the publish job re-grants exactly what OIDC
+# needs (id-token: write).
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build distributions

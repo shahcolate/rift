@@ -1,0 +1,12 @@
+# Keep GitHub Actions pins fresh. Python dependencies use permissive floor
+# pins in pyproject (no lockfile), so only the actions ecosystem is managed
+# here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

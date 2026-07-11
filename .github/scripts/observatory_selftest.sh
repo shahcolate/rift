@@ -41,6 +41,7 @@ for ep in panel["endpoints"]:
         failures += 1
         continue
     data = json.loads(tmp_path.read_text())
+    tmp_path.unlink(missing_ok=True)
     out = out_dir / f"{endpoint_slug(ep['id'])}.json"
     out.write_text(json.dumps(data["selftest"], indent=2) + "\n")
     print(f"wrote {out}")

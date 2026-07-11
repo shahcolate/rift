@@ -160,18 +160,29 @@ class RunResult:
             json.dump(self.to_dict(strip_io=strip_io), f, indent=2, default=str)
 
     @classmethod
-    def load(cls, path: str | Path) -> "RunResult":
-        with open(path) as f:
-            data = json.load(f)
-        # Filter each case dict to known fields so a run saved by an older or
-        # newer Rift (different CaseResult schema) still loads instead of
-        # raising TypeError on a missing/extra key.
+    def from_dict(cls, data: dict) -> "RunResult":
+        """Rebuild a run from its ``to_dict`` form.
+
+        Filters each case dict to known fields so a run saved by an older
+        or newer Rift (different CaseResult schema) still loads instead of
+        raising TypeError on a missing/extra key. The single place that
+        owns this tolerance — ``load`` and every other reconstruction path
+        (e.g. ``rift report``) must go through it.
+        """
+        data = dict(data)
         case_fields = CaseResult.__dataclass_fields__  # type: ignore[attr-defined]
+        run_fields = cls.__dataclass_fields__  # type: ignore[attr-defined]
         cases = [
             CaseResult(**{k: v for k, v in c.items() if k in case_fields})
-            for c in data.pop("cases")
+            for c in data.pop("cases", [])
         ]
-        return cls(cases=cases, **data)
+        kwargs = {k: v for k, v in data.items() if k in run_fields}
+        return cls(cases=cases, **kwargs)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "RunResult":
+        with open(path) as f:
+            return cls.from_dict(json.load(f))
 
 
 def _get_provider(config: ModelConfig) -> BaseProvider:
@@ -179,6 +190,17 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         return AnthropicProvider(model=config.model, **config.params)
     elif config.provider == "openai":
         return OpenAIProvider(model=config.model, **config.params)
+    elif config.provider == "openai_compatible":
+        # Self-hosted server speaking the OpenAI chat API ('<model>@<url>').
+        # Auth is the server's business: use OPENAI_API_KEY if set, else a
+        # placeholder — vLLM / Ollama / llama.cpp ignore the header.
+        import os as _os
+
+        return OpenAIProvider(
+            model=config.model, api_base=config.api_base,
+            api_key=_os.environ.get("OPENAI_API_KEY", "unused"),
+            **config.params,
+        )
     elif config.provider == "google":
         return GoogleProvider(model=config.model, **config.params)
     elif config.provider == "riftlm":
@@ -187,6 +209,13 @@ def _get_provider(config: ModelConfig) -> BaseProvider:
         from .providers.riftlm import RiftLMProvider
 
         return RiftLMProvider(model=config.model, **config.params)
+    elif config.provider == "local":
+        # The lazy catch-all: cached runs never get here, but a live call
+        # for a typo'd model must fail with the remedy — run_suite
+        # re-raises ClickException instead of scoring every case 0.
+        from .config import UnknownModelError
+
+        raise UnknownModelError(config.model)
     else:
         raise ValueError(f"Unknown provider: {config.provider}")
 
@@ -264,6 +293,26 @@ def _retry_after_s(exc: BaseException) -> float | None:
     return None
 
 
+def _backoff_delay(exc: BaseException, attempt: int) -> float:
+    """Seconds to sleep before retry ``attempt+1``, honoring server hints.
+
+    When the server sends a ``Retry-After`` (or Anthropic's per-window
+    reset timestamps), wait exactly that long (capped, jittered) rather
+    than guess — under-estimating a rate-limit window wastes the retry
+    budget. Otherwise jittered exponential backoff.
+    """
+    import random as _r
+
+    server_hint = _retry_after_s(exc)
+    if server_hint is not None:
+        # Cap server hints so a misconfigured header can't stall the
+        # whole run; add small jitter to avoid thundering-herd on
+        # concurrent retries.
+        return min(server_hint, BACKOFF_CAP_S) + _r.random()
+    delay = min(BACKOFF_BASE_S * (2 ** (attempt - 1)), BACKOFF_CAP_S)
+    return delay * (0.8 + 0.4 * _r.random())
+
+
 async def _complete_with_retry(
     provider: BaseProvider,
     prompt: str,
@@ -271,17 +320,10 @@ async def _complete_with_retry(
 ) -> tuple[Completion, int]:
     """Call the provider with exponential backoff on transient failures.
 
-    When the server sends a ``Retry-After`` (or Anthropic's
-    per-window reset timestamps), we wait exactly that long rather
-    than use backoff — guessing under-estimates rate-limit windows
-    and wastes the retry budget.
-
     Returns the completion and the number of attempts used. Raises
     the last exception if all retries are exhausted or an error is
     judged non-transient.
     """
-    import random as _r
-
     last_exc: BaseException | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -301,16 +343,7 @@ async def _complete_with_retry(
                 except Exception:
                     pass  # some C-level exceptions reject attribute writes
                 raise
-            server_hint = _retry_after_s(exc)
-            if server_hint is not None:
-                # Cap server hints so a misconfigured header can't
-                # stall the whole run; add small jitter to avoid
-                # thundering-herd on concurrent retries.
-                delay = min(server_hint, BACKOFF_CAP_S) + _r.random()
-            else:
-                delay = min(BACKOFF_BASE_S * (2 ** (attempt - 1)), BACKOFF_CAP_S)
-                delay *= 0.8 + 0.4 * _r.random()
-            await asyncio.sleep(delay)
+            await asyncio.sleep(_backoff_delay(exc, attempt))
     # Unreachable: loop either returns or raises.
     assert last_exc is not None
     raise last_exc
@@ -466,6 +499,26 @@ async def run_suite(
             )
         return scorer.score(completion.output_text, case.expected)
 
+    async def _score_with_retry(case, completion: Completion) -> float:
+        """Score with the same transient-retry policy the completion gets.
+
+        Network scorers (llm_judge, semantic) make their own API calls; a
+        judge 429 deserves the same backoff a completion 429 gets, and a
+        ClickException (missing judge key) must stay fatal. Persistent
+        scorer failures propagate to run_case, which records them as
+        per-case errors — never aborting the whole run mid-flight.
+        """
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                return await _score_completion(case, completion)
+            except click.ClickException:
+                raise
+            except BaseException as exc:
+                if not _is_transient(exc) or attempt == MAX_RETRIES:
+                    raise
+                await asyncio.sleep(_backoff_delay(exc, attempt))
+        raise AssertionError("unreachable")  # loop returns or raises
+
     async def run_case(idx: int, case) -> CaseResult:
         async with semaphore:
             trial_scores: list[float] = []
@@ -494,7 +547,18 @@ async def run_suite(
                         failed_attempts = getattr(exc, "rift_attempts", MAX_RETRIES)
                     continue  # a failed trial drops out of the aggregate
                 success_attempts = max(success_attempts, attempts)
-                sc = await _score_completion(case, completion)
+                try:
+                    sc = await _score_with_retry(case, completion)
+                except click.ClickException:
+                    raise  # fatal + user-fixable (e.g. missing judge key)
+                except Exception as exc:
+                    # A persistently failing scorer errors THIS case (index
+                    # intact, run continues) — the contract is fail-loud
+                    # per-case, never a discarded run.
+                    if first_error is None:
+                        first_error = f"scoring: {type(exc).__name__}: {exc}"
+                        failed_attempts = MAX_RETRIES
+                    continue
                 trial_scores.append(sc)
                 costs.append(cost_of(
                     model_config.model, completion.input_tokens,

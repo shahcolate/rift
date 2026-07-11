@@ -101,6 +101,38 @@ class TestRenderSite:
         assert "No drift events" in front
         assert all(p.exists() for p in written)
 
+    def test_rss_feed_written_and_valid(self, tmp_path):
+        import xml.etree.ElementTree as ET
+
+        data_dir = tmp_path / "data"
+        _seed(data_dir)
+        out = tmp_path / "site"
+        written = render_site(data_dir, out)
+        feed_path = out / "feed.xml"
+        assert feed_path in written
+        root = ET.fromstring(feed_path.read_text())  # must be well-formed
+        assert root.tag == "rss"
+        items = root.findall("./channel/item")
+        assert items, "expected feed items from the seeded events"
+        # Stable guid: date/endpoint/suite/kind — re-renders must dedupe.
+        guids = [i.findtext("guid") for i in items]
+        assert len(guids) == len(set(guids))
+        assert all("/" in (g or "") for g in guids)
+        kinds = {i.findtext("category") for i in items}
+        assert "score_drift" in kinds or "silent_swap" in kinds
+        # The HTML pages advertise the feed.
+        front = (out / "index.html").read_text()
+        assert 'type="application/rss+xml"' in front
+        assert 'href="feed.xml"' in front
+
+    def test_rss_feed_empty_events_is_valid(self, tmp_path):
+        import xml.etree.ElementTree as ET
+
+        out = tmp_path / "site"
+        render_site(tmp_path / "nothing", out)
+        root = ET.fromstring((out / "feed.xml").read_text())
+        assert root.findall("./channel/item") == []
+
     def test_selftest_cited_on_front_page(self, tmp_path):
         import json
         data_dir = tmp_path / "data"

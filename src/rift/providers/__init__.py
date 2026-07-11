@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import click
 import httpx
 
+from .._errors import OperationalError
+
 
 def raise_for_status_with_body(resp: httpx.Response) -> None:
     """``raise_for_status``, but keep the response body in the message.
@@ -36,17 +38,18 @@ PROVIDER_KEYS: dict[str, tuple[str, str]] = {
 }
 
 
-class MissingAPIKeyError(click.ClickException):
+class MissingAPIKeyError(OperationalError):
     """A provider needs an API key that isn't configured.
 
     Subclasses ``click.ClickException`` so that no matter how deep in the
     stack it surfaces — including lazily, on the first live API call — the
-    CLI prints a short, actionable message and exits 1 instead of dumping a
-    Python traceback at a non-engineer. The interactive ``rift setup`` /
-    on-demand prompt paths normally handle keys before we ever reach here.
+    CLI prints a short, actionable message and exits 2 (operational error,
+    distinct from the gate's exit 1) instead of dumping a Python traceback
+    at a non-engineer. The interactive ``rift setup`` / on-demand prompt
+    paths normally handle keys before we ever reach here.
     """
 
-    exit_code = 1
+    exit_code = 2
 
     def __init__(self, provider: str) -> None:
         self.provider = provider

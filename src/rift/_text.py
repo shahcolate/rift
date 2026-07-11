@@ -132,11 +132,25 @@ def default_provider_factory(model_id: str) -> BaseProvider:
         return OpenAIProvider(model=cfg.model, **cfg.params)
     if cfg.provider == "google":
         return GoogleProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "openai_compatible":
+        import os as _os
+
+        return OpenAIProvider(
+            model=cfg.model, api_base=cfg.api_base,
+            api_key=_os.environ.get("OPENAI_API_KEY", "unused"),
+            **cfg.params,
+        )
     if cfg.provider == "riftlm":
         # Local import keeps the numpy model code off the hosted-model path.
         from .providers.riftlm import RiftLMProvider
 
         return RiftLMProvider(model=cfg.model, **cfg.params)
+    if cfg.provider == "local":
+        # Same clean remedy the runner gives for a typo'd model — never a
+        # raw ValueError traceback from a proposer/mutator model string.
+        from .config import UnknownModelError
+
+        raise UnknownModelError(model_id)
     raise ValueError(
         f"No provider available for provider='{cfg.provider}' "
         f"(model={model_id})"

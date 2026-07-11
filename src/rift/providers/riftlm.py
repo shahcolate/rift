@@ -21,8 +21,8 @@ import re
 import time
 from pathlib import Path
 
-import click
 
+from .._errors import OperationalError
 from ..lm.data import NEWLINE_ID, decode, encode
 from ..lm.model import TinyGPT
 from . import BaseProvider, Completion
@@ -32,16 +32,16 @@ from . import BaseProvider, Completion
 _DIGEST_RE = re.compile(r"@[0-9a-f]{8,64}$")
 
 
-class RiftLMCheckpointError(click.ClickException):
+class RiftLMCheckpointError(OperationalError):
     """A riftlm: model string points at a missing/unreadable checkpoint.
 
-    ClickException so the CLI prints one actionable line and exits 1 —
-    the runner re-raises ClickExceptions instead of folding them into
-    per-case errors, so a bad checkpoint aborts cleanly rather than
-    producing an all-errored "run".
+    ClickException so the CLI prints one actionable line and exits 2
+    (operational error) — the runner re-raises ClickExceptions instead
+    of folding them into per-case errors, so a bad checkpoint aborts
+    cleanly rather than producing an all-errored "run".
     """
 
-    exit_code = 1
+    exit_code = 2
 
     def __init__(self, path: str, detail: str = "not found") -> None:
         super().__init__(

@@ -15,9 +15,11 @@ can never produce broken markup.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import shutil
 from datetime import datetime, timezone
+from email.utils import format_datetime
 from pathlib import Path
 
 from .observatory import (
@@ -237,6 +239,8 @@ def _page(title: str, body: str, root_prefix: str = "") -> str:
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>{html.escape(title)}</title>
+<link rel="alternate" type="application/rss+xml"
+      title="Rift Observatory drift feed" href="{root_prefix}feed.xml"/>
 <style>{_CSS}</style>
 </head>
 <body>
@@ -302,6 +306,62 @@ def _feed_html(events: list[dict]) -> str:
             f'{html.escape(ev.get("summary", ""))}</li>'
         )
     return f'<ul class="feed">{"".join(items)}</ul>'
+
+
+def _feed_xml(events: list[dict], site_url: str = "") -> str:
+    """RSS 2.0 drift feed — subscribe to model-behavior changes.
+
+    Same zero-dependency, string-template idiom as the rest of the site.
+    The ``guid`` is stable across re-renders (date/endpoint/suite/kind) so
+    readers dedupe items when the site regenerates weekly. ``notice``
+    events are included: subscribers asked for everything the panel saw,
+    and the kind category lets them filter.
+    """
+    ordered = sorted(events, key=lambda e: e.get("date", ""), reverse=True)
+    items: list[str] = []
+    for ev in ordered:
+        kind = ev.get("kind", "event")
+        date = ev.get("date", "")
+        endpoint = ev.get("endpoint", "")
+        suite = ev.get("suite", "") or "-"
+        # Two events can share (date, endpoint, suite, kind) — e.g. two
+        # probe notices in one pass — so a summary digest disambiguates.
+        # Summaries persist verbatim in events.jsonl, so the guid is still
+        # stable across re-renders.
+        digest = hashlib.sha256(
+            ev.get("summary", "").encode()).hexdigest()[:8]
+        guid = f"{date}/{endpoint}/{suite}/{kind}/{digest}"
+        title = f"{endpoint}: {kind}" + (f" ({suite})" if suite != "-" else "")
+        # RFC 822 date at midnight UTC; the panel records dates, not times.
+        # email.utils always emits C-locale English day/month names —
+        # strftime %a/%b would localize under a non-C LC_TIME and produce
+        # an invalid pubDate.
+        try:
+            pub = format_datetime(datetime.strptime(date, "%Y-%m-%d")
+                                  .replace(tzinfo=timezone.utc))
+        except ValueError:
+            pub = ""
+        items.append(
+            "<item>"
+            f"<title>{html.escape(title)}</title>"
+            f"<description>{html.escape(ev.get('summary', ''))}</description>"
+            f"<guid isPermaLink=\"false\">{html.escape(guid)}</guid>"
+            f"<category>{html.escape(kind)}</category>"
+            + (f"<pubDate>{pub}</pubDate>" if pub else "")
+            + "</item>"
+        )
+    link = html.escape(site_url) if site_url else ""
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<rss version="2.0"><channel>'
+        "<title>Rift Observatory — drift feed</title>"
+        f"<link>{link}</link>"
+        "<description>Statistically-gated behavioral changes on monitored "
+        "LLM endpoints: score drift, silent model swaps, mid-run rollouts, "
+        "and probe notices.</description>"
+        + "".join(items) +
+        "</channel></rss>\n"
+    )
 
 
 def _index_page(index: list[dict], events: list[dict],
@@ -384,7 +444,7 @@ def _index_page(index: list[dict], events: list[dict],
 </section>
 
 <section>
-  <h2>Drift feed</h2>
+  <h2>Drift feed <small><a href="feed.xml">RSS</a></small></h2>
   {_feed_html(events)}
 </section>
 {selftest_note}
@@ -521,6 +581,11 @@ def render_site(data_dir: str | Path, out_dir: str | Path) -> list[Path]:
             encoding="utf-8",
         )
         written.append(page)
+
+    # RSS: the drift feed as a subscription, not just a page.
+    feed = out_dir / "feed.xml"
+    feed.write_text(_feed_xml(events), encoding="utf-8")
+    written.append(feed)
 
     # Machine-readable passthrough — the record IS the product.
     data_out = out_dir / "data"

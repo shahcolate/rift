@@ -1,6 +1,6 @@
 # Rift Product Strategy
 
-*Where Rift is going, why, and what gets built next. Last updated 2026-06-09.*
+*Where Rift is going, why, and what gets built next. Last updated 2026-07-10.*
 
 ## One-liner
 
@@ -103,28 +103,37 @@ demand for more panel coverage.
 
 **P1 — compounding the moat**
 - Run the Observatory continuously; keep the data branch unbroken. The
-  series is the product.
-- Suite adapters: `rift import --from promptfoo|inspect|lm-eval`. Teams
-  keep their existing evals; Rift becomes the statistics layer on top of
-  any of them, instead of competing with all of them.
-- Publish the methodology: a technical report covering the drift gate
-  (paired tests + BH + selftest null calibration + pre-registration) and
-  the first months of Observatory findings.
+  series is the product. *(ongoing — the only P1 item that never
+  completes)*
+- ~~Suite adapters~~ **Shipped**: `rift import --from
+  promptfoo|inspect|lm-eval|openai-evals`. Teams keep their existing
+  evals; Rift is the statistics layer on top. Conversion is loud about
+  loss (warnings + caveats recorded in the emitted suite), and the
+  `import rift` library API covers the no-conversion path —
+  `rift.compare_runs` over any harness's paired scores.
+- ~~Publish the methodology~~ **Shipped**: `docs/methodology.md`, a
+  limitations-forward technical treatment of the drift gate (paired
+  tests + BH + selftest null calibration + pre-registration), including
+  the known caveats an external statistician would find. The Observatory
+  findings report remains open until the series is months deep.
 
 **P2 — widening the panel**
-- Agentic / tool-use drift: tool-call selection, argument fidelity, and
-  multi-turn task completion across model versions. The frontier moved to
-  agents; drift detection should follow. Design doc first — pairing and
-  scoring are genuinely harder here.
-- Exec report mode: a one-page "model upgrade brief" (verdict, `$/correct`
-  delta, risk flags) rendered from any comparison, in the visual language
-  of the demo memo.
+- Agentic / tool-use drift: **design doc shipped**
+  (`docs/design/agentic-drift.md`) — trajectories collapse to a scalar
+  per case so the existing paired machinery applies; needs provider
+  tool-call surface before implementation. The frontier moved to
+  agents; drift detection should follow.
+- ~~Exec report mode~~ **Shipped**: `rift report --format brief` renders
+  a one-page "model upgrade brief" (rules-based verdict, `$/correct`
+  delta with CI, risk flags) from any saved comparison, in the demo
+  memo's visual language.
 - Dated-snapshot twins in the panel (alias vs. pinned date for the same
   family) so alias re-pointing is measured directly, not inferred.
 
 **P3 — distribution**
-- Drift-feed subscriptions: RSS/webhook on new Observatory events, before
-  any hosted SaaS.
+- ~~Drift-feed RSS~~ **Shipped**: the Observatory site emits `feed.xml`
+  with re-render-stable ids. Webhooks remain open (panel-config field +
+  best-effort POST, out of the critical path).
 - More CI integrations (GitLab, Jenkins) and observability sinks
   (Datadog, W&B) as demand shows up.
 

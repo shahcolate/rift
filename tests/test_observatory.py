@@ -392,8 +392,22 @@ class TestBudget:
         est = estimate_stage_cost("gpt-4o", self._suite(), prior_entry=prior)
         assert est == pytest.approx(2.50)
 
-    def test_unknown_model_estimates_zero(self):
-        assert estimate_stage_cost("my-local-llm", self._suite()) == 0.0
+    def test_unknown_model_estimates_conservatively(self):
+        # A hosted model missing from the pricing catalog also records $0
+        # ACTUAL cost, so a $0 estimate would make the budget cap a no-op
+        # exactly when prices are least known. Unknown models estimate at
+        # the catalog maximum (and warn) instead.
+        import warnings
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            est = estimate_stage_cost("my-local-llm", self._suite())
+        assert est > 0.0
+        assert any("pricing" in str(w.message) for w in caught)
+
+    def test_riftlm_estimates_zero(self):
+        # In-process checkpoints are genuinely free.
+        assert estimate_stage_cost("riftlm:models/x.npz@abc", self._suite()) == 0.0
 
     def test_tracker_aborts_at_cap_and_stays_aborted(self):
         b = BudgetTracker(1.0)

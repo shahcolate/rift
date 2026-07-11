@@ -24,15 +24,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-import click
+
+from ._errors import OperationalError
 import yaml
 from pydantic import BaseModel, ValidationError
 
 
-class PreregError(click.ClickException):
+class PreregError(OperationalError):
     """A pre-registration file failed to load or validate."""
-
-    exit_code = 1
 
 
 class Preregistration(BaseModel):
@@ -100,6 +99,14 @@ def evaluate(prereg: Preregistration, drift, n_cases: int,
     statistically supported at the pre-registered alpha. Identity/sample-size
     mismatches are recorded as ``violations`` (the plan is dishonored) but do
     not by themselves flip the gate — they qualify the claim.
+
+    Operating level of directional plans: the accuracy p-value is two-sided
+    (McNemar / paired t), so a plan declaring ``direction: regression`` at
+    alpha rejects only when the two-sided p clears alpha AND the delta is
+    adverse — an effective one-sided level of about alpha/2. This is
+    conservative (it never overstates significance) and matches what
+    ``rift selftest`` reports empirically as the false-regression rate
+    (≈ alpha/2). See docs/methodology.md § known caveats.
     """
     # Resolve aliases on both sides so a plan pinning the full id
     # ('claude-opus-4-7') is honored by a run that used the alias ('opus-4-7'),
@@ -147,11 +154,24 @@ def evaluate(prereg: Preregistration, drift, n_cases: int,
                   f"(α={prereg.alpha})")
     else:  # cost_per_correct
         delta = drift.cost_normalized_delta_usd
-        # No p-value for the cost delta; significance is the CI excluding zero.
+        # No p-value for the cost delta; significance is the bootstrap CI
+        # excluding zero. The CI's level follows the comparison's alpha
+        # (compare_runs computes it at 1 − alpha, and the CLI sets that alpha
+        # from this plan), so a pre-registered alpha: 0.01 really is gated on
+        # a 99% interval — verify ci_level matches rather than assume.
+        ci_level = getattr(drift, "ci_level", 0.95)
+        expected_level = round(1.0 - prereg.alpha, 4)
+        if abs(ci_level - expected_level) > 1e-9:
+            violations.append(
+                f"cost CI level mismatch: pre-registered α={prereg.alpha} "
+                f"needs a {expected_level:.0%} CI, but the comparison was "
+                f"run with a {ci_level:.0%} CI (was compare_runs called "
+                "with the plan's alpha?)"
+            )
         if getattr(drift, "cost_delta_ci_defined", False):
             lo, hi = drift.cost_delta_ci_lower, drift.cost_delta_ci_upper
             significant = lo > 0 or hi < 0
-            detail = (f"$/correct Δ={delta:+.4f}, 95% CI "
+            detail = (f"$/correct Δ={delta:+.4f}, {ci_level:.0%} CI "
                       f"[{lo:+.4f}, {hi:+.4f}]")
         else:
             significant = False
