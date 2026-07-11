@@ -1,0 +1,41 @@
+# Pre-registration for the frontier head-to-head benchmark
+# (benchmarks/frontier/run_frontier.py).
+#
+# Committed BEFORE the first live capture. The driver binds the headline
+# verdict to the ONE primary endpoint declared here; every other number in
+# the report (per-suite drift, cost, tokens, judged suites) is exploratory.
+#
+# The primary endpoint is pooled accuracy on the frontier panel: the
+# concatenation of the three binary-scored, judge-free suites
+# (reasoning + extraction + hard_reasoning = 63 paired cases), matched
+# per case, pairs errored on either side excluded (an outage is not
+# drift). Pooling is declared here, in advance — it is not a post-hoc
+# aggregation choice.
+
+primary: accuracy
+
+# Cross-vendor question ("did either model come out ahead?"), not an
+# upgrade gate — so two-sided, unlike the regression-only default.
+direction: two_sided
+
+alpha: 0.05
+
+# 63 pairs when nothing errors; require at least 60 so an
+# outage-degraded capture dishonors the plan instead of quietly
+# confirming on a fragment.
+min_cases: 60
+
+# The panel is powered (~80%) for a marginal-accuracy gap of roughly 15
+# percentage points at n=63; smaller true gaps will often read as "no
+# significant difference". Reported for the record, not enforced.
+target_effect: 0.15
+
+suite: frontier_panel_v1
+baseline: claude-fable-5
+challenger: gpt-5.6-sol
+
+hypothesis: >-
+  On judge-free capability suites, GPT-5.6 Sol and Claude Fable 5 do not
+  differ significantly in pooled accuracy; any separation between the
+  two frontier tiers will show up in cost per correct answer and token
+  profile, not raw capability.

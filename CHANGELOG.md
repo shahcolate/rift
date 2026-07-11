@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Frontier head-to-head benchmark** (`benchmarks/frontier/`): a
+  pre-registered, reproducible harness for measuring two frontier
+  models against each other (default: Claude Fable 5 vs GPT-5.6 Sol).
+  Primary endpoint is pooled accuracy on the judge-free panel
+  (`reasoning` + `extraction` + `hard_reasoning`), declared in
+  `preregistration.yaml` before the first capture; per-suite drift,
+  $/correct, and token profile are exploratory. Live mode has a
+  cost-cap pre-flight; replay mode rebuilds the full report (including
+  the pre-registration verdict) from committed run JSONs, keyless. A
+  `workflow_dispatch` GitHub Actions workflow
+  (`frontier-benchmark.yml`) runs the live capture with repo secrets
+  and commits the results for replay.
 - **OpenAI GPT-5.6 family support** (launched 2026-07-09): pricing
   entries for `gpt-5.6-sol` ($5/$30 per Mtok), `gpt-5.6-terra`
   ($2.50/$15), and `gpt-5.6-luna` ($1/$6), plus aliases — bare
