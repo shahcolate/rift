@@ -50,6 +50,36 @@ class TestResolveModel:
         with pytest.raises(UnknownModelError):
             resolve_model("@http://localhost:8000")
 
+    def test_gpt_5_6_bare_alias_pins_sol(self):
+        # OpenAI routes bare "gpt-5.6" to Sol server-side; the alias pins
+        # the explicit tier id so run metadata and pricing name the model
+        # that actually served the run. Both punctuations must work.
+        for alias in ("gpt-5.6", "gpt-5-6"):
+            config = resolve_model(alias)
+            assert config.provider == "openai"
+            assert config.model == "gpt-5.6-sol"
+
+    def test_gpt_5_6_tier_aliases(self):
+        # Filename-safe dashed forms of the named tiers, mirroring the
+        # gemini "3-5"/"3.5" convention.
+        for alias, canonical in [
+            ("gpt-5-6-sol", "gpt-5.6-sol"),
+            ("gpt-5-6-terra", "gpt-5.6-terra"),
+            ("gpt-5-6-luna", "gpt-5.6-luna"),
+        ]:
+            config = resolve_model(alias)
+            assert config.provider == "openai"
+            assert config.model == canonical
+
+    def test_gpt_5_6_canonical_ids_route_to_openai(self):
+        # The dotted canonical ids need no alias — the gpt- prefix rule
+        # must route them (a regression here would strand them on the
+        # 'local' pseudo-provider).
+        for model in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
+            config = resolve_model(model)
+            assert config.provider == "openai"
+            assert config.model == model
+
     def test_opus_4_8_alias(self):
         # Opus 4.8 must resolve to the Anthropic provider, not fall
         # through to the "local" catch-all (which it would without an

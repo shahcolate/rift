@@ -648,7 +648,8 @@ monitoring.
 | RiftLM (built-in) | `riftlm:<checkpoint>.npz` | none | Rift's own tiny GPT, trained via `rift lm train`. Runs in-process (pure numpy), keyless, $0 cost; the checkpoint's weight digest serves as the fingerprint. |
 
 Short aliases (`opus-4-8`, `opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
-etc.) live in `MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor
+`gpt-5.6` — which pins OpenAI's bare alias to `gpt-5.6-sol` — etc.) live in
+`MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor
 comparisons work out of the box:
 
 ```bash

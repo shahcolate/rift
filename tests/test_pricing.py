@@ -27,6 +27,40 @@ class TestLookup:
         assert p.input_per_mtok == 5.00
         assert p.output_per_mtok == 25.00
 
+    def test_gpt_5_6_tiers_priced(self):
+        # Each named tier is a distinct product: the family-prefix
+        # fallback does NOT bridge "-sol"/"-terra"/"-luna" (non-dated
+        # suffixes), so a missing entry would silently price a tier at
+        # $0. Launch list price, July 2026.
+        for model, inp, out in [
+            ("gpt-5.6-sol", 5.00, 30.00),
+            ("gpt-5.6-terra", 2.50, 15.00),
+            ("gpt-5.6-luna", 1.00, 6.00),
+        ]:
+            p = lookup(model)
+            assert p is not None, model
+            assert p.input_per_mtok == inp
+            assert p.output_per_mtok == out
+
+    def test_gpt_5_6_bare_priced_as_sol(self):
+        # Bare "gpt-5.6" is OpenAI's alias for Sol. MODEL_ALIASES pins it,
+        # but saved run files may carry the bare id.
+        p = lookup("gpt-5.6")
+        assert p is not None
+        assert (p.input_per_mtok, p.output_per_mtok) == (5.00, 30.00)
+
+    def test_gpt_5_6_dated_variant_inherits_tier_price(self):
+        # A dated snapshot inherits its tier's price via the longest
+        # prefix match — the tier entry, not the bare-family entry.
+        p = lookup("gpt-5.6-luna-2026-07-09")
+        assert p is not None
+        assert p.output_per_mtok == PRICING["gpt-5.6-luna"].output_per_mtok
+
+    def test_gpt_5_6_named_submodel_not_inherited(self):
+        # An unknown *named* submodel must not inherit the family price
+        # (same guard that keeps gpt-4o-mini off gpt-4o rates).
+        assert lookup("gpt-5.6-nano") is None
+
     def test_unknown_model_returns_none(self):
         assert lookup("fake-model-9000") is None
 

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **OpenAI GPT-5.6 family support** (launched 2026-07-09): pricing
+  entries for `gpt-5.6-sol` ($5/$30 per Mtok), `gpt-5.6-terra`
+  ($2.50/$15), and `gpt-5.6-luna` ($1/$6), plus aliases — bare
+  `gpt-5.6`/`gpt-5-6` pin to `gpt-5.6-sol` (matching OpenAI's own
+  routing of the bare alias, but explicit in run metadata), and dashed
+  filename-safe forms for all three tiers. Prices are launch list
+  rates as reported at release; verify against the OpenAI pricing page
+  before publishing cost comparisons.
+
 ## [1.1.0] - 2026-07-10
 
 The self-auditing release: everything shipped between 1.0.0 and here —

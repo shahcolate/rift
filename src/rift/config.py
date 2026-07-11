@@ -213,6 +213,15 @@ MODEL_ALIASES: dict[str, str] = {
     # OpenAI — keep "5.5" and "5-5" both routable for the same reason.
     "gpt-5-5":          "gpt-5.5",
     "gpt-5.5":          "gpt-5.5",
+    # OpenAI GPT-5.6 family (July 2026): Sol (flagship) / Terra / Luna.
+    # OpenAI routes the bare "gpt-5.6" alias to Sol server-side; we pin
+    # it to the explicit tier id so run metadata and pricing name the
+    # model that actually served the run.
+    "gpt-5-6":          "gpt-5.6-sol",
+    "gpt-5.6":          "gpt-5.6-sol",
+    "gpt-5-6-sol":      "gpt-5.6-sol",
+    "gpt-5-6-terra":    "gpt-5.6-terra",
+    "gpt-5-6-luna":     "gpt-5.6-luna",
 }
 
 
