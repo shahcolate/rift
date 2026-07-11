@@ -82,8 +82,10 @@ def _panel_runs(flip_challenger: int = 0, errors_on: str | None = None):
 class TestPoolPairs:
     def test_pools_in_declared_suite_order_with_tags(self):
         baseline, challenger = _panel_runs()
-        b, c, bc, cc, tags, excluded = frontier.pool_pairs(baseline, challenger)
-        assert len(b) == len(c) == len(tags) == sum(POOLED_SIZES.values())
+        b, c, bc, cc, tags, excluded, kept = frontier.pool_pairs(
+            baseline, challenger
+        )
+        assert len(b) == len(c) == len(tags) == len(kept) == sum(POOLED_SIZES.values())
         assert excluded == 0
         # Tag layout must follow the declared POOLED_SUITES order.
         expect_tags = [
@@ -96,9 +98,50 @@ class TestPoolPairs:
 
     def test_errored_pair_excluded_either_side(self):
         baseline, challenger = _panel_runs(errors_on="extraction")
-        b, c, _, _, _, excluded = frontier.pool_pairs(baseline, challenger)
+        b, c, _, _, _, excluded, kept = frontier.pool_pairs(baseline, challenger)
         assert excluded == 1
-        assert len(b) == sum(POOLED_SIZES.values()) - 1
+        assert len(b) == len(kept) == sum(POOLED_SIZES.values()) - 1
+        assert ("extraction", 0) not in kept
+
+    def test_partial_credit_binarized_all_or_nothing(self):
+        # extraction's per-field scorer can emit fractions (e.g. 0.75).
+        # The panel must binarize them, or a single partial score would
+        # silently switch the pre-registered primary from McNemar to
+        # paired-t depending on the data.
+        from rift.comparator import compare_runs
+
+        baseline, challenger = _panel_runs()
+        challenger["extraction"].cases[3].score = 0.75
+        b, c, bc, cc, _, _, _ = frontier.pool_pairs(baseline, challenger)
+        assert set(b) | set(c) <= {0.0, 1.0}
+        drift = compare_runs(
+            baseline_scores=b, challenger_scores=c,
+            baseline_model=BASELINE, challenger_model=CHALLENGER,
+            suite_name=frontier.PANEL_NAME,
+            baseline_costs=bc, challenger_costs=cc,
+        )
+        assert drift.test_used == "mcnemar_exact"
+
+    def test_panel_score_trials_fraction_of_correct_trials(self):
+        case = _mk_run("m", "reasoning", [1.0]).cases[0]
+        case.trial_scores = [1.0, 0.5, 0.0]
+        assert frontier._panel_score(case) == pytest.approx(1 / 3)
+
+    def test_pooled_run_aligns_with_drift_vectors(self):
+        # A pair errored on ONE side must vanish from BOTH pooled runs,
+        # or the report's regressed-cases table (positional indexing)
+        # attributes regressions to the wrong cases.
+        baseline, challenger = _panel_runs(errors_on="reasoning")
+        b, c, _, _, _, _, kept = frontier.pool_pairs(baseline, challenger)
+        pooled_base = frontier._pooled_run(BASELINE, baseline, kept)
+        pooled_chal = frontier._pooled_run(CHALLENGER, challenger, kept)
+        assert len(pooled_base.cases) == len(pooled_chal.cases) == len(b)
+        # The errored pair (reasoning case 0, challenger side) is gone
+        # from the baseline's pooled run too, even though the baseline
+        # case itself did not error.
+        assert pooled_base.cases[0].case_index == 1
+        assert pooled_base.scores == b
+        assert pooled_chal.scores == c
 
 
 class TestVerdictSentence:
@@ -107,7 +150,7 @@ class TestVerdictSentence:
         from rift.preregistration import evaluate, load_preregistration
 
         prereg = load_preregistration(frontier.PREREG_PATH)
-        b, c, bc, cc, _, _ = frontier.pool_pairs(baseline_runs, challenger_runs)
+        b, c, bc, cc, _, _, _ = frontier.pool_pairs(baseline_runs, challenger_runs)
         drift = compare_runs(
             baseline_scores=b, challenger_scores=c,
             baseline_model=BASELINE, challenger_model=CHALLENGER,
@@ -137,6 +180,22 @@ class TestVerdictSentence:
         # canonicalization must keep the plan honored.
         outcome = self._outcome(*_panel_runs())
         assert all("mismatch" not in v for v in outcome.violations)
+
+    def test_cost_primary_two_sided_names_winner_by_endpoint(self):
+        # For a cost_per_correct primary, positive delta = challenger
+        # MORE expensive = baseline ahead. The sentence must not reuse
+        # accuracy's sign convention.
+        from rift.preregistration import PreregOutcome
+
+        outcome = PreregOutcome(
+            primary="cost_per_correct", direction="two_sided", alpha=0.05,
+            honored=True, violations=[], primary_delta=+0.01,
+            primary_significant=True, adverse_confirmed=True,
+            detail="$/correct Δ=+0.0100",
+        )
+        assert "baseline ahead" in frontier._verdict_sentence(outcome)
+        outcome.primary_delta = -0.01
+        assert "challenger ahead" in frontier._verdict_sentence(outcome)
 
 
 class TestReplayEndToEnd:
@@ -203,6 +262,70 @@ class TestReplayEndToEnd:
         assert "trials per case: 3" in report
         assert "Replication / noise floor" in report
 
+    def test_asymmetric_exploratory_suite_dropped_not_crashed(self, tmp_path, capsys):
+        # summarization present for the baseline only (budget cap tripped
+        # between legs, or a file missing from a replay dir): the suite
+        # is dropped with a warning, the report still renders.
+        capture = self._write_capture(tmp_path)
+        (capture / "summarization" / f"{CHALLENGER}.json").unlink()
+        frontier.main([
+            "--mode", "replay", "--from-dir", str(capture),
+            "--baseline", BASELINE, "--challenger", CHALLENGER,
+        ])
+        report = (capture / "report.md").read_text()
+        assert "### `summarization`" not in report
+        assert "### `code_generation`" in report
+        assert "one side only" in capsys.readouterr().err
+
+    def test_malformed_run_json_is_operational_error(self, tmp_path):
+        capture = self._write_capture(tmp_path)
+        (capture / "extraction" / f"{BASELINE}.json").write_text("{ truncated")
+        with pytest.raises(SystemExit) as exc_info:
+            frontier.main([
+                "--mode", "replay", "--from-dir", str(capture),
+                "--baseline", BASELINE, "--challenger", CHALLENGER,
+            ])
+        assert exc_info.value.code == 2
+
+    def test_all_errored_side_refuses_verdict(self, tmp_path):
+        # Total challenger outage: every pooled pair excluded. Publishing
+        # "no significant difference" over a dead panel would be the
+        # exact failure mode the exit-code contract exists to prevent.
+        baseline, challenger = _panel_runs()
+        for suite in POOLED_SIZES:
+            for case in challenger[suite].cases:
+                case.error = "connection reset"
+        for suite, run in baseline.items():
+            run.save(tmp_path / suite / f"{BASELINE}.json")
+        for suite, run in challenger.items():
+            run.save(tmp_path / suite / f"{CHALLENGER}.json")
+        with pytest.raises(SystemExit) as exc_info:
+            frontier.main([
+                "--mode", "replay", "--from-dir", str(tmp_path),
+                "--baseline", BASELINE, "--challenger", CHALLENGER,
+            ])
+        assert exc_info.value.code == 2
+        assert not (tmp_path / "report.md").exists()
+
+    def test_excluded_pair_regression_attributed_to_right_case(self, tmp_path):
+        # Regression case AFTER an excluded errored pair: the regressed-
+        # cases table indexes pooled cases positionally, so a misaligned
+        # pooled run would display the wrong input text here.
+        baseline, challenger = _panel_runs(errors_on="reasoning")
+        challenger["reasoning"].cases[5].score = 0.0
+        for suite, run in baseline.items():
+            run.save(tmp_path / suite / f"{BASELINE}.json")
+        for suite, run in challenger.items():
+            run.save(tmp_path / suite / f"{CHALLENGER}.json")
+        frontier.main([
+            "--mode", "replay", "--from-dir", str(tmp_path),
+            "--baseline", BASELINE, "--challenger", CHALLENGER,
+        ])
+        report = (tmp_path / "report.md").read_text()
+        primary = report.split("## Scorecard")[0]
+        assert "input 5" in primary
+        assert "input 4" not in primary
+
     def test_strip_io_capture_still_replays(self, tmp_path):
         baseline, challenger = _panel_runs()
         for runs, name in ((baseline, BASELINE), (challenger, CHALLENGER)):
@@ -244,3 +367,24 @@ class TestLiveBudgetPreflight:
         assert frontier.estimate_total_cost(
             [BASELINE, CHALLENGER], suites, trials=3
         ) == pytest.approx(est * 3)
+
+
+class TestRepoPlumbing:
+    def test_results_dir_not_gitignored(self):
+        # The repo-root `results/` ignore pattern must not swallow
+        # benchmarks/frontier/results/ — the Actions workflow commits
+        # captures there for keyless replay.
+        import subprocess
+
+        repo = Path(__file__).parent.parent
+        if not (repo / ".git").exists():
+            pytest.skip("not a git checkout")
+        probe = "benchmarks/frontier/results/2026-01-01/reasoning/x.json"
+        proc = subprocess.run(
+            ["git", "check-ignore", "-q", probe], cwd=repo,
+            capture_output=True,
+        )
+        # exit 1 = NOT ignored (what we require); 0 = ignored.
+        assert proc.returncode == 1, (
+            f"{probe} is gitignored — the workflow's commit step would fail"
+        )

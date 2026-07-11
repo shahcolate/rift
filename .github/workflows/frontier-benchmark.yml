@@ -10,8 +10,11 @@
 # Setup (maintainer): add repo secrets ANTHROPIC_API_KEY and
 # OPENAI_API_KEY (plus GEMINI_API_KEY if you dispatch Gemini pairs).
 #
-# Cost: bounded by the driver's --max-cost pre-flight (default $25);
-# the default pair/panel typically lands well under it.
+# Cost: the driver's --max-cost (default $25) is a pre-flight refusal
+# plus a stage-level cap on metered CONTESTANT spend; judged runs
+# additionally bill the judge's provider (untracked by the runner —
+# the pre-flight estimate carries a judge margin, the cap does not).
+# The default pair/panel typically lands well under the cap.
 
 name: Frontier benchmark
 

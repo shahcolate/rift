@@ -3,9 +3,13 @@
 Measures two frontier models against each other — by default Claude
 Fable 5 (baseline) vs GPT-5.6 Sol (challenger) — with the verdict bound
 to the pre-registered primary endpoint in ``preregistration.yaml``:
-pooled accuracy on the frontier panel (reasoning + extraction +
-hard_reasoning, all binary-scored and judge-free). Everything else in
-the report is exploratory.
+pooled all-or-nothing accuracy on the frontier panel (reasoning +
+extraction + hard_reasoning, all judge-free). Panel scores are
+binarized at pooling (a case counts correct only at full credit,
+score >= 0.999) — declared in the pre-registration, so the primary is
+guaranteed a binary vector (McNemar) at trials=1 regardless of
+partial-credit scorers like extraction's per-field matching. Everything
+else in the report is exploratory.
 
 Two modes:
 
@@ -36,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import datetime
 import sys
 from pathlib import Path
@@ -75,23 +80,51 @@ def _die(msg: str) -> None:
     sys.exit(2)
 
 
+# Full-credit threshold for the panel's all-or-nothing binarization —
+# same threshold RunResult.cost_per_correct uses for "correct".
+_CORRECT = 0.999
+
+
+def _panel_score(case) -> float:
+    """A case's score on the pre-registered panel scale.
+
+    All-or-nothing: full credit (>= 0.999) counts 1.0, anything less
+    counts 0.0 — so partial-credit scorers (extraction's per-field
+    matching) cannot silently switch the primary's statistical test.
+    With replication, each trial is binarized and the case score is the
+    mean (a fraction of correct trials — continuous, paired-t, as the
+    pre-registration discloses).
+    """
+    if case.trial_scores:
+        return sum(1.0 if t >= _CORRECT else 0.0
+                   for t in case.trial_scores) / len(case.trial_scores)
+    return 1.0 if case.score >= _CORRECT else 0.0
+
+
 def pool_pairs(
     baseline_runs: dict[str, RunResult], challenger_runs: dict[str, RunResult]
-) -> tuple[list[float], list[float], list[float], list[float], list[list[str]], int]:
+) -> tuple[list[float], list[float], list[float], list[float],
+           list[list[str]], int, list[tuple[str, int]]]:
     """Concatenate the pooled suites into one paired score/cost vector set.
 
     Cases are matched by ``case_index`` within each suite; a pair where
     either side errored is excluded (an outage is not drift — same rule
-    as the observatory). Returns ``(baseline_scores, challenger_scores,
-    baseline_costs, challenger_costs, tags_per_case, n_excluded)`` where
-    each tag is ``suite:<name>`` so ``compare_by_subgroup`` can split the
-    pooled result back out per suite.
+    as the observatory). Scores are binarized all-or-nothing via
+    :func:`_panel_score` (declared in the pre-registration). Returns
+    ``(baseline_scores, challenger_scores, baseline_costs,
+    challenger_costs, tags_per_case, n_excluded, kept_pairs)`` where each
+    tag is ``suite:<name>`` (so ``compare_by_subgroup`` can split the
+    pooled result back out per suite) and ``kept_pairs`` is the ordered
+    ``(suite, case_index)`` list the vectors were built from — the single
+    source of truth for anything (like :func:`_pooled_run`) that must
+    stay positionally aligned with the drift vectors.
     """
     b_scores: list[float] = []
     c_scores: list[float] = []
     b_costs: list[float] = []
     c_costs: list[float] = []
     tags: list[list[str]] = []
+    kept: list[tuple[str, int]] = []
     excluded = 0
     for name in POOLED_SUITES:
         b_cases = {c.case_index: c for c in baseline_runs[name].cases}
@@ -101,37 +134,43 @@ def pool_pairs(
             if b.error or c.error:
                 excluded += 1
                 continue
-            b_scores.append(b.score)
-            c_scores.append(c.score)
+            b_scores.append(_panel_score(b))
+            c_scores.append(_panel_score(c))
             b_costs.append(b.cost_usd)
             c_costs.append(c.cost_usd)
             tags.append([f"suite:{name}"])
-    return b_scores, c_scores, b_costs, c_costs, tags, excluded
+            kept.append((name, idx))
+    return b_scores, c_scores, b_costs, c_costs, tags, excluded, kept
 
 
 def _pooled_run(model_label: str, runs: dict[str, RunResult],
-                include_errored: bool = False) -> RunResult:
+                kept: list[tuple[str, int]]) -> RunResult:
     """Assemble a synthetic RunResult over the pooled panel.
 
-    Built from the same cases the pooled drift test uses (errored cases
-    dropped unless ``include_errored``) so the totals the report renders
-    are consistent with the statistics.
+    Built from exactly the ``kept`` pairs the pooled drift test used
+    (pairs errored on EITHER side already excluded by ``pool_pairs``),
+    in the same order, with scores on the panel's all-or-nothing scale —
+    so positional lookups in the report renderer (e.g. the regressed-
+    cases table indexing ``cases[idx]`` by drift-vector index) hit the
+    right case, and the totals are consistent with the statistics.
     """
+    by_suite = {
+        name: {c.case_index: c for c in runs[name].cases}
+        for name in POOLED_SUITES
+    }
     cases = []
     fingerprints: set[str] = set()
-    for name in POOLED_SUITES:
-        for c in sorted(runs[name].cases, key=lambda c: c.case_index):
-            if c.error and not include_errored:
-                continue
-            cases.append(c)
-            if c.provider_fingerprint:
-                fingerprints.add(c.provider_fingerprint)
+    for name, idx in kept:
+        src = by_suite[name][idx]
+        cases.append(dataclasses.replace(src, score=_panel_score(src)))
+        if src.provider_fingerprint:
+            fingerprints.add(src.provider_fingerprint)
     started = min((r.started_at for r in runs.values() if r.started_at), default="")
     completed = max((r.completed_at for r in runs.values() if r.completed_at), default="")
     return RunResult(
         model=model_label,
         suite_name=PANEL_NAME,
-        scoring_method="pooled_binary",
+        scoring_method="pooled_all_or_nothing",
         cases=cases,
         started_at=started,
         completed_at=completed,
@@ -154,7 +193,12 @@ def _verdict_sentence(outcome: PreregOutcome) -> str:
     qualifier = "" if outcome.honored else " (PLAN DISHONORED — see violations)"
     if outcome.direction == "two_sided":
         if outcome.primary_significant:
-            side = "challenger ahead" if outcome.primary_delta > 0 else "baseline ahead"
+            # Delta sign semantics depend on the endpoint: higher accuracy
+            # is better, higher $/correct is worse.
+            challenger_better = (outcome.primary_delta > 0
+                                 if outcome.primary == "accuracy"
+                                 else outcome.primary_delta < 0)
+            side = "challenger ahead" if challenger_better else "baseline ahead"
             return (f"**Significant difference on the primary endpoint** "
                     f"({side}; {outcome.detail}).{qualifier}")
         return (f"**No significant difference on the primary endpoint** "
@@ -179,7 +223,12 @@ async def _run_live(args, suites: dict[str, SuiteConfig],
                     out_dir: Path) -> tuple[dict[str, RunResult], dict[str, RunResult]]:
     from rich.console import Console
 
-    from rift.keys import ensure_provider_keys
+    from rift.keys import ensure_provider_keys, load_env
+
+    # Pick up keys saved by `rift setup` (~/.rift/.env) or ./.env — the
+    # rift CLI entry point does this in its group callback, which a
+    # standalone driver script never passes through.
+    load_env()
 
     providers = [resolve_model(args.baseline).provider,
                  resolve_model(args.challenger).provider]
@@ -232,7 +281,12 @@ def _load_replay(args, suites: dict[str, SuiteConfig],
                         + ("\n    ".join(have) if have else "(none)")
                     )
                 continue  # exploratory suite absent from this capture — skip
-            bucket[name] = RunResult.load(path)
+            try:
+                bucket[name] = RunResult.load(path)
+            except (ValueError, KeyError, TypeError, OSError) as e:
+                # json.JSONDecodeError is a ValueError. Malformed file =
+                # operational error (exit 2), never a raw traceback.
+                _die(f"replay: failed to load {path}: {e}")
     return baseline_runs, challenger_runs
 
 
@@ -291,6 +345,13 @@ def render_report(args, prereg: Preregistration, outcome: PreregOutcome,
             f"_{n_excluded} case pair(s) excluded from the pooled test "
             "because one side errored (an outage is not drift)._\n"
         )
+    s.append(
+        "_Panel scores are all-or-nothing (a case counts correct only at "
+        "full credit, ≥ 0.999), as pre-registered — partial credit from "
+        "per-field scorers appears in the exploratory tables below, not "
+        "here. With replication, the case score is the fraction of "
+        "correct trials._\n"
+    )
     s.append(generate_markdown_report(pooled_drift, pooled_base, pooled_chal))
     s.append("")
 
@@ -453,6 +514,20 @@ def _run(args) -> None:
     if args.mode == "live":
         est = estimate_total_cost([args.baseline, args.challenger],
                                   list(suites.values()), args.trials)
+        if args.judged:
+            # Rough judge-call margin: the judge reads roughly what each
+            # contestant read and wrote, once per contestant. NOTE: actual
+            # judge spend is billed by the judge's provider but NOT metered
+            # by the runner (CaseResult.cost_usd covers the contestant
+            # completion only), so the stage-level budget guard tracks
+            # contestant spend only — this margin keeps the pre-flight
+            # honest about the total bill.
+            judge_cfg = resolve_model(JUDGE_MODEL)
+            est += sum(
+                estimate_stage_cost(judge_cfg.model, suites[name],
+                                    provider=judge_cfg.provider) * 2 * args.trials
+                for name in JUDGED_SUITES if name in suites
+            )
         if est > args.max_cost:
             _die(
                 f"pre-flight estimate ${est:.2f} exceeds --max-cost "
@@ -480,10 +555,39 @@ def _run(args) -> None:
         out_dir = from_dir
         baseline_runs, challenger_runs = _load_replay(args, suites, from_dir)
 
+    # Only suites captured on BOTH sides can be compared. One-sided
+    # captures (budget cap tripped between the two legs, an exploratory
+    # run file missing from a replay dir) are dropped loudly instead of
+    # crashing the report.
+    one_sided = sorted(set(baseline_runs) ^ set(challenger_runs))
+    if one_sided:
+        print(f"⚠️  suite(s) captured on one side only, dropped from the "
+              f"report: {', '.join(one_sided)}", file=sys.stderr)
+        baseline_runs = {n: r for n, r in baseline_runs.items()
+                         if n in challenger_runs}
+        challenger_runs = {n: r for n, r in challenger_runs.items()
+                           if n in baseline_runs}
+        missing_pooled = [n for n in POOLED_SUITES if n not in baseline_runs]
+        if missing_pooled:
+            _die(f"pooled suite(s) captured on one side only: "
+                 f"{', '.join(missing_pooled)} — the primary endpoint "
+                 "cannot be evaluated on a partial panel.")
+
     # Primary (confirmatory): pooled panel at the pre-registered alpha.
-    b_scores, c_scores, b_costs, c_costs, tags, n_excluded = pool_pairs(
+    b_scores, c_scores, b_costs, c_costs, tags, n_excluded, kept = pool_pairs(
         baseline_runs, challenger_runs
     )
+    if len(b_scores) < 2:
+        # Zero pairs = an entire side errored (total outage, key that
+        # passed preflight but failed per-call); one pair can't be tested.
+        # Refusing a verdict mirrors `rift compare`'s all-errored rule:
+        # an operational failure must never publish a drift verdict.
+        _die(
+            f"only {len(b_scores)} valid case pair(s) survived error "
+            f"exclusion ({n_excluded} excluded) — refusing to compute a "
+            "verdict on a dead panel. Check the per-run error counts in "
+            f"{out_dir}."
+        )
     pooled_drift = compare_runs(
         baseline_scores=b_scores,
         challenger_scores=c_scores,
@@ -509,8 +613,8 @@ def _run(args) -> None:
     outcome = evaluate(prereg, pooled_drift, n_cases=pooled_drift.n_cases,
                        baseline_model=args.baseline,
                        challenger_model=args.challenger)
-    pooled_base = _pooled_run(args.baseline, baseline_runs)
-    pooled_chal = _pooled_run(args.challenger, challenger_runs)
+    pooled_base = _pooled_run(args.baseline, baseline_runs, kept)
+    pooled_chal = _pooled_run(args.challenger, challenger_runs, kept)
 
     # Exploratory: per-suite drift at the same alpha, full vectors
     # (errored cases score 0, matching `rift compare`).

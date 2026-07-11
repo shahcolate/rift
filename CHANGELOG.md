@@ -10,8 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Frontier head-to-head benchmark** (`benchmarks/frontier/`): a
   pre-registered, reproducible harness for measuring two frontier
   models against each other (default: Claude Fable 5 vs GPT-5.6 Sol).
-  Primary endpoint is pooled accuracy on the judge-free panel
-  (`reasoning` + `extraction` + `hard_reasoning`), declared in
+  Primary endpoint is pooled all-or-nothing accuracy on the judge-free
+  panel (`reasoning` + `extraction` + `hard_reasoning`), declared in
   `preregistration.yaml` before the first capture; per-suite drift,
   $/correct, and token profile are exploratory. Live mode has a
   cost-cap pre-flight; replay mode rebuilds the full report (including

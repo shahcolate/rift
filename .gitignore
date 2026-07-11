@@ -10,6 +10,10 @@ build/
 # Rift cache and results
 .rift/
 results/
+# ...except frontier benchmark captures: the committed, replayable record
+# (`run_frontier.py --mode replay` rebuilds reports from these).
+!benchmarks/frontier/results/
+!benchmarks/frontier/results/**
 
 # RiftLM checkpoints (retrain with `rift lm train`; deterministic per seed)
 models/
