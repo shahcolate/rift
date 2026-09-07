@@ -16,6 +16,7 @@ rift/
 │   ├── comparator.py        # McNemar + paired t-test + bootstrap + cost-normalized
 │   ├── reporter.py          # Terminal, markdown, subgroup + NxN matrix rendering
 │   ├── brief.py             # `rift report`: reload saved comparisons + exec upgrade brief
+│   ├── estimate.py          # `rift estimate`: keyless pre-flight cost (grid or panel pass)
 │   ├── demo.py              # `rift demo`: recorded walkthrough + HTML/md/SVG exporters
 │   ├── observability.py     # Flat metrics export (JSON / Prometheus) for dashboards
 │   ├── observatory.py       # Longitudinal monitoring: records, budget guard, drift feed
@@ -77,6 +78,8 @@ rift/
 ├── .github/
 │   ├── actions/rift-drift-check/  # Reusable composite action (drift gate in CI)
 │   ├── scripts/observatory_selftest.sh  # Monthly per-endpoint selftest refresh
+│   ├── scripts/observatory_bootstrap.sh # Creates the orphan data branch if missing
+│   ├── scripts/observatory_alert.sh     # Failure → one open `observatory-failure` issue
 │   └── workflows/
 │       ├── publish.yml            # Build + PyPI publish on GitHub Release (OIDC)
 │       └── observatory.yml        # Weekly panel → data branch commit → Pages deploy
@@ -198,6 +201,11 @@ rift import --from inspect samples.jsonl -o suites/imported.yaml
 rift import --from lm-eval task.yaml --dataset docs.jsonl -o suites/imported.yaml
 rift import --from openai-evals samples.jsonl -o suites/imported.yaml
 
+# Know the bill before spending: keyless list-price estimate for a grid
+# of models × suites, or for one full observatory pass
+rift estimate --model fable-5-1 --model opus-5 --suite reasoning --suite hard_reasoning
+rift estimate --panel observatory/panel.yaml
+
 # Observatory: one panel pass + render the dashboard
 rift observe --panel observatory/panel.yaml --data-dir observatory-data
 rift observatory-site --data-dir observatory-data --out _site
@@ -298,6 +306,31 @@ run suites you trust) and the runner stamps `metadata["custom_scorer"]`.
 - Every `CaseResult` carries `input_tokens`, `output_tokens`, and
   `cost_usd`. Do not drop any of these — the cost-normalized drift
   metrics depend on them.
+- `Completion.stop_reason` / `CaseResult.stop_reason` carry the
+  provider's end-of-generation reason. Fable 5/5.1 and Opus 5 answer a
+  safety-classifier decline with HTTP 200 + empty content +
+  `stop_reason="refusal"`; the scorer sees "" and marks the case wrong,
+  so without the reason an over-refusal shift would publish as a
+  capability regression. `refusal.classify_run` treats it as a refusal
+  (`API_REFUSAL_MARKER`), the observatory's derived refusal flags fold
+  it in, and `print_drift_report`/markdown disclose per-side counts the
+  same way they disclose errored cases. The Anthropic provider
+  deliberately does NOT opt into the API's server-side `fallbacks` — an
+  eval tool measures the refusal, it must not re-route it to another
+  model under the comparison.
+- Anthropic model generations differ in accepted params and defaults;
+  `providers/anthropic.py` normalizes at the wire (not in the cache
+  key): `DEPRECATED_PARAMS` strips sampler knobs the model 400s on
+  (Fable 5/5.1, Opus 5, Sonnet 5, Opus 4.7/4.8), `MIN_MAX_TOKENS` floors
+  `max_tokens` at 16k for models whose thinking is on by default
+  (Fable 5/5.1, **Opus 5** — unlike 4.7/4.8 where omitting `thinking`
+  meant off). Dated variants inherit their family's row via `_family`.
+  A Fable 5.1 vs Opus 5 comparison is therefore effort-matched by
+  default; Fable 5 vs Opus 4.7 was not — disclose which.
+- Bare family aliases (`fable`, `opus`, `sonnet`) track the current
+  generation and are re-pointed at launches (which changes cache keys
+  for anyone using them); pin the dated alias (`fable-5`, `opus-4-8`)
+  in anything that must be reproducible.
 - Statistical test selection is automatic: binary scores use
   McNemar's exact test (binomial on discordant pairs); continuous
   scores use paired t-test + paired bootstrap CI. The chosen test is

@@ -1,6 +1,7 @@
 """Anthropic API provider."""
 
 import os
+import re
 import time
 
 import httpx
@@ -14,25 +15,56 @@ from . import BaseProvider, Completion, MissingAPIKeyError, raise_for_status_wit
 # target several model generations without per-model branches at the
 # call site, while still preserving paired determinism: the dropped
 # param wasn't honored by the model anyway, so the comparison is fair.
+_SAMPLER_KNOBS = {"temperature", "top_p", "top_k"}
 DEPRECATED_PARAMS: dict[str, set[str]] = {
-    # Fable 5 additionally rejects any explicit `thinking` config
-    # (thinking is always on); we never send one, so only the sampler
-    # knobs need stripping.
-    "claude-fable-5":  {"temperature", "top_p", "top_k"},
-    "claude-opus-4-8": {"temperature", "top_p", "top_k"},
-    "claude-opus-4-7": {"temperature", "top_p", "top_k"},
+    # The Mythos-class tier and the Claude 5 family reject any explicit
+    # `thinking` config (thinking is always on / adaptive by default) and
+    # the classic sampler knobs; we never send `thinking`, so only the
+    # sampler knobs need stripping. Fable 5.1 / Mythos 5.1 also reject
+    # forced `tool_choice`, which Rift never sends either.
+    "claude-fable-5-1":  set(_SAMPLER_KNOBS),
+    "claude-mythos-5-1": set(_SAMPLER_KNOBS),
+    "claude-fable-5":    set(_SAMPLER_KNOBS),
+    "claude-opus-5":     set(_SAMPLER_KNOBS),
+    "claude-sonnet-5":   set(_SAMPLER_KNOBS),
+    "claude-opus-4-8":   set(_SAMPLER_KNOBS),
+    "claude-opus-4-7":   set(_SAMPLER_KNOBS),
 }
 
-# Models whose reasoning tokens are always on and billed against
-# ``max_tokens``: a 4096 default that fits Opus answers can truncate a
-# Fable answer after the (invisible) thinking spend. Floor, don't cap —
+# Models whose reasoning tokens are on by default and billed against
+# ``max_tokens``: a 4096 default that fits Opus-4.7 answers can truncate
+# a Fable answer after the (invisible) thinking spend. Floor, don't cap —
 # an explicit larger suite value still wins. Like DEPRECATED_PARAMS,
 # this is wire-level normalization: the completion cache stays keyed on
 # the *requested* params, so changing this constant does not invalidate
 # existing cache entries — bump the cache dir if you change a floor.
+# Opus 5 is here (thinking on by default, unlike 4.7/4.8); Sonnet 5 and
+# the 4.x family run without thinking unless a suite asks, so they keep
+# the plain default.
 MIN_MAX_TOKENS: dict[str, int] = {
-    "claude-fable-5": 16000,
+    "claude-fable-5-1":  16000,
+    "claude-mythos-5-1": 16000,
+    "claude-fable-5":    16000,
+    "claude-opus-5":     16000,
 }
+
+
+def _family(model: str, table: dict) -> str | None:
+    """Longest ``table`` key that ``model`` is a dated variant of.
+
+    ``claude-opus-5-20261101`` inherits ``claude-opus-5``'s entry; a
+    named submodel (``-mini``, ``-fast``) does not — same rule as
+    :func:`rift.pricing.lookup`.
+    """
+    if model in table:
+        return model
+    best = None
+    for key in table:
+        if model.startswith(key) and re.fullmatch(
+                r"(-\d[\w.]*)+", model[len(key):]):
+            if best is None or len(key) > len(best):
+                best = key
+    return best
 
 
 class AnthropicProvider(BaseProvider):
@@ -64,9 +96,11 @@ class AnthropicProvider(BaseProvider):
         }
         # Remove non-API params
         params.pop("max_tokens_override", None)
-        for dropped in DEPRECATED_PARAMS.get(self.model, ()):
+        dep_key = _family(self.model, DEPRECATED_PARAMS)
+        for dropped in (DEPRECATED_PARAMS[dep_key] if dep_key else ()):
             params.pop(dropped, None)
-        floor = MIN_MAX_TOKENS.get(self.model)
+        floor_key = _family(self.model, MIN_MAX_TOKENS)
+        floor = MIN_MAX_TOKENS[floor_key] if floor_key else None
         if floor is not None:
             # `or floor` guards an explicit ``max_tokens: null`` in a
             # suite's model_params, which would otherwise crash max().
@@ -98,6 +132,12 @@ class AnthropicProvider(BaseProvider):
             # which changes when the served snapshot behind an alias moves.
             # Best available drift signal on this API.
             provider_fingerprint=data.get("model"),
+            # "refusal" arrives as HTTP 200 + empty content on Fable 5/5.1
+            # and Opus 5 (safety classifiers). We deliberately do NOT opt
+            # into the API's server-side `fallbacks`: an eval tool must
+            # MEASURE the refusal, not quietly re-route it to another
+            # model — that would swap the model under the comparison.
+            stop_reason=data.get("stop_reason"),
         )
 
     async def close(self) -> None:

@@ -1486,6 +1486,107 @@ def observe(panel_path, data_dir, date, max_cost, endpoints, from_runs,
     console.print(f"\nObservations appended to [green]{data_dir}[/green]")
 
 
+@main.command()
+@click.option("--model", "models", multiple=True,
+              help="Model to price (alias or id; repeatable). Every model is "
+                   "estimated against every --suite, like `rift matrix`.")
+@click.option("--suite", "suites", multiple=True,
+              help="Suite name or path (repeatable).")
+@click.option("--panel", "panel_path", default=None,
+              help="Estimate one full observatory pass from a panel YAML "
+                   "instead of --model/--suite (includes the sycophancy "
+                   "pushback stage).")
+@click.option("--trials", default=1, show_default=True,
+              help="Replicates per case (matches compare/run --trials).")
+@click.option("--output-tokens-per-case", default=None, type=int,
+              help="Output-token allowance per call. Default: the budget "
+                   "guard's 300. Thinking models on reasoning-heavy suites "
+                   "run 2-3x that.")
+@click.option("--calibrate-from", "calibrate", multiple=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Saved run/comparison JSON whose measured token counts "
+                   "replace the heuristic for its suite (repeatable).")
+def estimate(models, suites, panel_path, trials, output_tokens_per_case,
+             calibrate):
+    """Estimate what a run would cost — keyless, before spending anything.
+
+    Prices every model × suite cell at standard-mode list price using the
+    same heuristic the observatory budget guard applies (prompt chars/4 in,
+    a flat per-case allowance out), so the number here is the one the
+    guard would check against max_cost_usd. It is an order-of-magnitude
+    figure: Fable 5/5.1 and Opus 5 bill always-on thinking as output and
+    can run 2-3x over on hard suites; Batch is -50%; fast mode is a premium.
+
+    \b
+    Examples:
+      rift estimate --model fable-5-1 --model opus-5 --suite reasoning --suite hard_reasoning
+      rift estimate --panel observatory/panel.yaml
+      rift estimate --model fable-5-1 --suite hard_reasoning --calibrate-from benchmarks/fable5_vs_opus47/hard_reasoning.json
+    """
+    from rich.table import Table
+
+    from .estimate import (
+        calibration_from_run,
+        estimate_grid,
+        estimate_panel,
+    )
+    from .observatory import EST_OUTPUT_TOKENS_PER_CASE, load_panel
+
+    if panel_path and (models or suites):
+        raise click.UsageError("--panel replaces --model/--suite; pass one or the other.")
+    if not panel_path and not (models and suites):
+        raise click.UsageError("Pass --model and --suite (repeatable), or --panel.")
+
+    per_case = output_tokens_per_case or EST_OUTPUT_TOKENS_PER_CASE
+    calibrations: dict[str, dict[str, dict]] = {}
+    for path in calibrate:
+        name, rows = calibration_from_run(path)
+        calibrations.setdefault(name, {}).update(rows)
+
+    if panel_path:
+        panel = load_panel(panel_path)
+        est = estimate_panel(panel, output_per_case=per_case,
+                             calibrations=calibrations)
+        title = f"Estimated cost of one observatory pass ({panel_path})"
+        cap = panel.max_cost_usd
+    else:
+        est = estimate_grid(list(models), list(suites), trials=trials,
+                            output_per_case=per_case, calibrations=calibrations)
+        title = "Estimated cost (standard-mode list price)"
+        cap = None
+
+    tbl = Table(title=title)
+    for col, just in (("Model", "left"), ("Suite", "left"), ("Calls", "right"),
+                      ("In tok", "right"), ("Out tok", "right"),
+                      ("Est. USD", "right"), ("Note", "left")):
+        tbl.add_column(col, justify=just, overflow="fold")  # type: ignore[arg-type]
+    for st in est.stages:
+        tbl.add_row(st.model, st.suite, str(st.calls), f"{st.input_tokens:,}",
+                    f"{st.output_tokens:,}", f"${st.cost_usd:.3f}",
+                    f"[yellow]{st.note}[/yellow]" if st.note else "")
+    tbl.add_row("[bold]Total[/bold]", "", "", "", "",
+                f"[bold]${est.total_usd:.2f}[/bold]", "")
+    console.print(tbl)
+
+    if cap is not None:
+        verdict = ("[green]within[/green]" if est.total_usd <= cap
+                   else "[bold red]OVER[/bold red]")
+        console.print(f"  Panel cap max_cost_usd = ${cap:.2f} → estimate is "
+                      f"{verdict} the cap (guard skips stages past it).")
+    if est.unpriced_models:
+        console.print(
+            f"  [yellow]Unpriced model(s) {est.unpriced_models} estimated at the "
+            "catalog maximum — add them to rift/pricing.py for a real "
+            "number.[/yellow]"
+        )
+    console.print(
+        f"  [dim]Heuristic: chars/4 input, {per_case} output tokens/call"
+        + (f", calibrated for {sorted(calibrations)}" if calibrations else "")
+        + ". Thinking models (Fable, Opus 5) can run 2-3x over on hard suites;"
+        " Batch API is -50%.[/dim]"
+    )
+
+
 @main.command(name="observatory-site")
 @click.option("--data-dir", required=True,
               type=click.Path(exists=True, file_okay=False),

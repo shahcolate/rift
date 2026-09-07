@@ -70,6 +70,7 @@ class OpenAIProvider(BaseProvider):
             # signal; fall back to the resolved dated model id when the
             # endpoint (e.g. o-series) omits the fingerprint.
             provider_fingerprint=data.get("system_fingerprint") or data.get("model"),
+            stop_reason=data["choices"][0].get("finish_reason"),
         )
 
     async def close(self) -> None:

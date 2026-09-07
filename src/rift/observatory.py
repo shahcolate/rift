@@ -284,7 +284,15 @@ def build_record(
             "confidences": [parse_confidence(c.output or "") for c in run.cases],
         }
 
-    refusal_flags = [classify_output(c.output or "")[0] for c in run.cases]
+    # Text-pattern refusals OR the provider's own ``stop_reason="refusal"``
+    # (Fable 5/5.1, Opus 5: HTTP 200 + empty content) — the stripped
+    # record keeps neither the text nor the stop reason, so both must be
+    # folded into the flags here.
+    refusal_flags = [
+        getattr(c, "stop_reason", None) == "refusal"
+        or classify_output(c.output or "")[0]
+        for c in run.cases
+    ]
     refusal = {
         "rate": round(sum(refusal_flags) / n_cases, 4) if n_cases else 0.0,
         "flags": refusal_flags,

@@ -158,6 +158,8 @@ class GoogleProvider(BaseProvider):
             # Gemini returns the served version as ``modelVersion`` — the
             # cleanest fingerprint of the three providers.
             provider_fingerprint=data.get("modelVersion"),
+            stop_reason=(candidates[0].get("finishReason")
+                         if candidates else None),
         )
 
     async def close(self) -> None:

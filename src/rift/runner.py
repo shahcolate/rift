@@ -84,6 +84,12 @@ class CaseResult:
     # ``Completion.provider_fingerprint``). Persisted so a saved run records
     # exactly which served snapshot produced each score.
     provider_fingerprint: str | None = None
+    # Provider stop reason of the first successful trial (see
+    # ``Completion.stop_reason``). ``"refusal"`` marks an API-level safety
+    # decline: the output is empty, the score is (legitimately) 0, and the
+    # refusal classifier + drift report must disclose it so an
+    # over-refusal shift isn't read as a capability regression.
+    stop_reason: str | None = None
     # Per-trial scores when the case was run with replication (``trials>1``).
     # Empty for a single-trial run; ``score`` is then the lone observation.
     # When populated, ``score`` is the mean over these trials and the spread
@@ -528,6 +534,7 @@ async def run_suite(
             latencies: list[float] = []
             fingerprints: list[str] = []
             first_output = ""
+            first_stop_reason: str | None = None
             first_error: str | None = None
             failed_attempts = 0  # attempts of the first failing trial, if any
             success_attempts = 0  # max attempts among successful trials
@@ -572,6 +579,8 @@ async def run_suite(
                     fingerprints.append(completion.provider_fingerprint)
                 if not first_output:
                     first_output = completion.output_text
+                if first_stop_reason is None:
+                    first_stop_reason = completion.stop_reason
 
             if not trial_scores:
                 # Every trial failed — this case genuinely errored.
@@ -604,6 +613,7 @@ async def run_suite(
                 # First distinct fingerprint is stored per-case; the run-level
                 # set above sees every trial's so a mid-run rollout still shows.
                 provider_fingerprint=fingerprints[0] if fingerprints else None,
+                stop_reason=first_stop_reason,
                 trial_scores=trial_scores if trials > 1 else [],
             )
 

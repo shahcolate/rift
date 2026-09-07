@@ -447,11 +447,15 @@ class TestPanelConfig:
     def test_load_panel(self):
         panel = load_panel(Path(__file__).parent.parent
                            / "observatory" / "panel.yaml")
+        # Panel v2 (Fable 5.1 launch): three Anthropic tiers side by side
+        # plus the two non-Anthropic frontier endpoints.
         assert [ep.id for ep in panel.endpoints] == [
-            "claude-sonnet-4-6", "gpt-5.5", "gemini-3.5-flash",
+            "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+            "gpt-5.5", "gemini-3.5-flash",
         ]
+        assert "hard_reasoning" in panel.suites
         assert panel.sycophancy_on in panel.suites
-        assert panel.max_cost_usd == 3.0
+        assert panel.max_cost_usd == 6.0
 
     def test_panel_validation(self, tmp_path):
         bad = tmp_path / "panel.yaml"

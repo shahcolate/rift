@@ -8,15 +8,19 @@
 # empirical false-regression rate.
 #
 # One-time setup (maintainer):
-#   1. Create the data branch:  git switch --orphan observatory-data
-#      && git commit --allow-empty -m "observatory: init" && git push -u origin observatory-data
-#   2. Add repo secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY.
-#   3. Settings → Pages → Source: GitHub Actions.
+#   1. Add repo secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY.
+#   2. Settings → Pages → Source: GitHub Actions.
+# The `observatory-data` branch is NOT a setup step: the workflow creates
+# it itself on first run (.github/scripts/observatory_bootstrap.sh). It used
+# to be one, and every scheduled run from 2026-07 to 2026-09 failed at
+# checkout because it had never been done.
 #
 # Failure semantics: `rift observe` handles endpoint outages and budget
 # aborts internally (exit 0, partial observations recorded). A non-zero exit
-# is infrastructure failure — the job fails, nothing is committed, and Pages
-# keeps serving the last good build.
+# is infrastructure failure — the job fails, nothing is committed, Pages
+# keeps serving the last good build, and the `alert` job opens (or appends
+# to) a single `observatory-failure` issue so the outage is seen, not just
+# logged.
 #
 # DELIBERATELY NO completion-cache persistence (actions/cache) across runs:
 # the runner caches completions by (model, params, prompt), and the panel's
@@ -49,6 +53,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   observe:
@@ -59,6 +64,9 @@ jobs:
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
+
+      - name: Ensure the observatory-data branch exists
+        run: bash .github/scripts/observatory_bootstrap.sh
 
       - name: Checkout observatory-data branch
         uses: actions/checkout@v7
@@ -115,6 +123,9 @@ jobs:
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
+
+      - name: Ensure the observatory-data branch exists
+        run: bash .github/scripts/observatory_bootstrap.sh
 
       - name: Checkout observatory-data branch
         uses: actions/checkout@v7
@@ -195,3 +206,31 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # Turn a red run into something a human sees. Runs when observe OR
+  # selftest failed (pages failures are deploy-side and equally silent, so
+  # it covers those too). One open issue per outage — see the script.
+  alert:
+    needs: [observe, selftest, pages]
+    if: >-
+      !cancelled() &&
+      (needs.observe.result == 'failure' ||
+       needs.selftest.result == 'failure' ||
+       needs.pages.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+
+      - name: Open or append to the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FAILED_JOB: >-
+            ${{ needs.observe.result == 'failure' && 'observe'
+             || needs.selftest.result == 'failure' && 'selftest'
+             || 'pages' }}
+        run: bash .github/scripts/observatory_alert.sh

@@ -1,6 +1,6 @@
 # Rift Product Strategy
 
-*Where Rift is going, why, and what gets built next. Last updated 2026-07-10.*
+*Where Rift is going, why, and what gets built next. Last updated 2026-09-07.*
 
 ## One-liner
 
@@ -99,12 +99,67 @@ companies.** Each pillar feeds the others — Observatory findings earn the
 credibility that makes teams trust the gate, and gate users supply the
 demand for more panel coverage.
 
+## Status check, 2026-09-07 (Fable 5.1 launch week)
+
+The honest read before the roadmap: **the P1 item — "run the Observatory
+continuously" — did not happen.** Every scheduled run from 2026-07-20 to
+2026-09-07 (16 of 16) failed at the data-branch checkout because the orphan
+`observatory-data` branch was a manual setup step nobody performed. Zero
+observations, zero dollars spent, zero findings, and nothing told anyone:
+a red badge on a scheduled workflow is not a notification. Two months of
+the "moat" were never dug.
+
+What this release changes so it cannot recur:
+
+- The workflow **creates the data branch itself** on first run
+  (`observatory_bootstrap.sh`), and any red run **opens one
+  `observatory-failure` issue** (appending to it while the outage lasts).
+- The panel is **redesigned around the question of the month** — three
+  Anthropic tiers (`fable-5-1`, `opus-5`, `sonnet-5`) beside `gpt-5.5` and
+  `gemini-3.5-flash`, with `hard_reasoning` added because it is the only
+  suite frontier models don't saturate. Estimated ≈ $3/pass, ≈ $13/month
+  (`rift estimate --panel observatory/panel.yaml`); cap $6.
+- **Refusals are measured, not hidden.** Fable 5/5.1 and Opus 5 decline
+  with HTTP 200 + empty content + `stop_reason=refusal`; that now travels
+  into every record and report instead of scoring as a silent wrong answer.
+
+What still needs a human (none of it is code — ~10 minutes):
+
+1. Repo secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
+   (Settings → Secrets and variables → Actions).
+2. Settings → Pages → Source: **GitHub Actions**.
+3. Actions → Observatory → **Run workflow** once by hand. The first
+   pass creates the branch, records week 0, and deploys the dashboard;
+   the Monday cron takes over from there. Then dispatch once more with
+   `selftest=true` so the footer can cite a real false-regression rate.
+
+The findings pipeline (how "clout" actually gets produced, on a budget):
+
+- **Week 0**: `benchmarks/fable51_launch/run.sh` — Fable 5 → 5.1
+  (did the point release regress?) and Opus 5 → Fable 5.1 (is the tier
+  worth 2× when both think by default — the fair version of the Fable 5
+  study). ≈ $20 at list, ≈ $9 without context-rot. Anything significant
+  on `hard_reasoning`, any non-zero API-refusal delta, or a fingerprint
+  change between launch day and the first Monday pass is a post.
+- **Every Monday, automatically**: the drift feed + RSS. The first
+  `silent_swap` or `rollout` on `claude-fable-5-1` is a citable primary
+  source nobody else has. Budget it, don't babysit it: the cap bounds a
+  bad week at $6.
+- **Once a month, automatically**: the selftest refresh, so every alarm
+  ships next to how often the alarm fires for no reason.
+- **Rule for publishing**: a finding is a p-value *and* a CI *and* a
+  configuration disclosure (thinking/effort per side, list-price cell) —
+  the template is `benchmarks/fable5_vs_opus47/analysis.md`. A tie is
+  publishable too ("Fable 5.1 is not distinguishable from Opus 5 on X at
+  2× the price" was the Fable 5 story and it held up).
+
 ## Roadmap
 
 **P1 — compounding the moat**
 - Run the Observatory continuously; keep the data branch unbroken. The
   series is the product. *(ongoing — the only P1 item that never
-  completes)*
+  completes. As of 2026-09-07 it has not started: see the status check
+  above for the three manual steps that unblock it.)*
 - ~~Suite adapters~~ **Shipped**: `rift import --from
   promptfoo|inspect|lm-eval|openai-evals`. Teams keep their existing
   evals; Rift is the statistics layer on top. Conversion is loud about

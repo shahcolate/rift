@@ -53,6 +53,10 @@ _REFUSAL_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     ]
 )
 
+# ``matched_pattern`` value recorded when the refusal came from the API's
+# own ``stop_reason`` rather than a text pattern (see ``classify_run``).
+API_REFUSAL_MARKER = "api:stop_reason=refusal"
+
 # A short prefix is enough — refusals lead. Scoring the whole answer
 # would let a refusal *followed* by a partial completion ("I can't
 # do X, but here's Y") be classified twice; using a prefix biases
@@ -128,7 +132,13 @@ def classify_run(run) -> RefusalAnalysis:
     classifications: list[RefusalClassification] = []
     for case in run.cases:
         out = getattr(case, "output", None) or getattr(case, "output_text", "") or ""
-        refused, pat = classify_output(out)
+        if getattr(case, "stop_reason", None) == "refusal":
+            # API-level decline (Fable 5/5.1, Opus 5 safety classifiers):
+            # HTTP 200, empty content, ``stop_reason="refusal"``. No text
+            # to pattern-match — the provider already told us.
+            refused, pat = True, API_REFUSAL_MARKER
+        else:
+            refused, pat = classify_output(out)
         classifications.append(RefusalClassification(
             case_index=case.case_index,
             refused=refused,

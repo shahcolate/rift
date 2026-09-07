@@ -6,6 +6,51 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Claude 5.1 generation in the catalog.** `claude-fable-5-1`,
+  `claude-opus-5`, `claude-sonnet-5` (and undated `claude-haiku-4-5`) in
+  `pricing.py`; aliases `fable-5-1`, `opus-5`, `sonnet-5`; the bare family
+  names `fable` / `opus` / `sonnet` now track the current generation
+  (`fable` → Fable 5.1 — pin `fable-5` for the old target). The Anthropic
+  provider strips sampler knobs for the whole 5.x family and floors
+  `max_tokens` at 16k for Fable 5/5.1 *and Opus 5* (thinking on by default,
+  unlike 4.7/4.8); dated variants inherit their family's rules.
+- **API-level refusal capture.** `Completion.stop_reason` /
+  `CaseResult.stop_reason` persist the provider's end reason (Anthropic
+  `stop_reason`, OpenAI `finish_reason`, Gemini `finishReason`). A
+  `stop_reason=refusal` (HTTP 200, empty content — how Fable 5/5.1 and
+  Opus 5 decline) is classified as a refusal by `rift refusal` and the
+  observatory's derived flags, and every drift report discloses per-side
+  API-refusal counts next to the errored-case counts. Rift deliberately
+  does not opt into the API's server-side `fallbacks`: an eval measures
+  the refusal, it does not swap the model under the comparison.
+- **`rift estimate`** — keyless pre-flight cost for a model × suite grid
+  or one observatory panel pass, using the budget guard's own heuristic
+  (`--calibrate-from run.json` swaps in measured token counts; unpriced
+  models are bounded at the catalog maximum and flagged).
+- **Fable 5.1 launch benchmark driver** (`benchmarks/fable51_launch/run.sh`):
+  Fable 5 → 5.1 (same tier) and Opus 5 → Fable 5.1 (effort-matched tier
+  question), with a cost estimate up front. Not yet run.
+
+### Changed
+- **Observatory panel v2**: `claude-fable-5-1`, `claude-opus-5`,
+  `claude-sonnet-5`, `gpt-5.5`, `gemini-3.5-flash` × `reasoning`,
+  `extraction`, `code_generation`, `hard_reasoning`; cap $6/pass
+  (≈ $3 estimated, ≈ $13/month). No series was lost: v1 never recorded an
+  observation (see Fixed).
+
+### Fixed
+- **The Observatory never ran.** All 16 scheduled runs since 2026-07-20
+  failed at `actions/checkout ref: observatory-data` because the orphan
+  data branch was a manual one-time setup step that was never performed.
+  The workflow now bootstraps the branch itself
+  (`.github/scripts/observatory_bootstrap.sh`, an orphan root commit,
+  idempotent, never force-pushes) and a new `alert` job opens — or appends
+  to — a single `observatory-failure` issue on any red run, so a silent
+  two-month outage cannot recur.
+- GitHub Actions bumped off deprecated Node 20 runtimes (checkout v7,
+  setup-python v6, pages v5, artifacts v7/v8, release-drafter v7).
+
 ## [1.1.0] - 2026-07-10
 
 The self-auditing release: everything shipped between 1.0.0 and here —

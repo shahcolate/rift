@@ -19,6 +19,8 @@ ROOT = Path(__file__).parent.parent
 WORKFLOW = ROOT / ".github" / "workflows" / "observatory.yml"
 SELFTEST_SCRIPT = ROOT / ".github" / "scripts" / "observatory_selftest.sh"
 COMMIT_SCRIPT = ROOT / ".github" / "scripts" / "observatory_commit.sh"
+BOOTSTRAP_SCRIPT = ROOT / ".github" / "scripts" / "observatory_bootstrap.sh"
+ALERT_SCRIPT = ROOT / ".github" / "scripts" / "observatory_alert.sh"
 
 
 def _workflow() -> dict:
@@ -34,6 +36,52 @@ def test_workflow_files_exist():
     assert WORKFLOW.is_file()
     assert SELFTEST_SCRIPT.is_file()
     assert COMMIT_SCRIPT.is_file()
+    assert BOOTSTRAP_SCRIPT.is_file()
+    assert ALERT_SCRIPT.is_file()
+
+
+def test_data_branch_is_bootstrapped_before_it_is_checked_out():
+    # Every scheduled run from 2026-07 to 2026-09 failed at
+    # `actions/checkout ref: observatory-data` because the orphan branch
+    # was a manual setup step nobody performed. Both writer jobs must
+    # create it themselves, BEFORE the checkout that needs it.
+    jobs = _workflow()["jobs"]
+    for job in ("observe", "selftest"):
+        names = [s.get("name", "") for s in jobs[job]["steps"]]
+        runs = [s.get("run", "") for s in jobs[job]["steps"]]
+        boot = next(i for i, r in enumerate(runs)
+                    if "observatory_bootstrap.sh" in r)
+        ckpt = next(i for i, s in enumerate(jobs[job]["steps"])
+                    if s.get("with", {}).get("ref") == "observatory-data")
+        assert boot < ckpt, (
+            f"{job}: bootstrap ({names[boot]}) must run before the "
+            f"data-branch checkout ({names[ckpt]})"
+        )
+    text = BOOTSTRAP_SCRIPT.read_text()
+    assert "set -euo pipefail" in text
+    # An orphan root commit, never a force-push over an existing branch.
+    assert "commit-tree" in text
+    assert "--force" not in text and "+refs" not in text
+
+
+def test_failure_opens_an_issue():
+    # Sixteen silent failures in a row is the bug; a red badge is not a
+    # notification. The alert job must run on failure of any producer.
+    wf = _workflow()
+    alert = wf["jobs"]["alert"]
+    assert set(alert["needs"]) == {"observe", "selftest", "pages"}
+    for job in ("observe", "selftest", "pages"):
+        assert f"needs.{job}.result == 'failure'" in alert["if"]
+    assert alert["permissions"]["issues"] == "write"
+    assert wf["permissions"]["issues"] == "write"
+    step = next(s for s in alert["steps"] if "observatory_alert.sh" in s.get("run", ""))
+    # Token and run URL reach the script through env, never the run body.
+    assert "GH_TOKEN" in step["env"] and "RUN_URL" in step["env"]
+    text = ALERT_SCRIPT.read_text()
+    assert "set -euo pipefail" in text
+    # One issue per outage: append when one is already open.
+    assert "gh issue list" in text and "gh issue comment" in text
+    assert "gh issue create" in text
 
 
 def test_schedule_and_dispatch_triggers():

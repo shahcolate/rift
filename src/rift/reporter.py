@@ -109,6 +109,19 @@ def _error_counts(baseline: RunResult, challenger: RunResult) -> tuple[int, int]
     )
 
 
+def _api_refusal_counts(baseline: RunResult, challenger: RunResult) -> tuple[int, int]:
+    """Cases each side ended with the provider's ``stop_reason="refusal"``.
+
+    Distinct from ``_error_counts``: a refusal is a real model behavior
+    (scored 0 on purpose), not an outage — but it must be disclosed or an
+    over-refusal shift publishes as a capability regression.
+    """
+    return (
+        sum(1 for c in baseline.cases if getattr(c, "stop_reason", None) == "refusal"),
+        sum(1 for c in challenger.cases if getattr(c, "stop_reason", None) == "refusal"),
+    )
+
+
 def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunResult,
                        cost: bool = True, console: Console | None = None) -> None:
     """Print a formatted drift report to the terminal.
@@ -127,6 +140,16 @@ def print_drift_report(drift: DriftResult, baseline: RunResult, challenger: RunR
             f"(of {drift.n_cases}) — errored cases are indistinguishable "
             "from wrong answers below; re-run until error counts are zero "
             "before citing this comparison."
+        )
+    n_ref_base, n_ref_chal = _api_refusal_counts(baseline, challenger)
+    if n_ref_base or n_ref_chal:
+        console.print(
+            f"[bold yellow]⚠ API-level refusals scored as 0:[/bold yellow] "
+            f"baseline {n_ref_base}, challenger {n_ref_chal} "
+            f"(of {drift.n_cases}) — the provider's safety classifier "
+            "declined these (stop_reason=refusal, empty output). That IS a "
+            "behavioral change, but an over-refusal one: read the accuracy "
+            "delta below together with `--refusal`, not as capability loss."
         )
 
     if drift.significant and drift.delta < 0:
@@ -957,6 +980,17 @@ def generate_markdown_report(drift: DriftResult, baseline: RunResult, challenger
             "Errored cases are indistinguishable from wrong answers in the "
             "statistics below — re-run until error counts are zero before "
             "citing this report.",
+            "",
+        ]
+    n_ref_base, n_ref_chal = _api_refusal_counts(baseline, challenger)
+    if n_ref_base or n_ref_chal:
+        lines += [
+            f"> ⚠️ **API-level refusals scored as 0:** baseline {n_ref_base}, "
+            f"challenger {n_ref_chal} (of {drift.n_cases}). The provider's "
+            "safety classifier declined these (`stop_reason=refusal`, empty "
+            "output). A real behavioral change — but an over-refusal one; "
+            "read the accuracy delta together with the refusal analysis, "
+            "not as capability loss.",
             "",
         ]
 

@@ -10,10 +10,35 @@
 # `model` at an alias deliberately: alias re-pointing is one of the things
 # the observatory exists to catch (the fingerprint layer separates "the
 # alias moved" from "the model behind a dated id changed").
+#
+# Panel v2 (2026-09, Fable 5.1 launch). The v1 panel (sonnet-4-6 / gpt-5.5
+# / gemini-3.5-flash) never produced an observation — every scheduled run
+# failed before its first API call (see observatory_bootstrap.sh) — so
+# there is no series to preserve and the panel is redesigned around the
+# question people actually ask this month: is the Mythos-class tier
+# drifting, and is it worth 2× Opus? Three Anthropic tiers side by side
+# make "silent swap" and "the alias moved" answerable per tier.
+#
+# Cost per pass (standard-mode list price; `rift estimate --panel
+# observatory/panel.yaml` for the live heuristic, calibrated below from the
+# committed Fable 5 / Opus 4.7 / gpt-5.5 / Gemini runs under benchmarks/):
+#   fable-5-1  ≈ $1.30   (always-on thinking; hard_reasoning alone ≈ $0.90)
+#   opus-5     ≈ $0.65   (thinking on by default, half Fable's rate)
+#   sonnet-5   ≈ $0.15
+#   gpt-5.5    ≈ $0.30
+#   gemini     ≈ $0.60   (thinks ~550 output tokens/case on reasoning)
+#   ---------------------
+#   ≈ $3.00 / weekly pass → ≈ $13 / month, plus ≈ $0.50 / month for the
+#   monthly selftest refresh. Drop `hard_reasoning` to cut that by ~60%,
+#   at the price of losing the one suite frontier models don't saturate.
 
 endpoints:
-  - id: claude-sonnet-4-6
-    model: sonnet-4-6
+  - id: claude-fable-5-1
+    model: fable-5-1
+  - id: claude-opus-5
+    model: opus-5
+  - id: claude-sonnet-5
+    model: sonnet-5
   - id: gpt-5.5
     model: gpt-5.5
   - id: gemini-3.5-flash
@@ -21,19 +46,25 @@ endpoints:
 
 # Built-in suite names (suites/*.yaml). Keep the panel small and fixed:
 # the value of the observatory is the unbroken time series, not breadth.
-# ~54 calls/endpoint including the sycophancy pushback pass.
+# `hard_reasoning` (24 machine-verified cases) is the one suite with
+# headroom above the frontier — the standard suites sit at ceiling for
+# Fable/Opus, where a regression can only show up as a drop, never as a
+# gap between tiers. ~78 calls/endpoint including the sycophancy pass.
 suites:
   - reasoning
   - extraction
   - code_generation
+  - hard_reasoning
 
 # Run the two-pass sycophancy probe (original + pushback) on this suite.
 sycophancy_on: reasoning
 
 # Hard USD cap per pass. Stage-level pre-flight estimates abort remaining
-# stages at the cap; partial observations are still recorded. A full
-# 3-endpoint pass at current list pricing estimates well under $2.
-max_cost_usd: 3.00
+# stages at the cap; partial observations are still recorded. Set at ~2×
+# the calibrated estimate so a thinking-heavy week doesn't truncate the
+# panel, while a runaway (a model that starts emitting 10× the output) is
+# still bounded.
+max_cost_usd: 6.00
 
 # Significance threshold for the drift feed (applied after BH correction
 # across all endpoint × suite tests in the pass).

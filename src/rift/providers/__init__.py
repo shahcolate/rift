@@ -84,6 +84,16 @@ class Completion:
     server-side — the silent drift a cache keyed on the request alone
     would otherwise mask. ``None`` when the provider exposes nothing
     usable.
+
+    ``stop_reason`` is the provider's normalized end-of-generation reason
+    (Anthropic ``stop_reason``, OpenAI ``finish_reason``, Gemini
+    ``finishReason``), kept verbatim. The value that matters for drift
+    honesty is ``"refusal"``: Fable 5 / 5.1 and Opus 5 answer a
+    safety-classifier decline with HTTP 200, an EMPTY content list, and
+    ``stop_reason="refusal"`` — a scorer sees "" and marks the case wrong,
+    so an over-refusal regression would publish as a *capability*
+    regression unless the reason travels with the output. ``None`` when
+    the provider reports nothing (RiftLM, older cache blobs).
     """
 
     model: str
@@ -94,6 +104,7 @@ class Completion:
     output_tokens: int
     raw_response: dict
     provider_fingerprint: str | None = None
+    stop_reason: str | None = None
 
     @classmethod
     def from_cache(cls, data: dict) -> "Completion":

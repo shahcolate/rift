@@ -110,6 +110,10 @@ Observatory asks a harder question on a schedule: **has the model behind
 this endpoint changed since last week — and would anyone have told you?**
 
 ```bash
+# What will a pass cost? Keyless, list price, same heuristic the budget
+# guard uses (≈ $3 for the committed 5-endpoint panel):
+rift estimate --panel observatory/panel.yaml
+
 # One pass of the panel (suites + sycophancy probe) against live endpoints,
 # appended to an append-only data directory:
 rift observe --panel observatory/panel.yaml --data-dir observatory-data
@@ -642,14 +646,18 @@ monitoring.
 
 | Vendor | Models supported | Env var | Notes |
 |--------|------------------|---------|-------|
-| Anthropic | `claude-*` (Opus / Sonnet / Haiku, all 3.x / 4.x) | `ANTHROPIC_API_KEY` | Messages API |
+| Anthropic | `claude-*` (Fable 5 / 5.1, Opus 5, Sonnet 5, Haiku 4.5, all 4.x / 3.x) | `ANTHROPIC_API_KEY` | Messages API. Sampler knobs (`temperature`…) are stripped for generations that reject them; `max_tokens` is floored at 16k for models whose thinking is on by default (Fable, Opus 5) so the answer isn't truncated after the thinking spend. An API-level safety refusal (`stop_reason=refusal`) is recorded and disclosed in the drift report, never re-routed. |
 | OpenAI | `gpt-*`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Chat Completions API. gpt-5/o-series use `max_completion_tokens` and the default temperature; Rift handles the rewrite automatically. |
 | Google | `gemini-*` (3.5 Flash and family) | `GEMINI_API_KEY` | Generative Language API (AI Studio key). Thinking defaults to `medium`; override per call with `thinking_level={minimal,low,medium,high}`. Thinking tokens roll into `output_tokens` for cost accounting. |
 | RiftLM (built-in) | `riftlm:<checkpoint>.npz` | none | Rift's own tiny GPT, trained via `rift lm train`. Runs in-process (pure numpy), keyless, $0 cost; the checkpoint's weight digest serves as the fingerprint. |
 
-Short aliases (`opus-4-8`, `opus-4-7`, `sonnet-4-6`, `gemini-flash`, `gpt-5.5`,
-etc.) live in `MODEL_ALIASES` in `src/rift/config.py`. Cross-vendor
-comparisons work out of the box:
+Short aliases (`fable-5-1`, `fable-5`, `opus-5`, `sonnet-5`, `opus-4-8`,
+`sonnet-4-6`, `gemini-flash`, `gpt-5.5`, etc.) live in `MODEL_ALIASES` in
+`src/rift/config.py`. Bare family names (`fable`, `opus`, `sonnet`) track
+the current generation — pin the numbered alias in anything reproducible.
+Before spending, `rift estimate --model fable-5-1 --model opus-5 --suite
+hard_reasoning` prices the run keyless. Cross-vendor comparisons work out
+of the box:
 
 ```bash
 rift matrix \
@@ -849,7 +857,11 @@ release notes typically hand-wave around:
   output for refusal language and reports over-refusal cases
   (challenger refused prompts the baseline answered correctly) and
   new-compliance cases (baseline refused, challenger answered).
-  Fully offline — no extra API calls.
+  Fully offline — no extra API calls. API-level declines (Fable 5/5.1
+  and Opus 5 return `stop_reason=refusal` with empty content) count as
+  refusals via the recorded stop reason, and every drift report
+  discloses per-side refusal counts so an over-refusal shift can't
+  masquerade as a capability regression.
 - **Calibration drift** (`rift calibration a.json b.json`) — parses
   stated confidence from outputs (`Confidence: 0.85`, `I am 85%
   sure`, etc.) and reports Brier score, ECE, and overconfidence
@@ -914,6 +926,8 @@ release notes typically hand-wave around:
 - [x] Drift-feed RSS on Observatory events (`feed.xml`; webhooks still open)
 - [x] Public library API (`import rift`, lazy + typed + semver)
 - [x] Published methodology ([docs/methodology.md](docs/methodology.md))
+- [x] Keyless pre-flight cost estimates (`rift estimate`, grid or panel pass)
+- [x] API-level refusal capture (`stop_reason`) + disclosure in every drift report
 - [ ] Agentic / tool-use drift ([design doc](docs/design/agentic-drift.md); needs provider tool-call surface)
 - [ ] Drift-feed webhooks (POST on new Observatory events)
 - [ ] More CI/CD integrations (Jenkins, GitLab CI)

@@ -195,8 +195,17 @@ def load_suite(path_or_name: str) -> SuiteConfig:
 # opus-4-7 ...` to just work without making users memorize dated
 # variants, but we don't want a sprawling nickname registry.
 MODEL_ALIASES: dict[str, str] = {
+    # Bare family names ("fable", "opus", "sonnet") track the CURRENT
+    # generation. Re-pointing one changes the cache key for anyone using
+    # it, so bump them only at a real launch — and pin the dated alias
+    # (fable-5, opus-4-8) in anything that must be reproducible.
+    "fable-5-1":  "claude-fable-5-1",
     "fable-5":    "claude-fable-5",
-    "fable":      "claude-fable-5",
+    "fable":      "claude-fable-5-1",
+    "opus-5":     "claude-opus-5",
+    "opus":       "claude-opus-5",
+    "sonnet-5":   "claude-sonnet-5",
+    "sonnet":     "claude-sonnet-5",
     "opus-4-8":   "claude-opus-4-8",
     "opus-4-7":   "claude-opus-4-7",
     "opus-4-6":   "claude-opus-4-6",

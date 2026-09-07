@@ -12,16 +12,18 @@ Enterprise contracts typically negotiate a flat per-token rate with
 committed volume; we model this via an optional ``enterprise_multiplier``
 applied uniformly to both input and output prices.
 
-All numbers are published rates as of 2026-05 (Opus 4.8 launch, which
-also cut the Opus 4.5-generation list price to $5/$25). Update
-``PRICING`` when rates change — do not hardcode elsewhere.
+All numbers are published rates as of 2026-09 (Fable 5.1 launch; the
+Claude 5 generation — Opus 5 / Sonnet 5 — kept the Opus 4.5-generation
+$5/$25 Opus rate and cut Sonnet to $2/$10). Update ``PRICING`` when
+rates change — do not hardcode elsewhere.
 
 IMPORTANT: this catalog is **standard-mode list price only** — one cell
 of the provider's serving-configuration matrix. The same model also
 ships at other prices: Anthropic's Batch API is −50% on both sides,
-fast mode is a premium (Opus 4.8 fast = $10/$50, i.e. exactly Fable 5's
-standard rate; Opus 4.6/4.7 fast = $30/$150), cache reads bill at 0.1×
-input, and US-only inference_geo adds 1.1×. Any published cost
+fast mode is a premium (Opus 5 / Opus 4.8 fast = $10/$50, i.e. exactly
+the Fable 5 / 5.1 standard rate; Opus 4.6 fast = $30/$150; 4.7 fast was
+withdrawn), cache reads bill at 0.1× input (Fable 5.1: a flat
+$0.25/MTok, 0.025×), and US-only inference_geo adds 1.1×. Any published cost
 comparison built on this catalog must say so, and should situate its
 headline multiple against the configurations a reader could actually
 buy (see benchmarks/fable5_vs_opus47/analysis.md, "The price in
@@ -52,11 +54,27 @@ class TokenPrice:
 
 
 PRICING: dict[str, TokenPrice] = {
-    # Anthropic — Claude 5 family (Mythos-class tier, above Opus).
-    # NOTE: Fable 5 uses a new tokenizer that yields ~30% more tokens for
-    # the same content vs Opus-tier models, so per-token price alone
-    # understates the effective cost delta — compare $/correct, not rates.
+    # Anthropic — Mythos-class tier (above Opus). Fable 5.1 succeeds
+    # Fable 5 at the same per-token price; Mythos 5.1 is the same model
+    # without the dual-use safeguards, served only to Project Glasswing
+    # organizations — priced here so an authorized run still costs
+    # correctly, not as an endorsement that you can call it.
+    # NOTE: Fable 5 / 5.1 share Opus 4.7/4.8's tokenizer. Documentation
+    # warned of ~30% more tokens than earlier models, but the live paired
+    # run in benchmarks/fable5_vs_opus47 measured Fable ~4% *cheaper* on
+    # byte-identical prompts (ratio 0.958). The real cost driver is
+    # always-on thinking billed as output tokens — compare $/correct,
+    # not rates.
+    "claude-fable-5-1":         TokenPrice(10.00, 50.00),
+    "claude-mythos-5-1":        TokenPrice(10.00, 50.00),
     "claude-fable-5":           TokenPrice(10.00, 50.00),
+
+    # Anthropic — Claude 5 family. Opus 5 holds the Opus 4.5-generation
+    # price; Sonnet 5 lists BELOW Sonnet 4.6 ($2/$10 vs $3/$15). Thinking
+    # is on by default on Opus 5 (adaptive), unlike Opus 4.7/4.8 where
+    # omitting `thinking` meant no thinking — see providers/anthropic.py.
+    "claude-opus-5":            TokenPrice( 5.00, 25.00),
+    "claude-sonnet-5":          TokenPrice( 2.00, 10.00),
 
     # Anthropic — Claude 4 family (list price, per 1M tokens)
     # The Opus 4.5 generation (4.5/4.6/4.7/4.8) lists at $5 / $25 — a
@@ -68,6 +86,7 @@ PRICING: dict[str, TokenPrice] = {
     "claude-opus-4-20250514":   TokenPrice(15.00, 75.00),  # Opus 4 (deprecated)
     "claude-sonnet-4-6":        TokenPrice( 3.00, 15.00),
     "claude-sonnet-4-20250514": TokenPrice( 3.00, 15.00),
+    "claude-haiku-4-5":         TokenPrice( 1.00,  5.00),
     "claude-haiku-4-5-20251001": TokenPrice(1.00,  5.00),
 
     # Anthropic — legacy
